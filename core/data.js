@@ -96,7 +96,10 @@ const FDOT_DATA = {
 
         { name: "ENV_WETL_EX", discipline: "ENV", color: 84, colorHex: "#408000", colorName: "Dark Green (84)", linetype: "FDOT_WETLAND", lineweight: "0.50", plot: true, description: "Existing Jurisdictional Wetland Boundary Limit" },
         { name: "TRAF_SIGN_PR", discipline: "TRAF", color: 2, colorHex: "#ffff00", colorName: "Yellow (2)", linetype: "CONTINUOUS", lineweight: "0.35", plot: true, description: "Proposed Highway Sign Assemblies & Overhead Trusses" },
-        { name: "TRAF_MARK_PR", discipline: "TRAF", color: 7, colorHex: "#ffffff", colorName: "White (7)", linetype: "CONTINUOUS", lineweight: "0.35", plot: true, description: "Proposed Thermoplastic Pavement Markings & Arrows" }
+        { name: "TRAF_MARK_PR", discipline: "TRAF", color: 7, colorHex: "#ffffff", colorName: "White (7)", linetype: "CONTINUOUS", lineweight: "0.35", plot: true, description: "Proposed Thermoplastic Pavement Markings & Arrows" },
+
+        { name: "DSGNLT_POLE_PR", discipline: "LIGHT", color: 30, colorHex: "#ff7f00", colorName: "Orange (30)", linetype: "CONTINUOUS", lineweight: "0.35", plot: true, description: "Proposed Roadway Lighting Pole & Luminaire Assembly Locations" },
+        { name: "DSGNLT_COND_PR", discipline: "LIGHT", color: 30, colorHex: "#ff7f00", colorName: "Orange (30)", linetype: "DASHED", lineweight: "0.25", plot: true, description: "Proposed Lighting Conduit & Pull Box Runs" }
     ],
 
     payItems: [

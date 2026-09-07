@@ -1,0 +1,9 @@
+{
+  "name": "fdot-civil3d-standards",
+  "version": "2.6.0",
+  "private": true,
+  "description": "FDOT Civil3D Standards Suite — client-side surveying / CADD tools",
+  "scripts": {
+    "test": "node tests/run.js"
+  }
+}

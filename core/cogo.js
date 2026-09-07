@@ -23,19 +23,24 @@
     function parseBearing(text) {
         if (!text) return null;
         let s = String(text);
-        // Normalize spelled-out form: "North 45 degrees 12 minutes 30 seconds East".
+        // Normalize every common DMS notation to space-separated numbers:
+        //   "North 45 degrees 12 minutes 30 seconds East", "N45°12'30\"E",
+        //   "N 45-12-30 E", "N45d12m30sE", "N.45*12'30\"W"
         s = s.replace(/\bnorth\b/gi, "N").replace(/\bsouth\b/gi, "S")
              .replace(/\beast\b/gi, "E").replace(/\bwest\b/gi, "W")
-             .replace(/\s*degrees?\s*/gi, "° ").replace(/\s*minutes?\s*/gi, "' ")
-             .replace(/\s*seconds?\s*/gi, '" ');
-        // Tolerates OCR/Word artifacts: any single non-digit as the degree mark, curly quotes, dot prefixes.
+             .replace(/\s*deg(?:rees?)?\.?\s*/gi, " ").replace(/\s*min(?:utes?)?\.?\s*/gi, " ").replace(/\s*sec(?:onds?)?\.?\s*/gi, " ")
+             .replace(/[°'"′″*]/g, " ")                       // degree / minute / second marks
+             .replace(/(\d)\s*[-–—]\s*(?=\d)/g, "$1 ")        // 45-12-30  ->  45 12 30
+             .replace(/(\d)\s*[dm]\s*(?=\d)/gi, "$1 ")        // 45d12m30  ->  45 12 30
+             .replace(/(\d)\s*s\s*(?=[EW\d])/gi, "$1 ")       // 30sE      ->  30 E
+             .replace(/\s+/g, " ").trim();
         const m = s.match(
-            /([NS])\.?\s*(\d{1,3})\s*[^\d\s]?\s*(\d{1,2})?\s*['’′]?\s*(\d{1,2}(?:\.\d+)?)?\s*["”″]?\s*([EW])/i
+            /([NS])\s*\.?\s*(\d{1,3}(?:\.\d+)?)(?:\s+(\d{1,2}(?:\.\d+)?))?(?:\s+(\d{1,2}(?:\.\d+)?))?\s*([EW])/i
         );
         if (!m) return null;
         const quad = (m[1] + m[5]).toUpperCase();
-        const deg = parseInt(m[2], 10);
-        const min = m[3] ? parseInt(m[3], 10) : 0;
+        const deg = parseFloat(m[2]);
+        const min = m[3] ? parseFloat(m[3]) : 0;
         const sec = m[4] ? parseFloat(m[4]) : 0;
         const inner = deg + min / 60 + sec / 3600;
         let az;
