@@ -27,6 +27,9 @@ jobs:
 
   deploy:
     needs: test
+    # Enable by setting repo variable DEPLOY_PAGES=true (Settings → Pages must be on;
+    # requires a public repo or a paid plan for Pages on a private repo).
+    if: vars.DEPLOY_PAGES == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -78,6 +78,9 @@ function load() {
     global.document = doc;
     global.localStorage = win.localStorage;
     global.sessionStorage = win.sessionStorage;
+    // Source code reads a bare `navigator` (not window.navigator). Node < 21 has no
+    // global navigator; Node >= 21 exposes a getter-only one. defineProperty works either way.
+    Object.defineProperty(global, "navigator", { value: win.navigator, configurable: true, writable: true });
 
     const FILES = [
         "core/data.js",
