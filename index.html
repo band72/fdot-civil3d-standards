@@ -984,13 +984,24 @@ public class CmdBoundaryQC : IExternalCommand {
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="data.js"></script>
-    <script src="dxf-parser.js"></script>
-    <script src="security-crypto.js"></script>
-    <script src="wasm-dxf-engine.js"></script>
-    <script src="billing-portal.js"></script>
-    <script src="cms-engine.js"></script>
-    <script src="app.js"></script>
+    <!-- Core Data & Plugin Loader -->
+    <script src="core/data.js"></script>
+    <script src="core/plugin-loader.js"></script>
+
+    <!-- Modular Feature Plugins -->
+    <script src="plugins/spatial-engine/spatial-engine.js"></script>
+    <script src="plugins/security-pki/security-pki.js"></script>
+    <script src="plugins/billing/billing.js"></script>
+    <script src="plugins/cms-engine/cms-engine.js"></script>
+    <script src="plugins/dxf-auditor/dxf-parser.js"></script>
+    <script src="plugins/dxf-auditor/dxf-auditor.js"></script>
+    <script src="plugins/layer-stds/layer-stds.js"></script>
+    <script src="plugins/sign-qto/sign-qto.js"></script>
+    <script src="plugins/ssa-hydro/ssa-hydro.js"></script>
+    <script src="plugins/traverse-cogo/traverse-cogo.js"></script>
+
+    <!-- Core App Coordinator -->
+    <script src="core/app.js"></script>
 </body>
 
 </html>

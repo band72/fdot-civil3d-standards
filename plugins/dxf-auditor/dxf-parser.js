@@ -335,3 +335,6 @@ class FDOTDXFInspector {
         return scr;
     }
 }
+
+// Global export for explicit window access
+window.FDOTDXFInspector = FDOTDXFInspector;

@@ -511,3 +511,342 @@ class BoundaryQCCMSEngine {
 
 // Global Export
 window.BoundaryQCCMS = new BoundaryQCCMSEngine();
+
+if (window.PluginRegistry) {
+    window.PluginRegistry.register({
+        name: "cms-engine",
+        version: "2.6.0",
+        description: "Enterprise CMS with Dual-Persistence, RLS Multi-Tenant isolation, and Merkle audit chain.",
+        tab: "tab-cms-portal",
+        icon: "fa-database",
+        tier: "Firm",
+        dependencies: ["security-pki"]
+    }, {
+        init(ctx) {
+            this.renderCMSUI(ctx);
+        },
+
+        onTabActivate(ctx) {
+            this.renderCMSUI(ctx);
+        },
+
+        renderCMSUI(ctx) {
+            if (!window.BoundaryQCCMS) return;
+            const currentUser = window.BoundaryQCCMS.getCurrentUser();
+            if (!currentUser) return;
+
+            // Update top header user indicator
+            const headerName = document.getElementById("header-user-name");
+            const headerRole = document.getElementById("header-user-role");
+            if (headerName) headerName.textContent = currentUser.fullName;
+            if (headerRole) headerRole.textContent = currentUser.role.split("_")[0];
+
+            // Update CMS tab profile card
+            const profileName = document.getElementById("cms-profile-name");
+            const profileEmail = document.getElementById("cms-profile-email");
+            const profileRole = document.getElementById("cms-profile-role");
+            const profileLicense = document.getElementById("cms-profile-license");
+
+            if (profileName) profileName.textContent = currentUser.fullName;
+            if (profileEmail) profileEmail.textContent = currentUser.email;
+            if (profileRole) profileRole.textContent = window.BoundaryQCCMS.roles[currentUser.role]?.name || currentUser.role;
+            if (profileLicense) profileLicense.textContent = `${currentUser.licenseState || 'FL'} #${currentUser.licenseNumber || 'LS6842'}`;
+
+            // Render Projects
+            const projList = document.getElementById("cms-projects-list");
+            const projCount = document.getElementById("cms-proj-count");
+            const projects = window.BoundaryQCCMS.getProjects();
+
+            if (projCount) projCount.textContent = `${projects.length} Projects`;
+            if (projList) {
+                projList.innerHTML = projects.map(p => `
+                    <div style="background:var(--bg-primary); padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong style="color:var(--text-main); font-size:0.9rem;">${p.name}</strong>
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">
+                                FPID: <code style="color:var(--primary);">${p.fpid}</code> • District ${p.district} (${p.county} Co.)
+                            </div>
+                        </div>
+                        <span class="badge" style="background:var(--success); font-size:0.7rem;">${p.status}</span>
+                    </div>
+                `).join("");
+            }
+
+            // Render Submittals
+            const subList = document.getElementById("cms-submittals-list");
+            const subCount = document.getElementById("cms-sub-count");
+            const submittals = window.BoundaryQCCMS.getSubmittals();
+
+            if (subCount) subCount.textContent = `${submittals.length} Submittals`;
+            if (subList) {
+                subList.innerHTML = submittals.map(s => `
+                    <div style="background:var(--bg-primary); padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong style="font-size:0.85rem; color:var(--text-main);">${s.fileName}</strong>
+                            <span class="badge" style="background:var(--accent); font-size:0.7rem;">${s.status}</span>
+                        </div>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">
+                            By: ${s.submittedBy} • Precision: <strong style="color:var(--success);">${s.precisionRatio}</strong>
+                        </div>
+                        <div style="font-size:0.7rem; color:var(--text-muted); font-family:monospace; margin-top:0.2rem; overflow:hidden; text-overflow:ellipsis;">
+                            SHA256: ${s.sha256.substring(0, 24)}...
+                        </div>
+                    </div>
+                `).join("");
+            }
+
+            // Render Transactions
+            const txList = document.getElementById("cms-transactions-list");
+            const txs = window.BoundaryQCCMS.getTransactions();
+            if (txList) {
+                txList.innerHTML = txs.map(t => `
+                    <div style="background:var(--bg-primary); padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong style="font-size:0.85rem; color:var(--text-main);">${t.description}</strong>
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">ASC 606 Verified • ${new Date(t.timestamp).toLocaleDateString()}</div>
+                        </div>
+                        <strong style="color:var(--success); font-size:0.95rem;">$${t.amount.toFixed(2)}</strong>
+                    </div>
+                `).join("");
+            }
+
+            // Render Audit Table
+            const auditTable = document.getElementById("cms-audit-table-body");
+            const logs = window.BoundaryQCCMS.getAuditLogs();
+            if (auditTable) {
+                auditTable.innerHTML = logs.slice().reverse().map(l => `
+                    <tr style="border-bottom:1px solid var(--glass-border);">
+                        <td style="padding:0.5rem; font-family:monospace; color:var(--primary);">${l.sequence}</td>
+                        <td style="padding:0.5rem;">${l.actor}</td>
+                        <td style="padding:0.5rem;"><span class="badge" style="background:var(--primary); font-size:0.7rem;">${l.action}</span></td>
+                        <td style="padding:0.5rem; color:var(--text-secondary);">${l.details}</td>
+                        <td style="padding:0.5rem; font-family:monospace; font-size:0.7rem; color:var(--text-muted);">${l.hash.substring(0, 16)}...</td>
+                    </tr>
+                `).join("");
+            }
+
+            // Render Team Directory Users Table
+            const usersTable = document.getElementById("cms-users-table-body");
+            const allUsers = window.BoundaryQCCMS.getUsers();
+            if (usersTable) {
+                usersTable.innerHTML = allUsers.map(u => `
+                    <tr style="border-bottom:1px solid var(--glass-border); ${u.id === currentUser.id ? 'background:rgba(2, 132, 199, 0.08);' : ''}">
+                        <td style="padding:0.5rem;">
+                            <strong>${u.fullName}</strong>
+                            ${u.id === currentUser.id ? '<span class="badge" style="background:var(--success); font-size:0.65rem; margin-left:4px;">ACTIVE SESSION</span>' : ''}
+                        </td>
+                        <td style="padding:0.5rem; color:var(--text-secondary);">${u.email}</td>
+                        <td style="padding:0.5rem;">
+                            <span class="badge" style="background:var(--primary); font-size:0.7rem;">${window.BoundaryQCCMS.roles[u.role]?.name || u.role}</span>
+                        </td>
+                        <td style="padding:0.5rem; font-family:monospace; font-size:0.8rem; color:var(--accent);">${u.licenseState || 'FL'} #${u.licenseNumber || 'N/A'}</td>
+                        <td style="padding:0.5rem;">
+                            <div style="display:flex; gap:0.4rem;">
+                                ${u.id !== currentUser.id ? `
+                                    <button class="btn btn-primary btn-sm btn-switch-user-row" data-email="${u.email}" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Switch</button>
+                                    <button class="btn btn-secondary btn-sm btn-delete-user-row" data-id="${u.id}" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:var(--danger-light);">Remove</button>
+                                ` : '<span style="font-size:0.75rem; color:var(--success); font-weight:600;">Current User</span>'}
+                            </div>
+                        </td>
+                    </tr>
+                `).join("");
+            }
+
+            // Populate Quick Account Selector
+            const quickSelect = document.getElementById("login-quick-select");
+            if (quickSelect) {
+                quickSelect.innerHTML = allUsers.map(u => `
+                    <option value="${u.email}" ${u.email.toLowerCase() === currentUser.email.toLowerCase() ? 'selected' : ''}>
+                        ${u.fullName} (${u.email}) - ${window.BoundaryQCCMS.roles[u.role]?.name || u.role}
+                    </option>
+                `).join("");
+            }
+        },
+
+        setupEvents(ctx) {
+            const authModal = document.getElementById("modal-auth");
+            const openAuthModal = () => {
+                this.renderCMSUI(ctx);
+                authModal?.classList.remove("hidden");
+            };
+
+            document.getElementById("btn-open-auth-modal")?.addEventListener("click", openAuthModal);
+            document.getElementById("btn-cms-switch-user")?.addEventListener("click", openAuthModal);
+            document.getElementById("btn-close-auth")?.addEventListener("click", () => authModal?.classList.add("hidden"));
+
+            // Header Logout Action
+            document.getElementById("btn-header-logout")?.addEventListener("click", () => {
+                window.BoundaryQCCMS.logoutUser();
+                ctx.showToast("Logged out of active session.");
+                openAuthModal();
+            });
+
+            // WebAuthn button via addEventListener
+            document.getElementById("btn-webauthn-login")?.addEventListener("click", async () => {
+                const email = document.getElementById("login-email")?.value || "user@boundaryqc.com";
+                if (window.BoundaryQCSecurity) {
+                    const result = await window.BoundaryQCSecurity.authenticateHardwareToken(email);
+                    if (result.success) {
+                        ctx.showToast(`✓ WebAuthn Verified: ${result.authMethod}`);
+                    } else {
+                        ctx.showToast(`WebAuthn: ${result.error || "Authentication cancelled."}`, true);
+                    }
+                }
+            });
+
+            // Quick Account Switcher
+            document.getElementById("login-quick-select")?.addEventListener("change", (e) => {
+                const loginEmailInput = document.getElementById("login-email");
+                if (loginEmailInput) loginEmailInput.value = e.target.value;
+            });
+
+            // CMS Add Team Member button
+            document.getElementById("btn-cms-add-user")?.addEventListener("click", () => {
+                openAuthModal();
+                document.getElementById("tab-btn-register")?.click();
+            });
+
+            // Event delegation for Team Directory Table (Switch & Remove)
+            document.getElementById("cms-users-table-body")?.addEventListener("click", (e) => {
+                const switchBtn = e.target.closest(".btn-switch-user-row");
+                if (switchBtn) {
+                    const email = switchBtn.getAttribute("data-email");
+                    try {
+                        const user = window.BoundaryQCCMS.loginUser(email);
+                        this.renderCMSUI(ctx);
+                        ctx.showToast(`Switched active session to ${user.fullName}!`);
+                    } catch (err) {
+                        ctx.showToast(`Error: ${err.message}`);
+                    }
+                }
+
+                const deleteBtn = e.target.closest(".btn-delete-user-row");
+                if (deleteBtn) {
+                    const userId = deleteBtn.getAttribute("data-id");
+                    ctx.showConfirmModal("Are you sure you want to remove this team member from the organization?").then(confirmed => {
+                        if (confirmed) {
+                            window.BoundaryQCCMS.deleteUser(userId);
+                            this.renderCMSUI(ctx);
+                            ctx.showToast("Team member removed from organization.");
+                        }
+                    });
+                }
+            });
+
+            // Toggle Sign In vs Register
+            const tabBtnLogin = document.getElementById("tab-btn-login");
+            const tabBtnReg = document.getElementById("tab-btn-register");
+            const formLogin = document.getElementById("form-auth-login");
+            const formReg = document.getElementById("form-auth-register");
+
+            tabBtnLogin?.addEventListener("click", () => {
+                tabBtnLogin.style.background = "var(--primary)";
+                tabBtnLogin.style.color = "#fff";
+                tabBtnReg.style.background = "transparent";
+                tabBtnReg.style.color = "var(--text-muted)";
+                formLogin?.classList.remove("hidden");
+                formReg?.classList.add("hidden");
+            });
+
+            tabBtnReg?.addEventListener("click", () => {
+                tabBtnReg.style.background = "var(--primary)";
+                tabBtnReg.style.color = "#fff";
+                tabBtnLogin.style.background = "transparent";
+                tabBtnLogin.style.color = "var(--text-muted)";
+                formReg?.classList.remove("hidden");
+                formLogin?.classList.add("hidden");
+            });
+
+            // Wire login submit
+            document.getElementById("btn-do-login")?.addEventListener("click", () => {
+                const email = document.getElementById("login-email")?.value;
+                if (!email) return;
+                try {
+                    const user = window.BoundaryQCCMS.loginUser(email);
+                    authModal?.classList.add("hidden");
+                    this.renderCMSUI(ctx);
+                    ctx.showToast(`Authenticated as ${user.fullName} (${user.role})!`);
+                } catch (err) {
+                    ctx.showToast(`Login Error: ${err.message}`, true);
+                }
+            });
+
+            // Wire register submit
+            document.getElementById("btn-do-register")?.addEventListener("click", () => {
+                const name = document.getElementById("reg-name")?.value;
+                const email = document.getElementById("reg-email")?.value;
+                const role = document.getElementById("reg-role")?.value;
+                const license = document.getElementById("reg-license")?.value;
+                const company = document.getElementById("reg-company")?.value;
+
+                if (!name || !email) { ctx.showToast("Name and email are required.", true); return; }
+                try {
+                    const user = window.BoundaryQCCMS.registerUser(name, email, role, license, company);
+                    authModal?.classList.add("hidden");
+                    this.renderCMSUI(ctx);
+                    ctx.showToast(`Registered & Authenticated as ${user.fullName}!`);
+                } catch (err) {
+                    ctx.showToast(`Registration Error: ${err.message}`, true);
+                }
+            });
+
+            // Project creation via non-blocking input modal
+            document.getElementById("btn-cms-new-proj")?.addEventListener("click", async () => {
+                const fpid = await ctx.showInputModal("Enter FDOT FPID (Financial Project ID):", "441209-1-52-01");
+                if (!fpid) return;
+                const name = await ctx.showInputModal("Enter Project Name:", "SR-408 Roadway Realignment");
+                if (!name) return;
+                window.BoundaryQCCMS.createProject(fpid, name, "Orange", 5);
+                this.renderCMSUI(ctx);
+                ctx.showToast(`Created DOT Project ${fpid}!`);
+            });
+
+            // F.A.C. Merkle Audit Chain Cryptographic Verifier
+            document.getElementById("btn-verify-audit-chain")?.addEventListener("click", async () => {
+                if (!window.BoundaryQCCMS) return;
+                const badge = document.getElementById("cms-audit-status-badge");
+                if (badge) {
+                    badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> VERIFYING CHAIN...`;
+                    badge.style.color = "var(--primary)";
+                    badge.style.borderColor = "var(--primary)";
+                }
+
+                try {
+                    const result = await window.BoundaryQCCMS.verifyAuditIntegrity();
+                    if (result.isValid) {
+                        if (badge) {
+                            badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> MERKLE CHAIN VERIFIED (${result.totalBlocksVerified} BLOCKS)`;
+                            badge.style.color = "var(--success)";
+                            badge.style.borderColor = "var(--success)";
+                            badge.style.background = "rgba(16, 185, 129, 0.15)";
+                        }
+                        ctx.showToast(`✓ Merkle Chain Cryptographically Verified! Root: ${result.rootHash.substring(0, 14)}...`);
+                    } else {
+                        if (badge) {
+                            badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> TAMPER DETECTED (SEQ #${result.blockSequence})`;
+                            badge.style.color = "var(--danger)";
+                            badge.style.borderColor = "var(--danger)";
+                            badge.style.background = "rgba(239, 68, 68, 0.15)";
+                        }
+                        ctx.showToast(`🚨 Security Alert: ${result.message}`);
+                    }
+                } catch (err) {
+                    ctx.showToast(`Verification error: ${err.message}`);
+                }
+            });
+
+            // PostgreSQL Cloud Sync Exporter
+            document.getElementById("btn-export-cloud-sync")?.addEventListener("click", () => {
+                if (!window.BoundaryQCCMS) return;
+                const payload = window.BoundaryQCCMS.generateCloudSyncPayload();
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "fdot_postgresql_cloud_sync_schema.json";
+                a.click();
+                ctx.showToast("Exported PostgreSQL RLS Cloud Schema (`fdot_postgresql_cloud_sync_schema.json`)!");
+            });
+        }
+    });
+}

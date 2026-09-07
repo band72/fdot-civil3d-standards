@@ -61,6 +61,7 @@ class PluginRegistry {
      * @param {Object} ctx - Shared context: { state, showToast, showInputModal, showConfirmModal, showCopyModal }
      */
     initAll(ctx) {
+        this._lastCtx = ctx || {};
         const ordered = this._resolveDependencyOrder();
         for (const name of ordered) {
             const entry = this._plugins.get(name);
@@ -82,14 +83,22 @@ class PluginRegistry {
     /**
      * Notify a specific plugin of a tab activation event.
      * @param {string} tabId - e.g. "tab-dxf-inspector"
-     * @param {Object} ctx
+     * @param {Object} [ctx]
      */
     notifyTabActivate(tabId, ctx) {
+        const context = ctx || this._lastCtx || {};
         for (const entry of this._plugins.values()) {
             if (entry.manifest.tab === tabId && typeof entry.module.onTabActivate === 'function') {
-                try { entry.module.onTabActivate(ctx); } catch (e) {}
+                try { entry.module.onTabActivate(context); } catch (e) {}
             }
         }
+    }
+
+    /**
+     * Alias for notifyTabActivate
+     */
+    onTabActivate(tabId, ctx) {
+        return this.notifyTabActivate(tabId, ctx);
     }
 
     /**

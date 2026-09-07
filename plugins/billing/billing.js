@@ -188,3 +188,57 @@ class BillingPortalEngine {
 
 // Global Singleton
 window.BoundaryQCBilling = new BillingPortalEngine();
+
+if (window.PluginRegistry) {
+    window.PluginRegistry.register({
+        name: "billing",
+        version: "2.6.0",
+        description: "Stripe subscription billing, ASC 606 double-entry ledger, and ECDSA P-256 JWT licensing.",
+        tab: "tab-billing",
+        icon: "fa-credit-card",
+        tier: "Free",
+        dependencies: []
+    }, {
+        init(ctx) {
+            window.BoundaryQCBilling.updateUIForTier();
+        },
+        setupEvents(ctx) {
+            const modalCheckout = document.getElementById("modal-checkout");
+            const closeModal = () => {
+                if (modalCheckout) modalCheckout.classList.add("hidden");
+            };
+
+            document.getElementById("btn-close-checkout")?.addEventListener("click", closeModal);
+            document.getElementById("btn-cancel-checkout")?.addEventListener("click", closeModal);
+
+            window.simCheckout = function () {
+                closeModal();
+                ctx.showToast("🎉 14-Day Free Trial Activated! Thank you for subscribing to BoundaryQC Commercial Suite.");
+            };
+
+            // Mint Civil 3D License Token using real async ECDSA JWT
+            document.getElementById("btn-mint-c3d-jwt")?.addEventListener("click", async () => {
+                const user = window.BoundaryQCCMS ? window.BoundaryQCCMS.getCurrentUser() : null;
+                const companyName = user ? (user.companyName || "Kimley-Horn & Associates, Inc.") : "Kimley-Horn & Associates, Inc.";
+                const email = user ? user.email : "surveyor@kimley-horn.com";
+
+                const token = await window.BoundaryQCBilling.generateEntitlementJwt(
+                    window.BoundaryQCBilling.currentTier,
+                    companyName,
+                    email
+                );
+                sessionStorage.setItem("bqc_c3d_jwt_token", token);
+
+                if (navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(token).then(() => {
+                        ctx.showToast("Copied Civil 3D ECDSA License JWT Token to Clipboard!");
+                    }).catch(() => {
+                        ctx.showCopyModal("Civil 3D ECDSA License JWT Token", token);
+                    });
+                } else {
+                    ctx.showCopyModal("Civil 3D ECDSA License JWT Token", token);
+                }
+            });
+        }
+    });
+}

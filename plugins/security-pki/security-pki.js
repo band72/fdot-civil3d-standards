@@ -421,3 +421,18 @@ class BoundaryQCSecurityEngine {
 
 // Global Security Engine Singleton
 window.BoundaryQCSecurity = new BoundaryQCSecurityEngine();
+
+if (window.PluginRegistry) {
+    window.PluginRegistry.register({
+        name: "security-pki",
+        version: "2.6.0",
+        description: "FIPS 180-4 SHA-256, F.A.C. PKI CA/TSA validation, Merkle chain verifier, and WebAuthn.",
+        tab: null,
+        icon: "fa-shield-halved",
+        tier: "Free",
+        dependencies: []
+    }, {
+        init(ctx) {},
+        setupEvents(ctx) {}
+    });
+}

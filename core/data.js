@@ -160,3 +160,6 @@ const FDOT_DATA = {
         { id: "qc-5", title: "Pay Item Target Object Correlation", desc: "Validate that all 3D Corridor shapes, Pipe networks, and blocks are linked to valid 2026 FDOT Pay Item numbers for QTO.", category: "Quantities" }
     ]
 };
+
+// Global export for explicit window access
+window.FDOT_DATA = FDOT_DATA;

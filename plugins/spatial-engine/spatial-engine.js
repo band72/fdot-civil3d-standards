@@ -355,3 +355,18 @@ class BoundaryQCJSSpatialEngine {
 // Global JS Spatial Engine Singleton
 // FIX [P1]: Exposed as BoundaryQCWASM for backward compatibility but now accurately labeled internally
 window.BoundaryQCWASM = new BoundaryQCJSSpatialEngine();
+
+if (window.PluginRegistry) {
+    window.PluginRegistry.register({
+        name: "spatial-engine",
+        version: "2.6.0",
+        description: "Guttman Quadratic R-Tree 2D spatial indexing engine and Euler spiral Fresnel clothoid solver.",
+        tab: null,
+        icon: "fa-microchip",
+        tier: "Free",
+        dependencies: []
+    }, {
+        init(ctx) {},
+        setupEvents(ctx) {}
+    });
+}
