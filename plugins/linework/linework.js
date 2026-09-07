@@ -53,7 +53,15 @@
         "16,2016000.00,643000.00,10.0,BOW B",
         "17,2016100.00,643100.00,10.0,BOW",
         "18,2016000.00,643100.00,10.0,BOW",
-        "19,2016100.00,643000.00,10.0,BOW CLS"
+        "19,2016100.00,643000.00,10.0,BOW CLS",
+        "20,2015680.00,642000.00,10.0,ARC B",
+        "21,2015729.50,642040.50,10.0,ARC BC",
+        "22,2015750.00,642090.00,10.0,ARC",
+        "23,2015729.50,642139.50,10.0,ARC EC",
+        "24,2015680.00,642180.00,10.0,ARC E",
+        "25,2016315.00,642000.00,9.0,MH CIR",
+        "26,2016300.00,642015.00,9.0,MH",
+        "27,2016285.00,642000.00,9.0,MH"
     ].join("\n");
 
     // ── Parsing ──────────────────────────────────────────────────────────────
@@ -96,9 +104,14 @@
         continue: ["C", "CONT"],                 // resume an interrupted figure of this code
         end:      ["E", "END"],                  // end the figure — NO closing segment
         close:    ["CLS", "CLO", "CLOSE", "CL", "Z"], // end AND draw the closing segment
-        // Recognized but not yet built as geometry (drawn as straight chords):
+        // Curve segment codes — resolved into real circular geometry (see resolveGeometry):
+        curveBegin: ["BC", "PC"],       // begin curve / point of curvature
+        curveEnd:   ["EC", "PT"],       // end curve / point of tangency
+        curvePoint: ["OC", "POC"],      // on-curve shot (informational)
+        circleWhole: ["CIR"],           // the whole figure is a circle
+        // Line segment codes — RECT is built; the rest are recognized only:
         lineSeg:  ["RECT", "RT", "X", "RPN", "CPN"],
-        curveSeg: ["BC", "EC", "CIR", "OC"],
+        curveSeg: ["BC", "EC", "PC", "PT", "CIR", "OC", "POC"],
         offset:   ["SO"]         // plus H<n> / V<n>, matched by regex
     };
     const inSet = (arr, t) => arr.indexOf(t) !== -1;
@@ -165,6 +178,100 @@
      * Points within a figure connect in point-number order.
      * mode = "byCode" | "byFigure" | "single".
      */
+    // ── Circle geometry (for BC/EC arcs and CIR circles) ─────────────────────
+
+    // Circle fits are done on data shifted to its own centroid — State Plane
+    // coordinates (~2,000,000) otherwise swamp the radius (~100) in double precision.
+
+    /** Exact circle through 3 points, or null if (near-)collinear. */
+    function circumcircle(a, b, c) {
+        const mx = (a.e + b.e + c.e) / 3, my = (a.n + b.n + c.n) / 3;
+        const ax = a.e - mx, ay = a.n - my, bx = b.e - mx, by = b.n - my, cx = c.e - mx, cy = c.n - my;
+        const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+        if (Math.abs(d) < 1e-6) return null;
+        const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+        const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+        const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+        return { cx: ux + mx, cy: uy + my, r: Math.hypot(ax - ux, ay - uy) };
+    }
+
+    /** Kåsa algebraic least-squares circle fit through N>=3 points. */
+    function fitCircle(pts) {
+        if (pts.length === 3) return circumcircle(pts[0], pts[1], pts[2]);
+        const n = pts.length;
+        const mx = pts.reduce((s, p) => s + p.e, 0) / n;
+        const my = pts.reduce((s, p) => s + p.n, 0) / n;
+        let sxx = 0, syy = 0, sxy = 0, sxz = 0, syz = 0, sz = 0;
+        for (const p of pts) {
+            const x = p.e - mx, y = p.n - my, z = x * x + y * y;
+            sxx += x * x; syy += y * y; sxy += x * y; sxz += x * z; syz += y * z; sz += z;
+        }
+        // Centered => Σx = Σy = 0, so C = sz/n and [sxx sxy; sxy syy][A B] = [sxz syz].
+        const det = sxx * syy - sxy * sxy;
+        if (Math.abs(det) < 1e-9) return null;
+        const A = (sxz * syy - syz * sxy) / det;
+        const B = (syz * sxx - sxz * sxy) / det;
+        const r2 = (A * A + B * B) / 4 + sz / n;
+        return r2 > 0 ? { cx: mx + A / 2, cy: my + B / 2, r: Math.sqrt(r2) } : null;
+    }
+
+    /** Resolve BC..EC arc spans, CIR circles and RECT rectangles from per-point codes.
+     *  Idempotent — safe to re-run after an edit (RECT only fires while pts.length === 3). */
+    function resolveGeometry(figs) {
+        figs.forEach(f => {
+            delete f.arcs; delete f.circle; delete f.isCircle; delete f.geomWarn; delete f.geomNote;
+            if (!f.pts) return;
+            const codesAt = i => (f.pts[i] && f.pts[i].codes) || [];
+            const anyAt = (i, set) => codesAt(i).some(c => set.indexOf(c) !== -1);
+
+            // Whole-figure circle
+            if (f.pts.some((_, i) => anyAt(i, CODESET.circleWhole))) {
+                const ps = f.pts;
+                let cir = null;
+                if (ps.length === 2) cir = { cx: ps[0].e, cy: ps[0].n, r: window.COGO.distanceBetween(ps[0], ps[1]) };
+                else if (ps.length >= 3) cir = fitCircle(ps.slice(0, 3));
+                if (cir && cir.r > 0) { f.circle = cir; f.isCircle = true; f.closed = true; }
+                else f.geomWarn = "CIR code but points are collinear — cannot fit a circle.";
+                return;
+            }
+
+            // RECT: 3 points → parallelogram (4th corner computed)
+            if (f.pts.length === 3 && f.pts.some((_, i) => anyAt(i, ["RECT"]))) {
+                const [a, b, c] = f.pts;
+                f.pts.push({ e: a.e + (c.e - b.e), n: a.n + (c.n - b.n), z: a.z, desc: a.desc, codes: [] });
+                f.closed = true;
+                f.geomNote = "rectangle from RECT code (3 shots + computed 4th corner)";
+            }
+
+            // BC..EC arc spans
+            const arcs = [];
+            let bc = -1;
+            for (let i = 0; i < f.pts.length; i++) {
+                if (anyAt(i, CODESET.curveBegin)) bc = i;
+                else if (anyAt(i, CODESET.curveEnd) && bc >= 0) {
+                    const span = f.pts.slice(bc, i + 1);
+                    const cir = span.length >= 3 ? fitCircle(span) : null;
+                    if (cir && cir.r > 0 && cir.r < 1e7) {
+                        const s = span[0], mid = span[Math.floor(span.length / 2)], e = span[span.length - 1];
+                        const cross = (mid.e - s.e) * (e.n - mid.n) - (mid.n - s.n) * (e.e - mid.e);
+                        // max deviation of a span point from the fitted circle
+                        let dev = 0;
+                        for (const p of span) dev = Math.max(dev, Math.abs(Math.hypot(p.e - cir.cx, p.n - cir.cy) - cir.r));
+                        arcs.push({ startIdx: bc, endIdx: i, cx: cir.cx, cy: cir.cy, r: cir.r, ccw: cross > 0, dev });
+                    } else {
+                        f.geomWarn = (f.geomWarn || "") +
+                            ` curve span #${f.pts[bc].ptNum != null ? f.pts[bc].ptNum : bc}→#${f.pts[i].ptNum != null ? f.pts[i].ptNum : i}: ` +
+                            (span.length < 3 ? "need at least 3 shots (BC, on-curve, EC)." : "points are collinear — cannot fit an arc.");
+                    }
+                    bc = -1;
+                }
+            }
+            if (bc >= 0) f.geomWarn = (f.geomWarn || "") + ` BC at #${f.pts[bc].ptNum != null ? f.pts[bc].ptNum : bc} has no matching EC.`;
+            if (arcs.length) f.arcs = arcs;
+        });
+        return figs;
+    }
+
     function buildFigures(points, mode) {
         const pt = p => ({ e: p.e, n: p.n, z: p.z, ptNum: p.ptNum, desc: p.desc });
 
@@ -193,14 +300,15 @@
             }
 
             const fig = current[key];
-            fig.pts.push(pt(p));
+            const P = pt(p); P.codes = d.segCodes.slice();
+            fig.pts.push(P);
             d.segCodes.forEach(c => { if (fig.segCodes.indexOf(c) === -1) fig.segCodes.push(c); });
 
             if (d.control === "close") { fig.closed = true; current[key] = null; }
             else if (d.control === "end") { current[key] = null; }
         });
 
-        return out.filter(f => f.pts.length >= 2);
+        return resolveGeometry(out.filter(f => f.pts.length >= 2));
     }
 
     /** Parse a bearing/distance call list into a single figure. */
@@ -264,10 +372,25 @@
 
         model.figures.forEach(f => {
             const pts = f.pts;
+            if (f.isCircle && f.circle) {
+                add("INFO", `${f.name}: circle from CIR code — center (${f.circle.cx.toFixed(2)}, ${f.circle.cy.toFixed(2)}), R ${f.circle.r.toFixed(2)} ft.`, f.id, null, null);
+                return;
+            }
             if (pts.length < 2) { add("WARNING", `${f.name}: only ${pts.length} point — nothing to draw.`, f.id, null, null); return; }
 
-            if (f.segCodes && f.segCodes.length) {
-                add("INFO", `${f.name}: carries field code(s) ${f.segCodes.join(", ")} — curve / rectangle / offset segments are drawn as straight chords in this build; build the true arcs in CAD.`, f.id, null, null);
+            if (f.arcs && f.arcs.length) {
+                f.arcs.forEach(a => {
+                    const msg = `${f.name}: circular arc fitted from BC..EC — R ${a.r.toFixed(2)} ft${a.ccw ? " (left)" : " (right)"}, ${a.endIdx - a.startIdx + 1} shots, fit residual ${a.dev.toFixed(3)} ft.`;
+                    add(a.dev > 0.25 ? "WARNING" : "INFO", msg, f.id, a.startIdx, { type: "goto", figId: f.id, kind: "vert", idx: a.startIdx });
+                });
+            }
+            if (f.geomWarn) add("WARNING", `${f.name}:${f.geomWarn}`, f.id, null, null);
+            if (f.geomNote) add("INFO", `${f.name}: ${f.geomNote}`, f.id, null, null);
+
+            const otherCodes = (f.segCodes || []).filter(c =>
+                !CODESET.curveBegin.concat(CODESET.curveEnd, CODESET.curvePoint, CODESET.circleWhole, ["RECT"]).includes(c));
+            if (otherCodes.length) {
+                add("INFO", `${f.name}: field code(s) ${otherCodes.join(", ")} recognized but not built as geometry (RT right-turn, X extend, RPN/CPN recall/connect, H/V/SO offsets) — apply in CAD.`, f.id, null, null);
             }
 
             // zero-length / duplicate consecutive
@@ -439,10 +562,27 @@
             }
 
             this.model.figures.forEach(f => {
-                if (f.pts.length < 1) return;
+                if ((!f.pts || f.pts.length < 1) && !f.isCircle) return;
                 const upto = prog ? (prog[f.id] == null ? -1 : prog[f.id]) : Infinity;
                 const base = f.__bt ? "#f43f5e" : (this.sel && this.sel.figId === f.id ? "#7dd3fc" : "#38bdf8");
                 const dim = "#334155";
+
+                // Whole-figure circle (CIR code)
+                if (f.isCircle && f.circle) {
+                    this.svg.appendChild(this._mk("circle", {
+                        cx: f.circle.cx, cy: -f.circle.cy, r: f.circle.r,
+                        fill: "rgba(56,189,248,0.06)", stroke: base, "stroke-width": u * 1.6
+                    }));
+                    (f.pts || []).forEach((p, idx) => this.svg.appendChild(this._mk("circle", {
+                        cx: p.e, cy: -p.n, r: u * 3, fill: "#ef4444", stroke: "#fff", "stroke-width": u,
+                        "data-fig": f.id, "data-vert": idx, style: "cursor:pointer"
+                    })));
+                    return;
+                }
+
+                // arc spans: startIdx -> endIdx replaced by one circular arc
+                const arcAt = i => (f.arcs || []).find(a => a.startIdx === i);
+                const inArc = i => (f.arcs || []).some(a => i > a.startIdx && i < a.endIdx);
 
                 if (f.closed && f.pts.length >= 3) {
                     this.svg.appendChild(this._mk("polygon", {
@@ -457,15 +597,30 @@
                         const on = this.sel && this.sel.figId === f.id && this.sel.kind === "seg" && this.sel.idx === i;
                         const isClosing = i === f.pts.length - 1;
                         const reached = prog ? (isClosing ? upto >= f.pts.length - 1 : upto >= i + 1) : true;
-                        // visible course line
-                        this.svg.appendChild(this._mk("line", {
-                            x1: a.e, y1: -a.n, x2: b.e, y2: -b.n,
-                            stroke: on ? "#facc15" : (reached ? base : dim),
-                            "stroke-opacity": reached || on ? 1 : 0.55,
-                            "stroke-width": u * (on ? 3 : 1.6),
-                            "stroke-linecap": "round"
-                        }));
-                        // fat transparent hit line
+                        const arc = arcAt(i);
+                        if (arc) {
+                            const e = f.pts[arc.endIdx];
+                            // SVG sweep flag: our world Y is flipped, so CCW(world) -> sweep 0
+                            let a0 = Math.atan2(a.n - arc.cy, a.e - arc.cx);
+                            let a1 = Math.atan2(e.n - arc.cy, e.e - arc.cx);
+                            let inc = a1 - a0;
+                            if (arc.ccw) { while (inc <= 0) inc += 2 * Math.PI; } else { while (inc >= 0) inc -= 2 * Math.PI; }
+                            const largeArc = Math.abs(inc) > Math.PI ? 1 : 0;
+                            const sweep = arc.ccw ? 0 : 1;
+                            this.svg.appendChild(this._mk("path", {
+                                d: `M ${a.e},${-a.n} A ${arc.r} ${arc.r} 0 ${largeArc} ${sweep} ${e.e},${-e.n}`,
+                                fill: "none", stroke: on ? "#facc15" : (reached ? base : dim),
+                                "stroke-opacity": reached || on ? 1 : 0.55, "stroke-width": u * (on ? 3 : 1.8)
+                            }));
+                        } else if (!inArc(i)) {
+                            this.svg.appendChild(this._mk("line", {
+                                x1: a.e, y1: -a.n, x2: b.e, y2: -b.n,
+                                stroke: on ? "#facc15" : (reached ? base : dim),
+                                "stroke-opacity": reached || on ? 1 : 0.55,
+                                "stroke-width": u * (on ? 3 : 1.6), "stroke-linecap": "round"
+                            }));
+                        }
+                        // fat transparent hit line (chord approximation is fine for picking)
                         this.svg.appendChild(this._mk("line", {
                             x1: a.e, y1: -a.n, x2: b.e, y2: -b.n,
                             stroke: "#000", "stroke-opacity": 0.001, "stroke-width": u * 12,
@@ -747,7 +902,7 @@
         },
 
         // ── right-rail panels ──────────────────────────────────────
-        _afterChange() { this._buildSeq(); this._renderChecks(); this._renderFigures(); this._renderSelection(); this._hud(); this.render(); },
+        _afterChange() { resolveGeometry(this.model.figures); this._buildSeq(); this._renderChecks(); this._renderFigures(); this._renderSelection(); this._hud(); this.render(); },
 
         _hud(msg) {
             const el = document.getElementById("lw-hud");
@@ -873,12 +1028,34 @@
 
     // ── Exports ──────────────────────────────────────────────────────────────
 
+    /** LWPOLYLINE vertex list for a figure, collapsing BC..EC spans into a single bulge segment. */
+    function figurePolyPoints(f) {
+        const arcs = (f.arcs || []).slice().sort((a, b) => a.startIdx - b.startIdx);
+        const out = [];
+        for (let i = 0; i < f.pts.length; i++) {
+            const a = arcs.find(x => x.startIdx === i);
+            if (a) {
+                const s = f.pts[a.startIdx], e = f.pts[a.endIdx];
+                let a0 = Math.atan2(s.n - a.cy, s.e - a.cx);
+                let a1 = Math.atan2(e.n - a.cy, e.e - a.cx);
+                let inc = a1 - a0;
+                if (a.ccw) { while (inc <= 0) inc += 2 * Math.PI; } else { while (inc >= 0) inc -= 2 * Math.PI; }
+                out.push({ e: s.e, n: s.n, bulge: window.COGO.bulge(inc) });
+                i = a.endIdx - 1;                       // skip the intermediate span shots
+            } else {
+                out.push({ e: f.pts[i].e, n: f.pts[i].n });
+            }
+        }
+        return out;
+    }
+
     function exportDXF() {
-        const figs = Ed.model.figures.filter(f => f.pts.length >= 2);
+        const figs = Ed.model.figures.filter(f => (f.pts && f.pts.length >= 2) || f.isCircle);
         if (!figs.length) return null;
         const layers = [...new Set(figs.map(f => f.layer || "0"))].map(n => ({ name: n, color: 4 }));
-        const polylines = figs.map(f => ({ layer: f.layer || "0", closed: !!f.closed, points: f.pts.map(p => ({ e: p.e, n: p.n })) }));
-        return window.COGO.buildDxf({ layers, polylines, texts: [] });
+        const polylines = figs.filter(f => !f.isCircle).map(f => ({ layer: f.layer || "0", closed: !!f.closed, points: figurePolyPoints(f) }));
+        const circles = figs.filter(f => f.isCircle && f.circle).map(f => ({ layer: f.layer || "0", cx: f.circle.cx, cy: f.circle.cy, r: f.circle.r }));
+        return window.COGO.buildDxf({ layers, polylines, circles, texts: [] });
     }
     function exportPNEZD() {
         const rows = ["P,N,E,Z,D"];
@@ -1069,5 +1246,5 @@
     };
 
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
-    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, CODESET, _Ed: Ed };
+    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, resolveGeometry, circumcircle, fitCircle, CODESET, _Ed: Ed };
 })();

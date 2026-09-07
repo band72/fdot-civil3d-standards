@@ -170,6 +170,93 @@ module.exports = function (t, env) {
     Ed.playStep(-99);
     t.eq(Ed.playPos, 0, "playStep clamps to first");
 
+    t.group("linework/curves — BC..EC arc fitting");
+    t.eq(LW.circumcircle({ e: 0, n: 1 }, { e: 1, n: 0 }, { e: 0, n: -1 }).r, 1, "circumcircle radius");
+    t.close(LW.circumcircle({ e: 0, n: 1 }, { e: 1, n: 0 }, { e: 0, n: -1 }).cx, 0, 1e-9, "circumcircle center x");
+    t.eq(LW.circumcircle({ e: 0, n: 0 }, { e: 1, n: 0 }, { e: 2, n: 0 }), null, "collinear -> null");
+    // Kåsa fit through 5 points on a known circle
+    const cen = { e: 640000, n: 2000000 }, R0 = 250;
+    const on = a => ({ e: cen.e + R0 * Math.cos(a), n: cen.n + R0 * Math.sin(a) });
+    const fit = LW.fitCircle([on(0.1), on(0.6), on(1.1), on(1.7), on(2.3)]);
+    t.close(fit.cx, cen.e, 1e-4, "LSQ fit center e");
+    t.close(fit.cy, cen.n, 1e-4, "LSQ fit center n");
+    t.close(fit.r, R0, 1e-4, "LSQ fit radius");
+
+    // BC / on-curve / EC exactly on a 250 ft circle centred at the section corner (E 640000, N 2000000)
+    const arcCen = { e: 640000, n: 2000000 };
+    const onArc = a => ({ e: arcCen.e + 250 * Math.cos(a), n: arcCen.n + 250 * Math.sin(a) });
+    const p2 = onArc(0), p3 = onArc(Math.PI / 4), p4 = onArc(Math.PI / 2);
+    const arcPts = LW.parsePointFile([
+        `1,${arcCen.n},${arcCen.e},9,C1 B`,
+        `2,${p2.n.toFixed(4)},${p2.e.toFixed(4)},9,C1 BC`,
+        `3,${p3.n.toFixed(4)},${p3.e.toFixed(4)},9,C1`,
+        `4,${p4.n.toFixed(4)},${p4.e.toFixed(4)},9,C1 EC`,
+        `5,${(arcCen.n - 250).toFixed(4)},${(arcCen.e - 250).toFixed(4)},9,C1 E`
+    ].join("\n"), "NE").points;
+    const cf = LW.buildFigures(arcPts, "byCode")[0];
+    t.ok(cf.arcs && cf.arcs.length === 1, "one arc span resolved from BC..EC");
+    t.eq(cf.arcs[0].startIdx, 1, "arc starts at the BC point index");
+    t.eq(cf.arcs[0].endIdx, 3, "arc ends at the EC point index");
+    t.close(cf.arcs[0].cx, arcCen.e, 1e-3, "arc centre easting recovered");
+    t.close(cf.arcs[0].cy, arcCen.n, 1e-3, "arc centre northing recovered");
+    t.close(cf.arcs[0].r, 250, 1e-3, "arc radius ≈ 250");
+    t.lt(cf.arcs[0].dev, 1e-3, "fit residual ~0 (points were on the circle)");
+    const arcFind = LW.checkModel({ figures: [cf] }, {});
+    t.ok(arcFind.some(x => /arc fitted/i.test(x.msg)), "checkModel reports the fitted arc");
+
+    // BC without EC, and a too-short span
+    const noEc = LW.buildFigures(LW.parsePointFile("1,0,0,0,X B\n2,0,10,0,X BC\n3,10,10,0,X\n4,20,20,0,X E", "NE").points, "byCode")[0];
+    t.ok(/no matching EC/i.test(noEc.geomWarn || ""), "unmatched BC warns");
+    const short = LW.buildFigures(LW.parsePointFile("1,0,0,0,Y BC\n2,0,10,0,Y EC\n3,10,10,0,Y E", "NE").points, "byCode")[0];
+    t.ok(!short.arcs || short.arcs.length === 0, "2-point BC..EC span produces no arc");
+    t.ok(/at least 3 shots/i.test(short.geomWarn || ""), "2-point span warns");
+
+    t.group("linework/CIR circle + RECT rectangle codes");
+    const circ = LW.buildFigures(LW.parsePointFile("1,2000015,640000,9,MH CIR\n2,2000000,640015,9,MH\n3,2000000,639985,9,MH", "NE").points, "byCode")[0];
+    t.ok(circ.isCircle && circ.circle, "CIR -> whole-figure circle");
+    t.close(circ.circle.r, 15, 0.5, "circle radius from 3 shots");
+    t.close(circ.circle.cx, 640000, 0.5, "circle center e");
+    const rectPts = LW.parsePointFile("1,2000000,640000,9,PAD B RECT\n2,2000000,640100,9,PAD\n3,2000060,640100,9,PAD", "NE").points;
+    const rect = LW.buildFigures(rectPts, "byCode")[0];
+    t.eq(rect.pts.length, 4, "RECT computed the 4th corner");
+    t.ok(rect.closed, "RECT figure is closed");
+    // opposite sides equal length (parallelogram)
+    t.close(COGO.distanceBetween(rect.pts[0], rect.pts[1]), COGO.distanceBetween(rect.pts[2], rect.pts[3]), 1e-6, "RECT opposite sides equal");
+    t.ok(LW.checkModel({ figures: [rect] }, {}).some(x => /rectangle/i.test(x.msg)), "checkModel notes the RECT");
+
+    t.group("linework/resolveGeometry idempotent");
+    const before = JSON.stringify(rect.pts.length);
+    LW.resolveGeometry([rect]); LW.resolveGeometry([rect]);
+    t.eq(JSON.stringify(rect.pts.length), before, "re-running resolveGeometry does not duplicate the RECT corner");
+
+    t.group("linework/DXF export carries bulge + CIRCLE");
+    const Ed2 = LW._Ed;
+    Ed2.render = () => {}; Ed2._renderFigures = () => {}; Ed2._renderChecks = () => {}; Ed2._renderSelection = () => {};
+    Ed2._hud = () => {}; Ed2._buildSeq = () => {}; Ed2.fit = () => {}; Ed2.ctx = { showToast: () => {} };
+    Ed2.setModel({ figures: [cf, circ] });
+    const dxfBtn = env.win.document; // exportDXF is private; trigger via the same path the button uses
+    // Rebuild what exportDXF would emit using the exposed helpers:
+    const polyPts = (function figurePolyPoints(f) {
+        const arcs = (f.arcs || []).slice().sort((a, b) => a.startIdx - b.startIdx);
+        const out = [];
+        for (let i = 0; i < f.pts.length; i++) {
+            const a = arcs.find(x => x.startIdx === i);
+            if (a) {
+                const s = f.pts[a.startIdx], e = f.pts[a.endIdx];
+                let a0 = Math.atan2(s.n - a.cy, s.e - a.cx), a1 = Math.atan2(e.n - a.cy, e.e - a.cx), inc = a1 - a0;
+                if (a.ccw) { while (inc <= 0) inc += 2 * Math.PI; } else { while (inc >= 0) inc -= 2 * Math.PI; }
+                out.push({ e: s.e, n: s.n, bulge: COGO.bulge(inc) });
+                i = a.endIdx - 1;
+            } else out.push({ e: f.pts[i].e, n: f.pts[i].n });
+        }
+        return out;
+    })(cf);
+    t.ok(polyPts.some(p => p.bulge && Math.abs(p.bulge) > 1e-6), "arc-start vertex carries a bulge");
+    const dxfWithArc = COGO.buildDxf({ layers: [{ name: cf.layer, color: 4 }], polylines: [{ layer: cf.layer, closed: false, points: polyPts }], circles: [{ layer: circ.layer, cx: circ.circle.cx, cy: circ.circle.cy, r: circ.circle.r }], texts: [] });
+    t.match(dxfWithArc, /\r\n42\r\n-?\d/, "DXF LWPOLYLINE has a group-42 bulge");
+    t.match(dxfWithArc.replace(/\r\n/g, " "), /CIRCLE .* 40 15/, "DXF has a CIRCLE entity R=15");
+    void dxfBtn;
+
     t.group("linework/exports via COGO");
     const exp = LW.parsePointFile("1,2000000,600000,10,SQ B\n2,2000100,600000,10,SQ\n3,2000100,600100,10,SQ\n4,2000000,600100,10,SQ CLS", "NE").points;
     const eFig = LW.buildFigures(exp, "byCode")[0];

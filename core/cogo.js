@@ -188,13 +188,17 @@
         return null;
     }
 
+    /** Bulge factor for an LWPOLYLINE arc segment: tan(includedAngle / 4). Sign: + = CCW. */
+    function bulge(includedAngleRad) { return Math.tan(includedAngleRad / 4); }
+
     /**
      * Build a minimal ASCII DXF (R12-style) from layers + entities.
-     * layers: [{ name, color }]  (ACI colour number)
-     * polylines: [{ layer, closed, points:[{e,n}] }]
-     * texts: [{ layer, e, n, height, value }]
+     * layers:    [{ name, color }]  (ACI colour number)
+     * polylines: [{ layer, closed, points:[{ e, n, bulge? }] }]   bulge on a vertex = arc to the next vertex
+     * texts:     [{ layer, e, n, height, value }]
+     * circles:   [{ layer, cx, cy, r }]
      */
-    function buildDxf({ layers = [], polylines = [], texts = [] }) {
+    function buildDxf({ layers = [], polylines = [], texts = [], circles = [] }) {
         const out = [];
         const p = (code, val) => { out.push(String(code)); out.push(String(val)); };
 
@@ -209,7 +213,14 @@
         polylines.forEach(pl => {
             p(0, "LWPOLYLINE"); p(8, pl.layer || "0");
             p(90, pl.points.length); p(70, pl.closed ? 1 : 0);
-            pl.points.forEach(pt => { p(10, pt.e.toFixed(4)); p(20, pt.n.toFixed(4)); });
+            pl.points.forEach(pt => {
+                p(10, pt.e.toFixed(4)); p(20, pt.n.toFixed(4));
+                if (pt.bulge) p(42, pt.bulge.toFixed(6));
+            });
+        });
+        circles.forEach(c => {
+            p(0, "CIRCLE"); p(8, c.layer || "0");
+            p(10, c.cx.toFixed(4)); p(20, c.cy.toFixed(4)); p(40, c.r.toFixed(4));
         });
         texts.forEach(t => {
             p(0, "TEXT"); p(8, t.layer || "0");
@@ -234,7 +245,7 @@
         D2R, R2D, SQFT_PER_ACRE,
         parseBearing, azimuthToBearing, advance,
         distanceBetween, azimuthDegBetween, includedAngleDeg,
-        chordFromArc, deltaDegFromArc, shoelaceArea,
+        chordFromArc, deltaDegFromArc, shoelaceArea, bulge,
         runTraverse, pnezd, selfIntersects, buildDxf, downloadText
     };
 })();
