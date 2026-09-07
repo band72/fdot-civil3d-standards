@@ -23,7 +23,7 @@
         (window.FDOT_DATA?.signAssemblies || []).forEach(sign => {
             const card = document.createElement("div");
             card.className = "pkt-card glass-panel";
-            card.innerHTML = `
+            window.setSafeHTML(card, `
                 <div class="pkt-card-header">
                     <h3><i class="fa-solid fa-triangle-exclamation" style="color:${sign.color};"></i> ${sign.code} ${sign.title}</h3>
                     <span class="tag tag-discipline">${sign.shape}</span>
@@ -33,7 +33,7 @@
                 <div style="border-top:1px solid var(--glass-border); padding-top:0.5rem; margin-top:0.5rem;">
                     <small style="color:var(--text-muted); font-weight:700; text-transform:uppercase;">FDOT Target Pay Item</small>
                     <div style="font-weight:700; color:var(--success); font-size:0.9rem;">${sign.payItem}</div>
-                </div>`;
+                </div>`);
             grid.appendChild(card);
         });
     }
@@ -54,9 +54,9 @@
                 const box = document.getElementById("sign-calc-result");
                 if (!box) return;
                 box.classList.remove("hidden");
-                box.innerHTML = `
+                window.setSafeHTML(box, `
                     <h4 style="color:var(--success);">Calculated Surface Area: ${sf.toFixed(2)} SF</h4>
-                    <div style="font-weight:700; color:var(--primary); margin-top:4px;">Resolved Pay Item: ${payItem}</div>`;
+                    <div style="font-weight:700; color:var(--primary); margin-top:4px;">Resolved Pay Item: ${payItem}</div>`);
             });
         }
     };

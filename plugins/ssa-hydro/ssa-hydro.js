@@ -53,9 +53,9 @@
                 const box = document.getElementById("hydrology-results");
                 if (!box) return;
                 box.classList.remove("hidden");
-                box.innerHTML = `
+                window.setSafeHTML(box, `
                     <h4 style="color:var(--success);">FDOT Zone ${zoneId} Intensity I(tc): ${intensity.toFixed(2)} in/hr</h4>
-                    <div style="font-weight:700; color:var(--primary); font-size:1.1rem; margin-top:4px;">Peak Discharge Q = ${Q.toFixed(2)} cfs</div>`;
+                    <div style="font-weight:700; color:var(--primary); font-size:1.1rem; margin-top:4px;">Peak Discharge Q = ${Q.toFixed(2)} cfs</div>`);
             });
 
             // Exfiltration Trench Sizer (FDOT Drainage Manual Ch. 7)
@@ -66,9 +66,9 @@
                 const box = document.getElementById("trench-results");
                 if (!box) return;
                 box.classList.remove("hidden");
-                box.innerHTML = `
+                window.setSafeHTML(box, `
                     <h4 style="color:var(--success);">Required Exfiltration Trench Length: ${Math.ceil(length)} FT</h4>
-                    <small style="color:var(--text-muted);">FDOT Drainage Manual Chapter 7 Safety Factor 2.0 Applied</small>`;
+                    <small style="color:var(--text-muted);">FDOT Drainage Manual Chapter 7 Safety Factor 2.0 Applied</small>`);
             });
         }
     };

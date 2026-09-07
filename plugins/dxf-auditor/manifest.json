@@ -1,1 +1,0 @@
-﻿{"name":"dxf-auditor","version":"2.6.0","description":"FDOT DXF file auditor, CADD compliance scorer, canvas geometry renderer, and bowtie self-intersection detector.","author":"BoundaryQC Enterprise","entrypoint":"dxf-auditor.js","dependencies":["spatial-engine","security-pki"],"tab":"tab-dxf-inspector","icon":"fa-file-circle-check","tier":"Free"}

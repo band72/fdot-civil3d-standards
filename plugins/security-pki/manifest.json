@@ -1,1 +1,0 @@
-﻿{"name":"security-pki","version":"2.6.0","description":"FIPS 180-4 SHA-256, F.A.C. PKI CA/TSA validation, Merkle chain verifier, and WebAuthn FIDO2 hardware token authentication.","author":"BoundaryQC Enterprise","entrypoint":"security-pki.js","dependencies":[],"tab":null,"icon":"fa-shield-halved","tier":"Free"}

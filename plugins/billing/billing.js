@@ -26,10 +26,17 @@ class BillingPortalEngine {
             Enterprise: { seats: 50, platExtractions: 9999, autoFixSCR: true,  fullQCReport: true,  c3dPlugin: true,  apiAccess: true  }
         };
 
-        // FIX [P0]: Generate an ECDSA P-256 key pair for JWT signing on construction.
-        // The public key would normally be embedded in the C# plugin for offline verification.
+        // Generate an ECDSA P-256 key pair for JWT signing on construction.
+        // NOTE (demo): a fresh key pair is created per page load, so these tokens are only
+        // self-consistent within one session — there is no stable published public key for an
+        // external verifier to trust. Real licensing must sign server-side with a fixed key.
         this._keyPair = null;
-        this._initCryptoKeyPair();
+        this._keyReady = this._initCryptoKeyPair();
+
+        console.warn(
+            "[BillingPortal] Demo build: subscription tier is read from localStorage and JWTs are " +
+            "signed with an ephemeral in-browser key. Nothing here gates a feature or verifies a payment."
+        );
     }
 
     /**
@@ -40,7 +47,7 @@ class BillingPortalEngine {
     async _initCryptoKeyPair() {
         if (!window.crypto || !window.crypto.subtle) {
             console.warn('[BillingPortal] SubtleCrypto unavailable — JWT signing in simulation mode (non-HTTPS context).');
-            return;
+            return null;
         }
         try {
             this._keyPair = await window.crypto.subtle.generateKey(
@@ -139,7 +146,11 @@ class BillingPortalEngine {
         const payload = b64url(payloadObj);
         const signingInput = `${header}.${payload}`;
 
-        // FIX [P0]: Attempt real ECDSA P-256 signing via SubtleCrypto
+        // Wait for the one-time key generation kicked off in the constructor so the first
+        // mint after page load produces a real signature rather than falling back to the sim token.
+        try { await this._keyReady; } catch (e) { /* fall through to simulation */ }
+
+        // Attempt real ECDSA P-256 signing via SubtleCrypto
         if (this._keyPair && window.crypto && window.crypto.subtle) {
             try {
                 const encoder = new TextEncoder();
@@ -193,11 +204,11 @@ if (window.PluginRegistry) {
     window.PluginRegistry.register({
         name: "billing",
         version: "2.6.0",
-        description: "Stripe subscription billing, ASC 606 double-entry ledger, and ECDSA P-256 JWT licensing.",
-        tab: "tab-billing",
+        description: "Demo subscription/tier UI, ASC 606 double-entry ledger, and ephemeral ECDSA P-256 JWT minting (client-side only).",
+        tab: "tab-commercial",
         icon: "fa-credit-card",
-        tier: "Free",
-        dependencies: []
+        tier: "Pro",
+        dependencies: ["security-pki"]
     }, {
         init(ctx) {
             window.BoundaryQCBilling.updateUIForTier();

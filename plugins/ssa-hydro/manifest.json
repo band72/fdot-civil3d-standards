@@ -1,1 +1,0 @@
-﻿{"name":"ssa-hydro","version":"2.6.0","description":"FDOT IDF curve Rational Method peak-discharge solver (Q=CiA), exfiltration trench sizer, and SSA hydraulic analysis tools.","author":"BoundaryQC Enterprise","entrypoint":"ssa-hydro.js","dependencies":[],"tab":"tab-ssa","icon":"fa-cloud-showers-heavy","tier":"Free"}

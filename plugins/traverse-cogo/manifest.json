@@ -1,1 +1,0 @@
-﻿{"name":"traverse-cogo","version":"2.6.0","description":"COGO traverse calculator, precision ratio closure report, bowtie bearing-quadrant detector, and 9-section QC checklist generator.","author":"BoundaryQC Enterprise","entrypoint":"traverse-cogo.js","dependencies":["security-pki"],"tab":"tab-traverse","icon":"fa-drafting-compass","tier":"Pro"}

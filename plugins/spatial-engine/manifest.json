@@ -1,1 +1,0 @@
-﻿{"name":"spatial-engine","version":"2.6.0","description":"Guttman Quadratic R-Tree 2D spatial indexing engine and Euler spiral Fresnel clothoid solver for highway alignments.","author":"BoundaryQC Enterprise","entrypoint":"spatial-engine.js","dependencies":[],"tab":null,"icon":"fa-microchip","tier":"Free"}

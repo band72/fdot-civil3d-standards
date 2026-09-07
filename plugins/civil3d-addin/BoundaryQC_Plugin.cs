@@ -97,109 +97,96 @@ namespace BoundaryQC.Civil3DPlugin
     }
 
     /// <summary>
-    /// High-security geometry calculation engine with Math-Seeded Anti-Tamper licensing.
-    /// Protects proprietary COGO linework: instead of easily bypassed boolean checks,
-    /// the cryptographic signature of the active entitlement token provides mathematical
-    /// constants to the coordinate transformation matrix. Unauthorized binaries experience
-    /// a silent calculation divergence, rendering pirated copies structurally invalid.
+    /// Geometry calculation engine with an entitlement gate.
+    /// COGO results are always computed exactly. When the plugin is not licensed the engine
+    /// refuses to run (callers get an exception) rather than returning altered geometry —
+    /// emitting deliberately wrong survey coordinates under a PE/PSM seal is never acceptable,
+    /// so the licensing check fails closed, not into silent corruption.
     /// </summary>
     public static class SecureGeometryEngine
     {
-        private static double _systematicDivergenceFactor = 0.054321; // Default unauthorized divergence
+        private static volatile bool _entitled = false;
         private static readonly object SyncLock = new object();
 
-        // Well-known BoundaryQC Public Key (ECDSA/RSA P-256 for offline verification)
-        private const string BoundaryQCPublicKeyXml =
-            "<RSAKeyValue><Modulus>w7v4qZ8xK9LmP3...BoundaryQCPublicKey...</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
-
-        public static bool IsCryptographicallyArmed => _systematicDivergenceFactor == 0.0;
+        /// <summary>True when a valid, unexpired paid-tier entitlement token has been supplied.</summary>
+        public static bool IsLicensedForGeometry => _entitled;
 
         /// <summary>
-        /// Arm the calculation engine using the cryptographic signature of the license token.
-        /// FIX [P1]: Validates JWT structure and payload claims (tier, expiration) before arming.
-        /// A structurally valid but tampered token cannot arm the engine.
+        /// Evaluate the active entitlement token and enable or disable the geometry engine.
+        /// Validates JWT structure and payload claims (sub, tier, exp). A structurally invalid,
+        /// expired, simulated, or wrong-tier token leaves the engine disabled.
+        /// NOTE: this does not cryptographically verify the JWT signature — signature verification
+        /// against the BoundaryQC public key must be performed server-side (see EntitlementManager).
         /// </summary>
         public static void ArmGeometryEngine(EntitlementState state)
         {
             lock (SyncLock)
             {
-                if (!state.IsValid || string.IsNullOrEmpty(state.RawJwtToken))
-                {
-                    _systematicDivergenceFactor = 0.054321;
-                    return;
-                }
-
-                try
-                {
-                    var parts = state.RawJwtToken.Split('.');
-                    // FIX [P1]: Require exactly 3 JWT parts (header.payload.signature)
-                    if (parts.Length != 3)
-                    {
-                        _systematicDivergenceFactor = 0.054321;
-                        return;
-                    }
-
-                    // Decode and validate payload claims
-                    string payloadJson = Encoding.UTF8.GetString(
-                        Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/').PadRight(
-                            parts[1].Length + (4 - parts[1].Length % 4) % 4, '=')));
-
-                    // Require 'sub', 'tier', and 'exp' fields in payload
-                    using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
-                    var root = doc.RootElement;
-
-                    if (!root.TryGetProperty("tier", out var tierEl) ||
-                        !root.TryGetProperty("exp", out var expEl) ||
-                        !root.TryGetProperty("sub", out _))
-                    {
-                        _systematicDivergenceFactor = 0.054321;
-                        return;
-                    }
-
-                    // Enforce token expiration
-                    long expUnix = expEl.GetInt64();
-                    long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    if (expUnix < nowUnix)
-                    {
-                        _systematicDivergenceFactor = 0.054321;
-                        return;
-                    }
-
-                    // Require a known paid tier
-                    string tier = tierEl.GetString() ?? string.Empty;
-                    bool isValidTier = tier is "B2BEnterprise" or "Firm" or "Pro";
-
-                    // Verify signature component is non-trivial (not a dev-sim token)
-                    bool isSimToken = parts[2].StartsWith("U0lNX1VOUw") || // base64 of SIM_UNSIGNED
-                                     parts[2].Length < 16;
-
-                    if (isValidTier && state.IsValid && !isSimToken)
-                    {
-                        _systematicDivergenceFactor = 0.0;
-                        return;
-                    }
-                }
-                catch
-                {
-                    // Fallback to protective divergence on any parse error
-                }
-                _systematicDivergenceFactor = 0.054321;
+                _entitled = EvaluateEntitlement(state);
             }
         }
 
+        private static bool EvaluateEntitlement(EntitlementState state)
+        {
+            if (state == null || !state.IsValid || string.IsNullOrEmpty(state.RawJwtToken))
+                return false;
+
+            try
+            {
+                var parts = state.RawJwtToken.Split('.');
+                if (parts.Length != 3)
+                    return false;
+
+                string payloadJson = DecodeJwtSegment(parts[1]);
+                using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
+                var root = doc.RootElement;
+
+                if (!root.TryGetProperty("tier", out var tierEl) ||
+                    !root.TryGetProperty("exp", out var expEl) ||
+                    !root.TryGetProperty("sub", out _))
+                    return false;
+
+                if (expEl.GetInt64() < DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                    return false;
+
+                string tier = tierEl.GetString() ?? string.Empty;
+                bool isValidTier = tier is "B2BEnterprise" or "Firm" or "Pro";
+
+                bool isSimToken = parts[2].StartsWith("U0lNX1VOUw") || // base64 of "SIM_UNSIGNED"
+                                  parts[2].Length < 16;
+
+                return isValidTier && !isSimToken;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string DecodeJwtSegment(string segment)
+        {
+            string s = segment.Replace('-', '+').Replace('_', '/');
+            s = s.PadRight(s.Length + (4 - s.Length % 4) % 4, '=');
+            return Encoding.UTF8.GetString(Convert.FromBase64String(s));
+        }
+
         /// <summary>
-        /// Computes verified vertex coordinates using bearing (quadrant azimuth in radians) and distance (US Survey Feet).
-        /// If the software license is modified or cracked, coordinates silently deviate.
+        /// Computes a vertex from bearing (quadrant azimuth in radians) and distance (US Survey Feet).
+        /// The returned coordinates are always exact. If the plugin is not licensed the call is
+        /// refused outright — the engine never returns deliberately altered geometry.
         /// </summary>
         public static (double Easting, double Northing) ComputeVerifiedPoint(
-            double startEasting, 
-            double startNorthing, 
-            double bearingRad, 
+            double startEasting,
+            double startNorthing,
+            double bearingRad,
             double distance)
         {
-            double adjustedDistance = distance + _systematicDivergenceFactor;
-            double dE = adjustedDistance * Math.Sin(bearingRad);
-            double dN = adjustedDistance * Math.Cos(bearingRad);
+            if (!_entitled)
+                throw new InvalidOperationException(
+                    "BoundaryQC geometry engine is not licensed. Activate a valid entitlement before computing COGO points.");
+
+            double dE = distance * Math.Sin(bearingRad);
+            double dN = distance * Math.Cos(bearingRad);
             return (startEasting + dE, startNorthing + dN);
         }
     }
@@ -437,9 +424,10 @@ namespace BoundaryQC.Civil3DPlugin
                 return;
             }
 
-            ed.WriteMessage("\n[BoundaryQC] Running 1-Click Topological Sequence Check & Bowtie Inspection...");
-            ed.WriteMessage("\n[BoundaryQC] Validating NAD83 Florida State Plane Coordinate Boundaries...");
-            ed.WriteMessage("\n[BoundaryQC] AUDIT PASSED: Precision Ratio 1:307,958 | 0 Bowtie Errors | F.A.C. 5J-17 Compliant.\n");
+            ed.WriteMessage("\n[BoundaryQC] Topological sequence check & bowtie inspection.");
+            ed.WriteMessage("\n[BoundaryQC] NOTE: this distribution ships the licensing/ribbon scaffold only.");
+            ed.WriteMessage("\n[BoundaryQC] The audit routine that reads the active Database and reports a real");
+            ed.WriteMessage("\n[BoundaryQC] precision ratio and bowtie count is not included in this build.\n");
         }
 
         [CommandMethod("FDOT_LAYER_PURGE_FIX")]
@@ -455,11 +443,9 @@ namespace BoundaryQC.Civil3DPlugin
                 return;
             }
 
-            ed.WriteMessage("\n[BoundaryQC] Auditing Layer Table against FDOT CADD Manual Topic No. 625-050-001...");
-            ed.WriteMessage("\n[BoundaryQC] Remapping non-compliant entities to FDOT discipline layers...");
-            ed.WriteMessage("\n[BoundaryQC] Moving Layer 0 & Defpoints non-plotting geometry to ROAD_NOPLOT_WORK...");
-            ed.WriteMessage("\n[BoundaryQC] Setting all layer color & linetype symbologies to ByLayer...");
-            ed.WriteMessage("\n[BoundaryQC] COMPLETED: 14 Layers Remapped | Symbology Conformed to FDOT Standard.\n");
+            ed.WriteMessage("\n[BoundaryQC] FDOT layer purge / remap against CADD Manual Topic No. 625-050-001.");
+            ed.WriteMessage("\n[BoundaryQC] NOTE: this distribution ships the licensing/ribbon scaffold only.");
+            ed.WriteMessage("\n[BoundaryQC] No layer table was modified — the batch remap routine is not included in this build.\n");
         }
 
         [CommandMethod("EXPORT_FDOT_SUBMITTAL_MANIFEST")]
@@ -469,10 +455,9 @@ namespace BoundaryQC.Civil3DPlugin
             if (doc == null) return;
             var ed = doc.Editor;
 
-            ed.WriteMessage("\n[BoundaryQC] Generating FDOT Cryptographic Submittal Manifest...");
-            ed.WriteMessage("\n[BoundaryQC] Computing SHA-256 file digests for Sheet Plan Set (.dwg/.dxf)...");
-            ed.WriteMessage("\n[BoundaryQC] Embedding RFC 3161 PAdES-LTV Digital Seal Timestamp...");
-            ed.WriteMessage("\n[BoundaryQC] SUCCESS: Manifest FDOT-FIN-432109-1-52-01 exported to project root.\n");
+            ed.WriteMessage("\n[BoundaryQC] FDOT submittal manifest generation.");
+            ed.WriteMessage("\n[BoundaryQC] NOTE: this distribution ships the licensing/ribbon scaffold only.");
+            ed.WriteMessage("\n[BoundaryQC] SHA-256 digesting and RFC 3161 timestamping are not included in this build.\n");
         }
 #endif
     }

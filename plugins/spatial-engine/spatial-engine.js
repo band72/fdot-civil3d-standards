@@ -261,6 +261,9 @@ class BoundaryQCJSSpatialEngine {
             ? ((sizeBytes / (1024 * 1024)) / (parseDurationMs / 1000)).toFixed(1)
             : "0.0";
 
+        // Only genuinely measured values are reported here. Previous builds also emitted a
+        // synthesized "memoryPeakMB" and a "cloudCostSavedUSD" figure derived from a made-up
+        // rate — those were removed because they read as real telemetry.
         this.lastTelemetry = {
             engine: this.version,
             dataSizeBytes: sizeBytes,
@@ -268,10 +271,7 @@ class BoundaryQCJSSpatialEngine {
             parseTimeMs: parseDurationMs,
             throughputMBs: throughputMBs,
             entitiesIndexed: entities.length,
-            memoryPeakMB: (38.5 + (sizeBytes / (1024 * 1024)) * 1.6).toFixed(1),
             spatialTreeHeight: Math.ceil(Math.log(Math.max(1, entities.length)) / Math.log(9)),
-            cloudEgressSavedBytes: sizeBytes,
-            cloudCostSavedUSD: (sizeBytes / (1024 * 1024 * 1024) * 0.15 + 0.05).toFixed(4),
             splitAlgorithm: "Guttman Quadratic Split (Optimal R-Tree)",
             timestamp: new Date().toISOString()
         };

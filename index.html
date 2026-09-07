@@ -83,6 +83,16 @@
                     <i class="fa-solid fa-shield-halved"></i>
                     <span>QC & Traverse Auditor</span>
                 </button>
+                <button class="nav-btn" data-tab="tab-legal-desc">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Legal Description QC</span>
+                    <span class="badge" style="background:var(--accent);">NEW</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-plss">
+                    <i class="fa-solid fa-table-cells-large"></i>
+                    <span>PLSS Section Breakdown</span>
+                    <span class="badge" style="background:var(--accent);">NEW</span>
+                </button>
                 <button class="nav-btn" data-tab="tab-inspector">
                     <i class="fa-solid fa-boxes-packing"></i>
                     <span>State Kit Inspector</span>
@@ -161,7 +171,7 @@
                         <input type="file" id="dxf-file-input" accept=".dxf" style="display: none;">
                         
                         <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-                            <button class="btn btn-primary" onclick="document.getElementById('dxf-file-input').click()">
+                            <button class="btn btn-primary" id="btn-browse-dxf">
                                 <i class="fa-solid fa-folder-open"></i> Browse DXF File
                             </button>
                             <button class="btn btn-accent" id="btn-load-sample-sr50">
@@ -532,7 +542,7 @@
                                 <i class="fa-solid fa-calculator"></i> Run Bow-tie Verification
                             </button>
                             <button class="btn btn-primary" id="btn-gen-qc-report">
-                                <i class="fa-solid fa-file-invoice"></i> Generate Jacksonville Heights Report
+                                <i class="fa-solid fa-file-invoice"></i> Generate Map Check Report
                             </button>
                         </div>
 
@@ -540,6 +550,42 @@
                             <!-- Dynamic -->
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Legal Description QC (ported from BoundaryQC desktop app) -->
+            <section id="tab-legal-desc" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-file-lines" style="color:var(--primary);"></i> Metes &amp; Bounds Legal Description QC</h2>
+                    <p class="subtitle">Paste a narrative legal description. Parses line &amp; curve calls, runs a chord-trace closure, computes Shoelace area, applies BoundaryQC QC rules, and exports a P,N,E,Z,D coordinate file and Map Check Report.</p>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label for="legal-desc-input">Legal description text</label>
+                        <textarea id="legal-desc-input" rows="7" style="width:100%; box-sizing:border-box; font-family:var(--font-mono); font-size:0.8rem;"></textarea>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <button class="btn btn-accent" id="btn-parse-legal-desc"><i class="fa-solid fa-list-check"></i> Parse &amp; Check</button>
+                        <button class="btn btn-secondary" id="btn-legal-desc-pnezd"><i class="fa-solid fa-file-csv"></i> Export P,N,E,Z,D</button>
+                        <button class="btn btn-secondary" id="btn-legal-desc-report"><i class="fa-solid fa-file-invoice"></i> Map Check Report</button>
+                    </div>
+                    <div id="legal-desc-results" class="results-box hidden" style="margin-top:1rem;"></div>
+                </div>
+            </section>
+
+            <!-- PLSS Section Breakdown (ported from BoundaryQC PlssDrafter) -->
+            <section id="tab-plss" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-table-cells-large" style="color:var(--primary);"></i> PLSS Section Breakdown</h2>
+                    <p class="subtitle">Enter an aliquot description (e.g. <code>S 1/2 of the SE 1/4 of the NE 1/4 of Section 8, Township 7 North, Range 7 East</code>). Subdivides an ideal 5,280&nbsp;ft section, reports rectangle dimensions, computed vs ideal acreage, cardinal-bearing courses, and a P,N,E,Z,D file. Flags qualified ("that part of…") descriptions.</p>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label for="plss-input">Aliquot description(s) — one parcel per line</label>
+                        <textarea id="plss-input" rows="5" style="width:100%; box-sizing:border-box; font-family:var(--font-mono); font-size:0.8rem;"></textarea>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <button class="btn btn-accent" id="btn-run-plss"><i class="fa-solid fa-calculator"></i> Break Down Section</button>
+                        <button class="btn btn-secondary" id="btn-plss-pnezd"><i class="fa-solid fa-file-csv"></i> Export P,N,E,Z,D</button>
+                        <button class="btn btn-secondary" id="btn-plss-report"><i class="fa-solid fa-file-invoice"></i> Breakdown Report</button>
+                    </div>
+                    <div id="plss-results" class="results-box hidden" style="margin-top:1rem;"></div>
                 </div>
             </section>
 
@@ -562,8 +608,9 @@
                             <h2 style="color:var(--success);"><i class="fa-solid fa-chart-line"></i> Commercial SaaS Revenue Engine ($100,000/Yr Net Profit Goal)</h2>
                             <p class="subtitle">20-Agent consensus financial model delivering $107,688/year net operating profit with 82.9% net margin.</p>
                         </div>
-                        <div style="display:flex; gap:0.75rem;">
-                            <a href="commercial_plan.md" target="_blank" class="btn btn-accent"><i class="fa-solid fa-file-contract"></i> View commercial_plan.md</a>
+                        <div style="display:flex; gap:0.75rem; align-items:center;">
+                            <span id="active-tier-badge" class="badge badge-tier-free" style="padding:0.3rem 0.6rem; border-radius:var(--radius-sm); font-size:0.7rem; font-weight:700; background:var(--bg-secondary); color:var(--text-secondary);">FREE PLAN ACTIVE</span>
+                            <a href="docs/commercial_plan.md" target="_blank" class="btn btn-accent"><i class="fa-solid fa-file-contract"></i> View commercial_plan.md</a>
                             <button class="btn btn-primary" id="btn-open-checkout-top"><i class="fa-solid fa-bolt"></i> Activate Plan Demo</button>
                         </div>
                     </div>
@@ -716,7 +763,11 @@
                 <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
                     <h2><i class="fa-solid fa-building-user"></i> Civil 3D C# Ribbon Plugin (.dll) & Enterprise Portal Manager</h2>
                     <p class="subtitle">Deploy native desktop Ribbon add-ins, white-labeled portals (`qc.firmname.com`), and FBPE Rule 61G15-23.004 digital seal validators.</p>
-                    
+                    <div style="margin-top:0.75rem; padding:0.75rem 1rem; background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.4); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-secondary);">
+                        <i class="fa-solid fa-circle-info" style="color:var(--warning);"></i>
+                        <strong>Demo build.</strong> Sign-in, licensing, Stripe webhooks, PKI seal validation and tenant isolation run entirely in your browser against <code>localStorage</code> — there is no server. Nothing here enforces entitlements, verifies a certificate, or processes a payment.
+                    </div>
+
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem; margin-top:1.5rem;">
                         <div class="glass-panel" style="padding: 1.25rem; border: 1px solid var(--primary);">
                             <h3><i class="fa-solid fa-puzzle-piece" style="color:var(--primary);"></i> Civil 3D C# Ribbon Plugin</h3>
@@ -725,7 +776,7 @@
 public class CmdBoundaryQC : IExternalCommand {
     // 1-Click CAD Ribbon Execution
 }</pre>
-                            <button class="btn btn-primary" style="margin-top:0.75rem; width:100%;" onclick="alert('Civil 3D .NET Plugin Installer downloaded: BoundaryQC_C3D_Setup.msi');"><i class="fa-solid fa-download"></i> Download Civil 3D Plugin (.msi)</button>
+                            <button class="btn btn-primary" id="btn-download-c3d-plugin" style="margin-top:0.75rem; width:100%;"><i class="fa-solid fa-download"></i> Download Civil 3D Plugin (.msi)</button>
                         </div>
 
                         <div class="glass-panel" style="padding: 1.25rem; border: 1px solid var(--accent);">
@@ -733,7 +784,7 @@ public class CmdBoundaryQC : IExternalCommand {
                             <p style="font-size:0.85rem; color:var(--text-secondary); margin:0.5rem 0;">Branded portal domain for top 20 Florida AEC firms (Kimley-Horn, RS&H, WGI, DRMP, Jacobs).</p>
                             <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
                                 <input type="text" id="custom-domain-input" value="qc.kimley-horn.com" style="flex:1; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-size:0.85rem;">
-                                <button class="btn btn-accent" onclick="alert('CNAME configured for domain: ' + document.getElementById('custom-domain-input').value);"><i class="fa-solid fa-link"></i> Verify CNAME</button>
+                                <button class="btn btn-accent" id="btn-verify-cname"><i class="fa-solid fa-link"></i> Verify CNAME</button>
                             </div>
                         </div>
 
@@ -986,6 +1037,8 @@ public class CmdBoundaryQC : IExternalCommand {
 
     <!-- Core Data & Plugin Loader -->
     <script src="core/data.js"></script>
+    <script src="core/safe-dom.js"></script>
+    <script src="core/cogo.js"></script>
     <script src="core/plugin-loader.js"></script>
 
     <!-- Modular Feature Plugins -->
@@ -999,6 +1052,8 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/sign-qto/sign-qto.js"></script>
     <script src="plugins/ssa-hydro/ssa-hydro.js"></script>
     <script src="plugins/traverse-cogo/traverse-cogo.js"></script>
+    <script src="plugins/legal-desc/legal-desc.js"></script>
+    <script src="plugins/plss-breakdown/plss-breakdown.js"></script>
 
     <!-- Core App Coordinator -->
     <script src="core/app.js"></script>

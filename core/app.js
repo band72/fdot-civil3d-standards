@@ -34,10 +34,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!toastContainer) return;
         const toast = document.createElement("div");
         toast.className = "toast";
-        const icon = isError
-            ? `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);"></i>`
-            : `<i class="fa-solid fa-circle-check" style="color:var(--success);"></i>`;
-        toast.innerHTML = `${icon} <span>${message}</span>`;
+        const icon = document.createElement("i");
+        icon.className = isError
+            ? "fa-solid fa-triangle-exclamation"
+            : "fa-solid fa-circle-check";
+        icon.style.color = isError ? "var(--danger)" : "var(--success)";
+        const text = document.createElement("span");
+        text.textContent = message;           // untrusted — never parsed as HTML
+        toast.append(icon, " ", text);
         toastContainer.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = "0";
@@ -51,22 +55,24 @@ document.addEventListener("DOMContentLoaded", () => {
             overlay.className = "modal-overlay";
             overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:10000;";
 
-            overlay.innerHTML = `
+            window.setSafeHTML(overlay, `
                 <div class="glass-panel" style="width:90%;max-width:420px;padding:1.75rem;background:var(--bg-primary);border:1px solid var(--primary);border-radius:var(--radius-md);">
                     <h3 style="margin-bottom:1rem;color:var(--text-main);font-size:1rem;">
-                        <i class="fa-solid fa-pen-to-square" style="color:var(--primary);"></i> ${title}
+                        <i class="fa-solid fa-pen-to-square" style="color:var(--primary);"></i> <span id="_input_modal_title"></span>
                     </h3>
-                    <input id="_input_modal_field" type="text" value="${defaultValue}"
+                    <input id="_input_modal_field" type="text"
                         style="width:100%;padding:0.65rem;background:var(--bg-secondary);border:1px solid var(--glass-border);color:#fff;border-radius:var(--radius-sm);margin-bottom:1rem;box-sizing:border-box;" />
                     <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
                         <button id="_input_modal_cancel" class="btn btn-secondary">Cancel</button>
                         <button id="_input_modal_ok" class="btn btn-primary">OK</button>
                     </div>
                 </div>
-            `;
+            `);
             document.body.appendChild(overlay);
 
+            overlay.querySelector("#_input_modal_title").textContent = title;
             const input = overlay.querySelector("#_input_modal_field");
+            input.value = defaultValue;        // set as a property, never interpolated into markup
             input.focus(); input.select();
 
             const finish = (val) => { overlay.remove(); resolve(val); };
@@ -82,19 +88,20 @@ document.addEventListener("DOMContentLoaded", () => {
             overlay.className = "modal-overlay";
             overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:10000;";
 
-            overlay.innerHTML = `
+            window.setSafeHTML(overlay, `
                 <div class="glass-panel" style="width:90%;max-width:380px;padding:1.75rem;background:var(--bg-primary);border:1px solid var(--danger);border-radius:var(--radius-md);">
                     <h3 style="margin-bottom:0.75rem;color:var(--danger);font-size:1rem;">
                         <i class="fa-solid fa-triangle-exclamation"></i> Confirm Action
                     </h3>
-                    <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.25rem;">${message}</p>
+                    <p id="_confirm_modal_msg" style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.25rem;"></p>
                     <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
                         <button id="_confirm_modal_cancel" class="btn btn-secondary">Cancel</button>
                         <button id="_confirm_modal_ok" class="btn btn-primary" style="background:var(--danger);">Confirm</button>
                     </div>
                 </div>
-            `;
+            `);
             document.body.appendChild(overlay);
+            overlay.querySelector("#_confirm_modal_msg").textContent = message;
 
             const finish = (val) => { overlay.remove(); resolve(val); };
             overlay.querySelector("#_confirm_modal_ok").addEventListener("click", () => finish(true));
@@ -107,20 +114,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const overlay = document.createElement("div");
         overlay.className = "modal-overlay";
         overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:10000;";
-        overlay.innerHTML = `
+        window.setSafeHTML(overlay, `
             <div class="glass-panel" style="width:90%;max-width:520px;padding:1.75rem;background:var(--bg-primary);border:1px solid var(--primary);border-radius:var(--radius-md);">
                 <h3 style="margin-bottom:0.75rem;color:var(--text-main);font-size:1rem;">
-                    <i class="fa-solid fa-key" style="color:var(--accent);"></i> ${title}
+                    <i class="fa-solid fa-key" style="color:var(--accent);"></i> <span id="_copy_modal_title"></span>
                 </h3>
                 <textarea id="_copy_modal_value" rows="4" readonly
-                    style="width:100%;padding:0.65rem;background:var(--bg-secondary);border:1px solid var(--glass-border);color:var(--accent);font-family:var(--font-mono);font-size:0.75rem;border-radius:var(--radius-sm);margin-bottom:1rem;resize:none;box-sizing:border-box;">${value}</textarea>
+                    style="width:100%;padding:0.65rem;background:var(--bg-secondary);border:1px solid var(--glass-border);color:var(--accent);font-family:var(--font-mono);font-size:0.75rem;border-radius:var(--radius-sm);margin-bottom:1rem;resize:none;box-sizing:border-box;"></textarea>
                 <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
                     <button id="_copy_modal_copy" class="btn btn-accent"><i class="fa-solid fa-copy"></i> Copy to Clipboard</button>
                     <button id="_copy_modal_close" class="btn btn-secondary">Close</button>
                 </div>
             </div>
-        `;
+        `);
         document.body.appendChild(overlay);
+        overlay.querySelector("#_copy_modal_title").textContent = title;
+        overlay.querySelector("#_copy_modal_value").value = value;
 
         overlay.querySelector("#_copy_modal_copy").addEventListener("click", () => {
             navigator.clipboard.writeText(value).then(() => showToast("Copied to clipboard!")).catch(() => {});
@@ -149,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.FDOT_DATA.subassemblies.forEach(sub => {
             const card = document.createElement("div");
             card.className = "pkt-card glass-panel";
-            card.innerHTML = `
+            window.setSafeHTML(card, `
                 <div class="pkt-card-header">
                     <h3>${sub.name}</h3>
                     <span class="tag tag-discipline">${sub.category}</span>
@@ -161,7 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${sub.params.map(p => `<li><i class="fa-solid fa-gear"></i> ${p}</li>`).join("")}
                     </ul>
                 </div>
-            `;
+            `);
             subassembliesGrid.appendChild(card);
         });
     }
@@ -172,7 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.FDOT_DATA.sheetStandards.forEach(sheet => {
             const card = document.createElement("div");
             card.className = "pkt-card glass-panel";
-            card.innerHTML = `
+            window.setSafeHTML(card, `
                 <div class="pkt-card-header">
                     <h3><i class="fa-solid fa-file-pdf" style="color:var(--danger);"></i> ${sheet.title}</h3>
                     <span class="tag tag-discipline">${sheet.layout}</span>
@@ -183,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <small style="color:var(--text-muted); font-weight:700; text-transform:uppercase;">Viewport Plot Scale</small>
                     <div style="font-weight:700; color:var(--success); font-size:0.9rem;">${sheet.scale}</div>
                 </div>
-            `;
+            `);
             sheetsGrid.appendChild(card);
         });
     }
@@ -195,7 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.FDOT_DATA.blocks.forEach(b => {
             const card = document.createElement("div");
             card.className = "pkt-card glass-panel";
-            card.innerHTML = `
+            window.setSafeHTML(card, `
                 <div class="pkt-card-header">
                     <h3><i class="fa-solid fa-cube" style="color:var(--primary);"></i> ${b.name}</h3>
                     <span class="tag tag-discipline">${b.discipline}</span>
@@ -206,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <small style="color:var(--text-muted); font-weight:700; text-transform:uppercase;">Target Layer & Pay Item</small>
                     <div style="font-weight:700; color:var(--success); font-size:0.85rem;">${b.layer} (${b.payItem})</div>
                 </div>
-            `;
+            `);
             grid.appendChild(card);
         });
     }
@@ -214,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderStateKitTree() {
         const treeContainer = document.getElementById("state-kit-tree");
         if (!treeContainer) return;
-        treeContainer.innerHTML = `
+        window.setSafeHTML(treeContainer, `
             <div style="font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary);">
                 <div>📁 <strong style="color: var(--primary);">FDOT2026.C3D (State Kit Root)</strong></div>
                 <div style="padding-left: 1.5rem;">├── 📁 <strong>Data</strong> (289 XML schema configs, FDOT Pay Items, Survey Description Key Sets)</div>
@@ -224,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div style="padding-left: 1.5rem;">├── 📁 <strong>Apps & Plugins</strong> (209 DLLs, ProjectValidator.exe, QuantityTakeoffManagerCore.exe)</div>
                 <div style="padding-left: 1.5rem;">└── 📜 <strong>FDOT2026Civil3DStateKitInstallationUserGuide.pdf</strong></div>
             </div>
-        `;
+        `);
     }
 
     // ── Setup Core Event Listeners ─────────────────────────────────────────────
@@ -282,7 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const plan = btn.getAttribute("data-plan") || "Pro";
                 const price = btn.getAttribute("data-price") || "49";
                 if (modalPlanTitle) {
-                    modalPlanTitle.innerHTML = `<i class="fa-solid fa-credit-card" style="color:var(--primary);"></i> Activate ${plan} Tier ($${price}/mo)`;
+                    window.setSafeHTML(modalPlanTitle, `<i class="fa-solid fa-credit-card" style="color:var(--primary);"></i> Activate ${plan} Tier ($${price}/mo)`);
                 }
                 if (modalCheckout) modalCheckout.classList.remove("hidden");
             });
@@ -296,7 +305,16 @@ document.addEventListener("DOMContentLoaded", () => {
         themeToggleBtn?.addEventListener("click", () => {
             state.theme = state.theme === "dark" ? "light" : "dark";
             document.body.className = `${state.theme}-theme`;
-            themeToggleBtn.innerHTML = state.theme === "dark" ? `<i class="fa-solid fa-moon"></i>` : `<i class="fa-solid fa-sun"></i>`;
+            window.setSafeHTML(themeToggleBtn, state.theme === "dark" ? `<i class="fa-solid fa-moon"></i>` : `<i class="fa-solid fa-sun"></i>`);
+        });
+
+        // Buttons that previously relied on inline onclick handlers (blocked by the page CSP).
+        document.getElementById("btn-download-c3d-plugin")?.addEventListener("click", () => {
+            showToast("Demo build — the Civil 3D .msi installer is not distributed in this repository.", true);
+        });
+        document.getElementById("btn-verify-cname")?.addEventListener("click", () => {
+            const domain = document.getElementById("custom-domain-input")?.value.trim() || "(none)";
+            showToast(`Demo build — CNAME for "${domain}" was not provisioned. Portal hosting is not part of this repo.`, true);
         });
     }
 

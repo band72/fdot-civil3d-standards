@@ -38,7 +38,7 @@
             const telemetry = window.BoundaryQCWASM.processDXFSpatialStream(dxfText, parsed.entities);
             const hud = document.getElementById("dxf-wasm-hud");
             if (hud && telemetry) {
-                hud.innerHTML = `<i class="fa-solid fa-microchip"></i> R-Tree: ${telemetry.entitiesIndexed} Ent | ${telemetry.throughputMBs} MB/s`;
+                window.setSafeHTML(hud, `<i class="fa-solid fa-microchip"></i> R-Tree: ${telemetry.entitiesIndexed} entities indexed in ${telemetry.parseTimeMs} ms`);
             }
         }
 
@@ -64,18 +64,19 @@
         if (!container) return;
         container.innerHTML = "";
         if (issues.length === 0) {
-            container.innerHTML = `<div style="color:var(--success); padding:1rem; text-align:center;"><i class="fa-solid fa-circle-check"></i> No compliance issues detected.</div>`;
+            window.setSafeHTML(container, `<div style="color:var(--success); padding:1rem; text-align:center;"><i class="fa-solid fa-circle-check"></i> No compliance issues detected.</div>`);
             return;
         }
         issues.forEach(issue => {
             const div = document.createElement("div");
             div.className = `qc-item ${issue.severity?.toLowerCase() || "warn"}`;
-            div.innerHTML = `
+            // issue.title / .category / .description embed DXF-supplied layer names — sanitize before injecting.
+            window.setSafeHTML(div, `
                 <div class="qc-item-icon"><i class="fa-solid ${issue.severity === "ERROR" ? "fa-xmark" : "fa-triangle-exclamation"}"></i></div>
                 <div class="qc-item-content">
                     <h4>${issue.title} <span class="tag tag-discipline">${issue.category}</span></h4>
                     <p>${issue.description}</p>
-                </div>`;
+                </div>`);
             container.appendChild(div);
         });
     }
@@ -104,15 +105,25 @@
         }
 
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const stretch = (x, y) => {
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+        };
         entities.forEach(ent => {
             if (ent.type === "LINE") {
-                minX = Math.min(minX, ent.startX, ent.endX); maxX = Math.max(maxX, ent.startX, ent.endX);
-                minY = Math.min(minY, ent.startY, ent.endY); maxY = Math.max(maxY, ent.startY, ent.endY);
+                stretch(ent.startX, ent.startY);
+                stretch(ent.endX, ent.endY);
+            } else if (ent.type === "ARC" || ent.type === "CIRCLE") {
+                const r = ent.radius || 0;
+                stretch(ent.startX - r, ent.startY - r);
+                stretch(ent.startX + r, ent.startY + r);
+            } else if (ent.vertices && ent.vertices.length) {
+                ent.vertices.forEach(v => stretch(v.x, v.y));
+            } else {
+                // TEXT / MTEXT / INSERT / POINT — single insertion point
+                stretch(ent.startX, ent.startY);
             }
-            if (ent.vertices) ent.vertices.forEach(v => {
-                minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
-                minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
-            });
         });
         if (minX === Infinity) { minX = 0; maxX = 500; minY = 0; maxY = 300; }
 
@@ -173,6 +184,10 @@
 
     const BOWTIE_DXF = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1032\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nPROP_BOUNDARY\n70\n0\n62\n2\n6\nCONTINUOUS\n0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\nPROP_BOUNDARY\n90\n5\n70\n1\n43\n0.0\n10\n1000.00\n20\n1000.00\n10\n1500.00\n20\n1500.00\n10\n1500.00\n20\n1000.00\n10\n1000.00\n20\n1500.00\n10\n1000.00\n20\n1000.00\n0\nENDSEC\n0\nEOF`;
 
+    // Non-compliant drainage basin: entities on Layer 0, a bad layer prefix, a wrong ACI color,
+    // a Defpoints layer, a zero-length line, and coordinates outside the Florida State Plane envelope.
+    const NONCOMPLIANT_DXF = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1032\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n4\n0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nDEFPOINTS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nBASIN_STUFF\n70\n0\n62\n42\n6\nCONTINUOUS\n0\nLAYER\n2\nDRAIN_PIPE_PR\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n0\n43\n0.0\n10\n10.00\n20\n20.00\n10\n480.00\n20\n20.00\n10\n480.00\n20\n900.00\n10\n10.00\n20\n900.00\n0\nLINE\n8\nBASIN_STUFF\n10\n250.00\n20\n250.00\n11\n250.00\n21\n250.00\n0\nLINE\n8\nDRAIN_PIPE_PR\n10\n100.00\n20\n100.00\n11\n300.00\n21\n140.00\n0\nENDSEC\n0\nEOF`;
+
     // ── Plugin API ───────────────────────────────────────────────────────────
 
     const Plugin = {
@@ -210,16 +225,24 @@
                 if (e.target.files.length > 0) _readFile(e.target.files[0]);
             });
 
-            document.getElementById("btn-load-sample-dxf")?.addEventListener("click", () => {
-                auditDXFText(SR50_DXF, "Sample_DOT_Roadway_Project.dxf");
+            // "Browse" button + click-anywhere on the dropzone (inline onclick was blocked by CSP).
+            document.getElementById("btn-browse-dxf")?.addEventListener("click", () => fileInput?.click());
+            dropzone?.addEventListener("click", e => {
+                if (e.target.closest("button")) return; // let real buttons handle their own clicks
+                fileInput?.click();
             });
+
             document.getElementById("btn-load-sample-sr50")?.addEventListener("click", () => {
                 auditDXFText(SR50_DXF, "FDOT_SR50_Roadway_Corridor.dxf");
-                ctx.showToast("Loaded FDOT_SR50_Roadway_Corridor.dxf (100% FDOT Compliant!)");
+                ctx.showToast("Loaded FDOT_SR50_Roadway_Corridor.dxf sample.");
             });
             document.getElementById("btn-load-sample-bowtie")?.addEventListener("click", () => {
                 auditDXFText(BOWTIE_DXF, "FDOT_Jacksonville_Heights_Parcel_Bowtie_Error.dxf");
-                ctx.showToast("Loaded FDOT_Jacksonville_Heights_Parcel_Bowtie_Error.dxf (Bow-tie Error Detected!)");
+                ctx.showToast("Loaded Jacksonville Heights bow-tie sample.");
+            });
+            document.getElementById("btn-load-sample-drainage")?.addEventListener("click", () => {
+                auditDXFText(NONCOMPLIANT_DXF, "FDOT_Drainage_Basin_B_NonCompliant_Layers.dxf");
+                ctx.showToast("Loaded non-compliant drainage basin sample.");
             });
 
             // NAD83 coordinate HUD on canvas mousemove
@@ -230,7 +253,7 @@
                 const easting  = t.minX + (e.clientX - r.left  - t.pad) / t.scale;
                 const northing = t.minY + (t.h - (e.clientY - r.top) - t.pad) / t.scale;
                 const hud = document.getElementById("dxf-coord-hud");
-                if (hud) hud.innerHTML = `<i class="fa-solid fa-crosshairs"></i> NAD83 FL: (${easting.toFixed(2)}, ${northing.toFixed(2)}) ft`;
+                if (hud) window.setSafeHTML(hud, `<i class="fa-solid fa-crosshairs"></i> NAD83 FL: (${easting.toFixed(2)}, ${northing.toFixed(2)}) ft`);
             });
 
             // Submittal manifest export

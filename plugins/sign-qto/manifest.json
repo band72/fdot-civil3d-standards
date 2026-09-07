@@ -1,1 +1,0 @@
-﻿{"name":"sign-qto","version":"2.6.0","description":"FDOT sign assembly catalog, 10-agent QTO resolver, surface-area calculator with MUTCD pay-item auto-classification.","author":"BoundaryQC Enterprise","entrypoint":"sign-qto.js","dependencies":[],"tab":"tab-signs","icon":"fa-triangle-exclamation","tier":"Free"}

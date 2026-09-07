@@ -8,7 +8,7 @@
  * - FDOT Electronic Delivery Guidelines (EDG) Topic No. 625-050-001
  * - NIST SP 800-63 IAL2/AAL3 PKI Standards & PAdES-LTV (Long-Term Validation)
  * - RFC 3161 Cryptographic Time-Stamp Authority (TSA) Protocols
- * - FIPS 180-4 SHA-256 Merkle Chain Integrity Verification
+ * - FIPS 180-4 SHA-256 hash-linked audit chain integrity verification
  * - OWASP Top 10 Enterprise Input Hardening & XSS Defense
  *
  * FIX LOG (v2.6.0):
@@ -154,6 +154,17 @@ class BoundaryQCSecurityEngine {
     }
 
     /**
+     * Synchronous SHA-256 for a plain text string (pure-JS FIPS 180-4, no SubtleCrypto).
+     * Used where a hash must be produced before a value is persisted — e.g. the audit log,
+     * which must never store a placeholder that a later verifier would have to trust.
+     * @param {string} text
+     * @returns {string} 64-char lowercase hex
+     */
+    computeTextSHA256Sync(text) {
+        return this._pureSHA256(new TextEncoder().encode(text));
+    }
+
+    /**
      * Sanitize user-supplied input strings against XSS injection.
      * @param {string} str
      * @returns {string} Sanitized string
@@ -289,12 +300,12 @@ class BoundaryQCSecurityEngine {
     }
 
     /**
-     * Mathematically verify an entire Immutable Merkle Audit Log Chain.
+     * Recompute and verify an entire hash-linked (blockchain-style) audit log chain.
      * Hash formula: SHA256(seq | timestamp | actor | action | details | prevHash)
      * @param {Array<Object>} auditLogs
      * @returns {Promise<Object>} Verification outcome with tamper detection
      */
-    async verifyMerkleAuditChain(auditLogs) {
+    async verifyAuditHashChain(auditLogs) {
         if (!auditLogs || auditLogs.length === 0) {
             return { isValid: true, count: 0, rootHash: "EMPTY_LEDGER", message: "Audit log is currently empty." };
         }
@@ -315,20 +326,17 @@ class BoundaryQCSecurityEngine {
                 };
             }
 
-            // 2. Verify block hash calculation
+            // 2. Recompute the block hash and require an exact match — no placeholder is trusted.
             const raw = `${block.sequence}|${block.timestamp}|${block.actor}|${block.action}|${block.details}|${block.prevHash}`;
             const computedHash = await this.computeTextSHA256(raw);
 
-            // Accept placeholder hashes from initial seed data — compute and store them
-            if (block.hash === "placeholder" || block.hash.startsWith("hash_")) {
-                block.hash = computedHash;
-            } else if (block.hash !== computedHash) {
+            if (block.hash !== computedHash) {
                 return {
                     isValid: false,
                     tamperedBlockIndex: i,
                     blockSequence: block.sequence,
                     errorType: "BLOCK_CONTENT_TAMPERED",
-                    message: `Block payload altered at Sequence #${block.sequence}! Content hash does not match immutable signature.`
+                    message: `Block payload altered at Sequence #${block.sequence}! Content hash does not match the recomputed digest.`
                 };
             }
 
@@ -340,8 +348,9 @@ class BoundaryQCSecurityEngine {
             totalBlocksVerified: auditLogs.length,
             rootHash: auditLogs[auditLogs.length - 1].hash,
             verifiedAt: new Date().toISOString(),
-            status: "CRYPTOGRAPHICALLY_IMMUTABLE",
-            compliance: "SOC 2 Type II & F.A.C. 6-Year Immutable Audit Requirement Satisfied"
+            status: "HASH_CHAIN_INTACT",
+            note: "Every block digest was recomputed and every prevHash link checked. This proves the local " +
+                  "log has not been edited in place; it is not an external notarization or a tamper-proof store."
         };
     }
 
@@ -354,21 +363,14 @@ class BoundaryQCSecurityEngine {
      */
     async authenticateHardwareToken(userEmail) {
         if (!navigator.credentials || !window.PublicKeyCredential) {
-            // WebAuthn not available (non-HTTPS, old browser) — inform caller
-            console.warn('[BoundaryQCSecurity] WebAuthn unavailable. Running in simulation mode for development.');
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    const credentialId = "dev_sim_" + Math.random().toString(36).substring(2, 12);
-                    resolve({
-                        success: true,
-                        user: this.sanitizeInput(userEmail),
-                        credentialId: credentialId,
-                        authMethod: "SIMULATION (WebAuthn unavailable — requires HTTPS + compatible authenticator)",
-                        authenticatorAttachment: "simulation",
-                        verifiedAt: new Date().toISOString()
-                    });
-                }, 400);
-            });
+            // WebAuthn not available (non-HTTPS, old browser). Fail closed — do NOT report success.
+            console.warn('[BoundaryQCSecurity] WebAuthn unavailable — hardware-token step cannot be satisfied here.');
+            return {
+                success: false,
+                user: this.sanitizeInput(userEmail),
+                error: "WebAuthn is unavailable in this context. A FIDO2/WebAuthn hardware token requires HTTPS (or localhost) and a compatible authenticator.",
+                errorName: "WebAuthnUnavailable"
+            };
         }
 
         // Deterministic challenge derived from userEmail + timestamp
@@ -426,7 +428,7 @@ if (window.PluginRegistry) {
     window.PluginRegistry.register({
         name: "security-pki",
         version: "2.6.0",
-        description: "FIPS 180-4 SHA-256, F.A.C. PKI CA/TSA validation, Merkle chain verifier, and WebAuthn.",
+        description: "FIPS 180-4 SHA-256, F.A.C. PKI CA/TSA validation, hash-chain audit verifier, and WebAuthn.",
         tab: null,
         icon: "fa-shield-halved",
         tier: "Free",

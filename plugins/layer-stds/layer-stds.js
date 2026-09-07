@@ -33,8 +33,10 @@
         if (state.selectedDiscipline && state.selectedDiscipline !== "ALL") {
             layers = layers.filter(l => l.discipline === state.selectedDiscipline);
         }
-        if (state.plotFilter && state.plotFilter !== "ALL") {
-            layers = layers.filter(l => l.plotStyle === state.plotFilter);
+        if (state.plotFilter === "PLOT") {
+            layers = layers.filter(l => l.plot === true);
+        } else if (state.plotFilter === "NOPLOT") {
+            layers = layers.filter(l => l.plot === false);
         }
         if (state.searchQuery) {
             const q = state.searchQuery.toLowerCase();
@@ -48,18 +50,21 @@
         tbody.innerHTML = "";
         layers.forEach(layer => {
             const tr = document.createElement("tr");
-            tr.innerHTML = `
+            window.setSafeHTML(tr, `
+                <td style="font-family:var(--font-mono); font-size:0.8rem;">
+                    <span style="display:inline-block; width:0.8rem; height:0.8rem; border-radius:2px; vertical-align:middle; margin-right:0.4rem; background:${layer.colorHex || '#888'}; border:1px solid var(--glass-border);"></span>${layer.colorName || layer.color}
+                </td>
                 <td style="font-family:var(--font-mono); font-weight:600; color:var(--primary);">${layer.name}</td>
                 <td><span class="tag tag-discipline">${layer.discipline}</span></td>
-                <td style="font-family:var(--font-mono); font-size:0.8rem;">${layer.color}</td>
                 <td style="font-family:var(--font-mono); font-size:0.8rem;">${layer.linetype}</td>
-                <td style="font-size:0.8rem; color:var(--text-muted);">${layer.plotStyle}</td>
+                <td style="font-family:var(--font-mono); font-size:0.8rem;">${layer.lineweight || ""}</td>
+                <td style="font-size:0.8rem; color:${layer.plot ? 'var(--success)' : 'var(--text-muted)'};">${layer.plot ? "Yes" : "No-Plot"}</td>
                 <td style="font-size:0.8rem; color:var(--text-secondary);">${layer.description || ""}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm btn-copy-layer" data-layer="${layer.name}" title="Copy layer name">
                         <i class="fa-solid fa-copy"></i>
                     </button>
-                </td>`;
+                </td>`);
             tbody.appendChild(tr);
         });
 
@@ -74,7 +79,7 @@
 
         let items = [...(window.FDOT_DATA?.payItems || [])];
         if (q) items = items.filter(p =>
-            p.itemNumber.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q) ||
             p.description.toLowerCase().includes(q) ||
             (p.unit || "").toLowerCase().includes(q)
         );
@@ -82,12 +87,16 @@
         tbody.innerHTML = "";
         items.forEach(item => {
             const tr = document.createElement("tr");
-            tr.style.cursor = "pointer";
-            tr.innerHTML = `
-                <td style="font-family:var(--font-mono); color:var(--primary);">${item.itemNumber}</td>
+            window.setSafeHTML(tr, `
+                <td style="font-family:var(--font-mono); color:var(--primary);">${item.code}</td>
                 <td>${item.description}</td>
                 <td style="font-family:var(--font-mono);">${item.unit}</td>
-                <td><span class="tag tag-discipline">${item.discipline}</span></td>`;
+                <td><span class="tag tag-discipline">${item.category}</span></td>
+                <td>
+                    <button class="btn btn-secondary btn-sm btn-copy-layer" data-layer="${item.code}" title="Copy pay item number">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                </td>`);
             tbody.appendChild(tr);
         });
     }
@@ -107,11 +116,13 @@
         tbody.innerHTML = "";
         keys.forEach(k => {
             const tr = document.createElement("tr");
-            tr.innerHTML = `
+            window.setSafeHTML(tr, `
                 <td style="font-family:var(--font-mono); font-weight:700; color:var(--accent);">${k.code}</td>
-                <td>${k.description}</td>
-                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--primary);">${k.targetLayer}</td>
-                <td style="font-size:0.8rem; color:var(--text-muted);">${k.pointType}</td>`;
+                <td style="font-family:var(--font-mono); font-size:0.8rem;">${k.block}</td>
+                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--primary);">${k.layer}</td>
+                <td style="font-size:0.8rem; color:var(--text-muted);">${k.group}</td>
+                <td style="font-size:0.8rem; color:var(--text-secondary);">${k.description}</td>
+                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--accent);">${k.format || ""}</td>`);
             tbody.appendChild(tr);
         });
     }
@@ -150,16 +161,17 @@
             // Survey key search
             document.getElementById("survey-search")?.addEventListener("input", () => renderSurveyKeys(state));
 
-            // Copy layer name
-            document.getElementById("layers-tbody")?.addEventListener("click", e => {
+            // Copy layer name / pay item number (event delegation across all three tables)
+            const wireCopy = (id) => document.getElementById(id)?.addEventListener("click", e => {
                 const btn = e.target.closest(".btn-copy-layer");
-                if (btn) {
-                    const layerName = btn.getAttribute("data-layer");
-                    navigator.clipboard.writeText(layerName)
-                        .then(() => showToast(`Copied "${layerName}" to clipboard!`))
-                        .catch(() => showToast(`Copied layer name: ${layerName}`));
-                }
+                if (!btn) return;
+                const value = btn.getAttribute("data-layer");
+                navigator.clipboard.writeText(value)
+                    .then(() => showToast(`Copied "${value}" to clipboard!`))
+                    .catch(() => showToast(`Copied: ${value}`));
             });
+            wireCopy("layers-tbody");
+            wireCopy("payitem-tbody");
         },
 
         /** Called by PluginRegistry when the layer-stds tab is activated */

@@ -152,12 +152,27 @@ const FDOT_DATA = {
         sampleTraverse: "N 45-12-30 E 150.00\nS 44-47-30 E 200.00\nS 45-12-30 W 150.00\nN 44-47-30 W 200.00"
     },
 
+    // COGO / boundary QC heuristics rendered on the Traverse & COGO tab.
+    heuristics: [
+        { rule: "Quadrant sanity", description: "A bearing quadrant (NE/SE/SW/NW) that repeats or reverses out of sequence usually means an inverted call — re-check N/S and E/W before plotting." },
+        { rule: "Latitude/Departure closure", description: "Sum the northings and eastings of every course; the residual vector back to the POB is the linear misclosure. Perimeter ÷ misclosure is the precision ratio." },
+        { rule: "1:10,000 minimum", description: "FDOT boundary and right-of-way surveys (Rule 5J-17) are expected to close to at least 1:10,000 before a PSM certifies them." },
+        { rule: "Self-intersection = bow-tie", description: "Plot the polygon from the courses and test every non-adjacent segment pair, including the closing segment. Any crossing is a topological error." },
+        { rule: "Curve backsolving", description: "A missing chord bearing or delta can often be recovered from the adjacent tangent lines and the known radius." },
+        { rule: "Meander tie-lines", description: "Close a meandering water boundary with computed tie vectors between the last located point and the POB rather than digitizing the meander itself." }
+    ],
+
+    // 7-item Map Check QA checklist — aligned to the BoundaryQC desktop app's
+    // Checklist_Specifications.md (mathematical closure, curve node labels, certification,
+    // legal-description congruency, adjoining R/W, acreage annotation, report generation).
     qcChecklist: [
-        { id: "qc-1", title: "Topological Closure Check", desc: "Ensure all parcel boundaries, Right-of-Way limits, and closed polylines close mathematically to Point of Beginning (POB).", category: "Geometry" },
-        { id: "qc-2", title: "Bow-Tie & Self-Intersection Prevention", desc: "Verify that polygon segments do not cross over themselves due to inverted bearing quadrants or out-of-order vertices.", category: "Geometry" },
-        { id: "qc-3", title: "FDOT Layer Discipline Compliance", desc: "Confirm all entities reside strictly on official FDOT discipline layers (ROAD_, DRAIN_, SURV_, UTIL_, STR_, RW_). No layer 0 placement.", category: "Layers" },
-        { id: "qc-4", title: "Coordinate System & Datum Verification", desc: "Drawing must be set to Florida State Plane Coordinate System NAD83/2011 (East Zone 0901, West Zone 0902, North Zone 0903) in US Survey Feet.", category: "Coordinates" },
-        { id: "qc-5", title: "Pay Item Target Object Correlation", desc: "Validate that all 3D Corridor shapes, Pipe networks, and blocks are linked to valid 2026 FDOT Pay Item numbers for QTO.", category: "Quantities" }
+        { id: "qc-1", title: "Mathematical Closure & Area Verification", category: "Geometry", desc: "Parse the boundary calls, compute the raw linear misclosure (POB to end of final call) and the Shoelace area, and confirm the computed acreage is within 1% of the surveyor's labeled area. Report the precision ratio (1:X); survey grade is ≥ 1:10,000." },
+        { id: "qc-2", title: "Curve Node Annotations (PC, PT, PRC, PCC)", category: "Geometry", desc: "For every curve on the boundary, verify that PC / PT / PRC / PCC text labels exist within a 50-ft tolerance of the arc endpoints. Flag any arc missing its start or end node label." },
+        { id: "qc-3", title: "Surveyor Certification & Signatures", category: "Legal", desc: "Confirm the plat carries a professional seal, a signature, the surveyor's name and license number, and the date of survey." },
+        { id: "qc-4", title: "Legal Description matches map geometry", category: "Congruency", desc: "Convert the narrative metes-and-bounds legal description into a sequential array of bearing/distance calls and compare it line-by-line against the drafted line/curve table. Flag transposed digits, sequence breaks, or values outside tolerance (e.g. map L3 = 50.00', legal = 50.05')." },
+        { id: "qc-5", title: "Adjoining Road Names & Right-of-Way", category: "Context", desc: "Verify adjoining public roads are named and that Right-of-Way widths are annotated where applicable. Warn if the parcel appears landlocked with no easement or road labeled." },
+        { id: "qc-6", title: "Acreage specified on map", category: "Quantities", desc: "Flag if the overall area label is missing from the face of the plat." },
+        { id: "qc-7", title: "Generate Map Check Report", category: "Output", desc: "Aggregate the section headers, data logs, and PASS/FAIL statuses from items 1–6 into a formatted Map Check Report and attach it to the diagnostic/QA output file." }
     ]
 };
 
