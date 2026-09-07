@@ -112,6 +112,11 @@
                     <span>CMS Control Panel & Auth</span>
                     <span class="badge" style="background:var(--primary); font-weight:700;">CMS ACTIVE</span>
                 </button>
+                <button class="nav-btn" data-tab="tab-help">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <span>Help & User Manual</span>
+                    <span class="badge" style="background:var(--text-muted);">?</span>
+                </button>
             </nav>
 
             <div class="sidebar-footer">
@@ -930,6 +935,11 @@ public class CmdBoundaryQC : IExternalCommand {
                     </div>
                 </div>
             </section>
+
+            <!-- Help & User Manual -->
+            <section id="tab-help" class="tab-pane">
+                <div id="help-root"><!-- rendered by plugins/help/help.js --></div>
+            </section>
         </main>
     </div>
 
@@ -1054,6 +1064,8 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/traverse-cogo/traverse-cogo.js"></script>
     <script src="plugins/legal-desc/legal-desc.js"></script>
     <script src="plugins/plss-breakdown/plss-breakdown.js"></script>
+    <script src="plugins/plat2dxf/plat2dxf.js"></script>
+    <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->
     <script src="core/app.js"></script>

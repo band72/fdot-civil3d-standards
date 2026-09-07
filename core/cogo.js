@@ -165,6 +165,39 @@
         return null;
     }
 
+    /**
+     * Build a minimal ASCII DXF (R12-style) from layers + entities.
+     * layers: [{ name, color }]  (ACI colour number)
+     * polylines: [{ layer, closed, points:[{e,n}] }]
+     * texts: [{ layer, e, n, height, value }]
+     */
+    function buildDxf({ layers = [], polylines = [], texts = [] }) {
+        const out = [];
+        const p = (code, val) => { out.push(String(code)); out.push(String(val)); };
+
+        p(0, "SECTION"); p(2, "TABLES");
+        p(0, "TABLE"); p(2, "LAYER"); p(70, layers.length || 1);
+        (layers.length ? layers : [{ name: "0", color: 7 }]).forEach(l => {
+            p(0, "LAYER"); p(2, l.name); p(70, 0); p(62, l.color == null ? 7 : l.color); p(6, "CONTINUOUS");
+        });
+        p(0, "ENDTAB"); p(0, "ENDSEC");
+
+        p(0, "SECTION"); p(2, "ENTITIES");
+        polylines.forEach(pl => {
+            p(0, "LWPOLYLINE"); p(8, pl.layer || "0");
+            p(90, pl.points.length); p(70, pl.closed ? 1 : 0);
+            pl.points.forEach(pt => { p(10, pt.e.toFixed(4)); p(20, pt.n.toFixed(4)); });
+        });
+        texts.forEach(t => {
+            p(0, "TEXT"); p(8, t.layer || "0");
+            p(10, t.e.toFixed(4)); p(20, t.n.toFixed(4));
+            p(40, (t.height || 5).toFixed(4)); p(1, t.value);
+        });
+        p(0, "ENDSEC");
+        p(0, "EOF");
+        return out.join("\r\n") + "\r\n";
+    }
+
     /** Trigger a browser download of a text blob. */
     function downloadText(filename, text, mime) {
         const blob = new Blob([text], { type: mime || "text/plain" });
@@ -178,6 +211,6 @@
         D2R, R2D, SQFT_PER_ACRE,
         parseBearing, azimuthToBearing, advance,
         chordFromArc, deltaDegFromArc, shoelaceArea,
-        runTraverse, pnezd, selfIntersects, downloadText
+        runTraverse, pnezd, selfIntersects, buildDxf, downloadText
     };
 })();

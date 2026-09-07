@@ -161,6 +161,18 @@
             // Survey key search
             document.getElementById("survey-search")?.addEventListener("input", () => renderSurveyKeys(state));
 
+            // Global search box (header) — was inert; now filters the layer / pay item / survey tables.
+            const searchTabs = ["tab-layers", "tab-payitems", "tab-survey"];
+            document.getElementById("global-search")?.addEventListener("input", e => {
+                state.searchQuery = e.target.value.trim();
+                if (!searchTabs.includes(state.activeTab)) {
+                    document.querySelector('.nav-btn[data-tab="tab-layers"]')?.click();
+                }
+                renderLayers(state);
+                renderPayItems(state);
+                renderSurveyKeys(state);
+            });
+
             // Copy layer name / pay item number (event delegation across all three tables)
             const wireCopy = (id) => document.getElementById(id)?.addEventListener("click", e => {
                 const btn = e.target.closest(".btn-copy-layer");

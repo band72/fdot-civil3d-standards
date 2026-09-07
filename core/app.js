@@ -19,6 +19,28 @@ document.addEventListener("DOMContentLoaded", () => {
         currentDXFAudit: null
     };
 
+    // Per-tab header text. [title, subtitle]
+    const PAGE_TITLES = {
+        "tab-dxf-inspector":  ["DXF Project Auditor", "Upload an FDOT project DXF to score CADD-standards compliance, flag geometry errors, and export an auto-fix script."],
+        "tab-layers":         ["FDOT 2026 Layer Standards", "Browse the discipline layer list with color, linetype, lineweight, and plot status. Filter by discipline or plot status; copy names."],
+        "tab-signs":          ["Sign Assemblies & QTO", "FDOT sign assembly catalog and a MUTCD surface-area calculator that resolves the pay item from sign width x height."],
+        "tab-ssa":            ["SSA Hydrology & IDF Zones", "Rational Method peak discharge (Q = CiA) from the 11 FDOT IDF zones, and a Drainage Manual Ch. 7 exfiltration trench sizer."],
+        "tab-blocks-lib":     ["Civil 3D Block Libraries", "FDOT block catalog with source drawing, target layer, and associated pay item."],
+        "tab-payitems":       ["Pay Item Takeoff", "FDOT 2026 pay item catalog with unit, category, and the Civil 3D layer each item maps to for QTO."],
+        "tab-survey":         ["Survey Description Keys", "FDOT description key sets: point code patterns, style blocks, target layers, point groups, and format strings."],
+        "tab-subassemblies":  ["Subassemblies & PKT", "FDOT corridor subassembly reference with input parameters (lane, curb, shoulder, ditch)."],
+        "tab-sheets":         ["Sheet Standards & DWT", "FDOT sheet templates with layout size, drawing template name, and viewport plot scale."],
+        "tab-plat2dxf":       ["Parcel -> DXF / Points / COGO", "Turn a bearing/distance call list (or the bundled sample) into a valid ASCII DXF, a P,N,E,Z,D point file, and an AutoCAD COGO script."],
+        "tab-qc":             ["QC Checklist & Traverse Auditor", "The 7-item Map Check QA checklist plus a traverse calculator: latitude/departure closure, precision ratio, Shoelace area, and self-intersection detection."],
+        "tab-legal-desc":     ["Legal Description QC", "Parse a narrative metes-and-bounds description into line and curve calls, run a chord-trace closure, and apply BoundaryQC QC rules."],
+        "tab-plss":           ["PLSS Section Breakdown", "Subdivide an ideal government section from an aliquot description; report rectangle dimensions, computed vs ideal acreage, and cardinal courses."],
+        "tab-inspector":      ["State Kit Inspector", "Reference view of the reverse-engineered FDOT Civil 3D State Kit folder structure."],
+        "tab-commercial":     ["Commercial SaaS Plans (Demo)", "Subscription tiers and an ASC 606 ledger model. Client-side demo — tier is read from localStorage; nothing gates a feature or takes a payment."],
+        "tab-enterprise":     ["Enterprise & C3D Plugin (Demo)", "Civil 3D C# Ribbon add-in scaffold and portal manager. Demo build — licensing, seals, and portals are not enforced."],
+        "tab-cms":            ["CMS Control Panel & Auth (Demo)", "Browser-local user registry, RBAC, projects/submittals, and a SHA-256 hash-chained audit log. No server; sign-in has no password."],
+        "tab-help":           ["Help & User Manual", "How every tab works, the input formats they accept, what they compute, and the limits of this demo build."]
+    };
+
     // ── Core DOM Elements ─────────────────────────────────────────────────────
     const navButtons = document.querySelectorAll(".nav-btn");
     const tabPanes = document.querySelectorAll(".tab-pane");
@@ -259,20 +281,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (targetPane) targetPane.classList.add("active");
                 state.activeTab = targetTab;
 
-                // Update page titles
+                // Update page title / subtitle for the active tab.
                 const titleEl = document.getElementById("page-title");
                 const subEl = document.getElementById("page-subtitle");
-                if (titleEl && subEl) {
-                    if (targetTab === "tab-commercial") {
-                        titleEl.textContent = "Banks Practice Solutions & Engineering SaaS Tiers";
-                        subEl.textContent = "Consensus financial model, unit economics, WASM cloud cost optimization, and practice subscription tiers (banks.land).";
-                    } else if (targetTab === "tab-enterprise") {
-                        titleEl.textContent = "Banks Engineering C# Ribbon Plugin & Firm Portal";
-                        subEl.textContent = "Deploy native Civil 3D desktop Ribbon plugins (.dll), custom firm portals (banks.land), and FBPE/PSM digital seal validators.";
-                    } else if (targetTab === "tab-dxf-inspector") {
-                        titleEl.textContent = "Banks Land Surveying & Civil Engineering Portal";
-                        subEl.textContent = "Precision Land Surveying, Civil 3D Infrastructure Engineering & FDOT CADD Standards Suite (banks.land).";
-                    }
+                const meta = PAGE_TITLES[targetTab];
+                if (titleEl && subEl && meta) {
+                    titleEl.textContent = meta[0];
+                    subEl.textContent = meta[1];
                 }
 
                 // Notify plugins of tab switch
