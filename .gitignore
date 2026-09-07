@@ -1,0 +1,43 @@
+# Node / NPM artifacts
+node_modules/
+npm-debug.log*
+package-lock.json
+yarn.lock
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Build outputs
+dist/
+build/
+out/
+
+# Secrets / environment
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# AutoCAD / Civil 3D compile artifacts
+*.obj
+*.dll.bak
+*.pdb
+*.exp
+*.lib
+
+# Local agent scratch
+.gemini/

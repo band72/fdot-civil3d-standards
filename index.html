@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDOT Civil3D Standards - CADD State Kit Hub & DXF Auditor</title>
+    <meta name="description" content="FDOT Civil3D Standards & DXF Auditor - Upload DOT Project DXF files, inspect CADD standards compliance, detect scripting and geometry errors, and export auto-fix scripts.">
+    <!-- FIX [P1]: Content Security Policy — blocks inline script execution & unauthorized external resources -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none';">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- FIX [P1]: DOMPurify — sanitizes all innerHTML writes against XSS injection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+    <!-- App Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand-header">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-mountain-city"></i>
+                </div>
+                <div class="brand-info">
+                    <h2>BANKS</h2>
+                    <span class="version-badge">LAND SURVEYING & CIVIL</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="tab-dxf-inspector">
+                    <i class="fa-solid fa-file-circle-check"></i>
+                    <span>DXF Project Auditor</span>
+                    <span class="badge" style="background:var(--accent);">NEW</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-layers">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Layer Standards</span>
+                    <span class="badge" id="layer-count-badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-signs">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Sign Assemblies & QTO</span>
+                    <span class="badge" style="background:var(--primary);">10-AGENT</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-ssa">
+                    <i class="fa-solid fa-cloud-showers-heavy"></i>
+                    <span>SSA Hydrology & IDF 1-11</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-blocks-lib">
+                    <i class="fa-solid fa-cubes"></i>
+                    <span>C3D Block Libraries</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-payitems">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>Pay Item Takeoff</span>
+                    <span class="badge" id="payitem-count-badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-survey">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                    <span>Survey & Desckeys</span>
+                    <span class="badge" id="survey-count-badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-subassemblies">
+                    <i class="fa-solid fa-road"></i>
+                    <span>Subassemblies & PKT</span>
+                    <span class="badge" id="assembly-count-badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-sheets">
+                    <i class="fa-solid fa-file-contract"></i>
+                    <span>Sheet Standards & DWT</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-plat2dxf">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Plat-to-DXF Vision AI</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-qc">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>QC & Traverse Auditor</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-inspector">
+                    <i class="fa-solid fa-boxes-packing"></i>
+                    <span>State Kit Inspector</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-commercial">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Commercial SaaS Plans</span>
+                    <span class="badge" style="background:var(--success); font-weight:700;">$100K PROFIT</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-enterprise">
+                    <i class="fa-solid fa-building-user"></i>
+                    <span>Enterprise & C3D Plugin</span>
+                    <span class="badge" style="background:var(--accent);">ENTERPRISE</span>
+                </button>
+                <button class="nav-btn" data-tab="tab-cms">
+                    <i class="fa-solid fa-server"></i>
+                    <span>CMS Control Panel & Auth</span>
+                    <span class="badge" style="background:var(--primary); font-weight:700;">CMS ACTIVE</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <span class="status-indicator online"></span>
+                    <div class="status-text">
+                        <small>Banks Engineering Portal</small>
+                        <strong>banks.land • Active System</strong>
+                    </div>
+                </div>
+                <button id="theme-toggle" class="icon-btn" title="Toggle Light/Dark Theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header Bar -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 id="page-title">Banks Land Surveying & Civil Engineering</h1>
+                    <p id="page-subtitle" class="subtitle">Precision Land Surveying, Civil 3D Infrastructure Engineering & FDOT CADD Standards Suite (banks.land).</p>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="global-search" placeholder="Quick search layers, pay items, codes (Ctrl+K)..." autocomplete="off">
+                        <kbd>Ctrl K</kbd>
+                    </div>
+                    <button class="btn btn-secondary" id="btn-open-auth-modal" style="display:flex; align-items:center; gap:0.5rem;" title="Manage Account & Switch Profile">
+                        <i class="fa-solid fa-user-gear"></i>
+                        <span id="header-user-name">Jane Doe, PSM</span>
+                        <span class="badge" style="background:var(--success); font-size:0.7rem;" id="header-user-role">PSM</span>
+                    </button>
+                    <button class="btn btn-secondary" id="btn-header-logout" style="border-color:var(--danger-light); color:var(--danger);" title="Sign Out">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Sign Out</span>
+                    </button>
+                    <button class="btn btn-primary" id="btn-export-dscr">
+                        <i class="fa-solid fa-file-export"></i>
+                        <span>Export FDOT Rules</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Tab 0: DXF Project Auditor & Inspector -->
+            <section id="tab-dxf-inspector" class="tab-pane active">
+                <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <h2><i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i> Upload DOT Project DXF File</h2>
+                    <p class="subtitle">Drag & drop your project DXF drawing file to run complete CADD standards verification and scripting error inspection.</p>
+
+                    <div id="dxf-dropzone" style="border: 2px dashed var(--primary); padding: 2.5rem; border-radius: var(--radius-lg); text-align: center; margin-top: 1.25rem; background: var(--primary-light); cursor: pointer; transition: var(--transition);">
+                        <i class="fa-solid fa-file-code" style="font-size: 3rem; color: var(--primary);"></i>
+                        <h3 style="margin-top: 0.75rem; font-size: 1.1rem;">Drop DOT Project DXF Here or Click to Browse</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Supports AutoCAD / Civil 3D ASCII DXF format (R2000 - 2026)</p>
+                        <input type="file" id="dxf-file-input" accept=".dxf" style="display: none;">
+                        
+                        <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="document.getElementById('dxf-file-input').click()">
+                                <i class="fa-solid fa-folder-open"></i> Browse DXF File
+                            </button>
+                            <button class="btn btn-accent" id="btn-load-sample-sr50">
+                                <i class="fa-solid fa-road"></i> SR-50 Roadway Corridor
+                            </button>
+                            <button class="btn btn-secondary" id="btn-load-sample-bowtie" style="border-color:var(--warning);">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning);"></i> Jacksonville Bow-Tie Error
+                            </button>
+                            <button class="btn btn-secondary" id="btn-load-sample-drainage" style="border-color:var(--danger);">
+                                <i class="fa-solid fa-circle-exclamation" style="color:var(--danger);"></i> Non-Compliant Drainage DXF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dxf-audit-dashboard" class="hidden">
+                    <div class="stats-grid">
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon blue" id="score-gauge-icon"><i class="fa-solid fa-gauge-high"></i></div>
+                            <div class="stat-details">
+                                <h3>FDOT Compliance Score</h3>
+                                <p class="stat-number" id="stat-dxf-score" style="color:var(--success);">100%</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon purple"><i class="fa-solid fa-layer-group"></i></div>
+                            <div class="stat-details">
+                                <h3>Total Layers / Entities</h3>
+                                <p class="stat-number" id="stat-dxf-counts">0 / 0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel">
+                            <div class="stat-icon" style="background:var(--danger-light); color:var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <div class="stat-details">
+                                <h3>Detected Issues</h3>
+                                <p class="stat-number" id="stat-dxf-issues-count" style="color:var(--danger);">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="payitem-grid">
+                        <div class="glass-panel" style="padding: 1.25rem; display: flex; flex-direction: column;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <h2><i class="fa-solid fa-pen-ruler"></i> DXF Entity CAD Viewer</h2>
+                                <span class="tag tag-discipline" id="canvas-status-tag">Live Render</span>
+                            </div>
+                            <div style="background: #090d16; border: 1px solid var(--glass-border); border-radius: var(--radius-md); position: relative; flex: 1; min-height: 400px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                <canvas id="dxf-canvas" width="600" height="400" style="width: 100%; height: 100%;"></canvas>
+                                <div id="dxf-coord-hud" style="position:absolute; bottom:8px; left:12px; font-family:var(--font-mono); font-size:0.75rem; color:var(--accent); background:rgba(0,0,0,0.75); padding:4px 8px; border-radius:4px; pointer-events:none; border:1px solid var(--glass-border); z-index:10;">
+                                    <i class="fa-solid fa-crosshairs"></i> NAD83 FL East/North: (0.00, 0.00) ft
+                                </div>
+                                <div id="dxf-wasm-hud" style="position:absolute; top:8px; right:12px; font-family:var(--font-mono); font-size:0.75rem; color:var(--success); background:rgba(0,0,0,0.75); padding:4px 8px; border-radius:4px; pointer-events:none; border:1px solid var(--glass-border); z-index:10;">
+                                    <i class="fa-solid fa-microchip"></i> WASM R-Tree: Ready
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2><i class="fa-solid fa-list-check"></i> CADD Standards & Scripting Audit</h2>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-primary btn-sm" id="btn-export-audit-md"><i class="fa-solid fa-download"></i> Audit Report</button>
+                                <button class="btn btn-accent btn-sm" id="btn-export-fix-scr"><i class="fa-solid fa-terminal"></i> Auto-Fix Script (.scr)</button>
+                            </div>
+                            <div style="overflow-y: auto; max-height: 380px; display: flex; flex-direction: column; gap: 0.75rem;" id="dxf-issues-container">
+                                <!-- Dynamic Issue Cards -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Traffic Sign Assemblies & QTO Calculator -->
+            <section id="tab-signs" class="tab-pane">
+                <div class="qc-container">
+                    <div class="glass-panel qc-checklist-card">
+                        <h2><i class="fa-solid fa-triangle-exclamation"></i> FDOT Sign Assemblies Catalog</h2>
+                        <p class="subtitle">Standardized sign faces, assemblies, and section 0700 pay item mapping.</p>
+                        <div class="subassembly-cards-grid" id="signs-grid" style="margin-top: 1rem;">
+                            <!-- Dynamic Signs -->
+                        </div>
+                    </div>
+                    <div class="glass-panel qc-calculator-card">
+                        <h2><i class="fa-solid fa-calculator"></i> Sign Assembly Surface Area & Pay Item Solver</h2>
+                        <p class="subtitle">Calculates cumulative SF area and resolves Single Post (0700-1-11..13) vs Multi-Post (0700-1-14..16) vs Overhead.</p>
+                        <div class="form-group">
+                            <label>Sign Width (Inches):</label>
+                            <input type="number" id="sign-width" value="36" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                            <label style="margin-top:8px;">Sign Height (Inches):</label>
+                            <input type="number" id="sign-height" value="36" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                        </div>
+                        <button class="btn btn-accent" id="btn-calc-sign-payitem"><i class="fa-solid fa-calculator"></i> Solve Pay Item</button>
+                        <div id="sign-calc-result" class="results-box hidden"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: SSA Hydrology & IDF 1-11 -->
+            <section id="tab-ssa" class="tab-pane">
+                <div class="qc-container">
+                    <div class="glass-panel qc-checklist-card">
+                        <h2><i class="fa-solid fa-cloud-showers-heavy"></i> FDOT 11 IDF Zones Hydrology Solver</h2>
+                        <p class="subtitle">Rational Method Peak Flow Q=C*I*A for Florida FDOT Zones 1 through 11.</p>
+                        <div class="form-group">
+                            <label>Select FDOT Rainfall Zone (1-11):</label>
+                            <select id="select-idf-zone" class="custom-select" style="width:100%;">
+                                <!-- Dynamic IDF options -->
+                            </select>
+                            <label style="margin-top:8px;">Drainage Area (Acres):</label>
+                            <input type="number" id="hyd-area" value="5.0" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                            <label style="margin-top:8px;">Runoff Coefficient (C):</label>
+                            <input type="number" id="hyd-c" value="0.75" step="0.05" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                            <label style="margin-top:8px;">Time of Concentration Tc (Minutes):</label>
+                            <input type="number" id="hyd-tc" value="15" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                        </div>
+                        <button class="btn btn-primary" id="btn-calc-hydrology"><i class="fa-solid fa-bolt"></i> Compute Peak Runoff (Q)</button>
+                        <div id="hydrology-results" class="results-box hidden"></div>
+                    </div>
+
+                    <div class="glass-panel qc-calculator-card">
+                        <h2><i class="fa-solid fa-water"></i> FDOT Exfiltration Trench Length Sizer</h2>
+                        <p class="subtitle">Calculates required trench length per FDOT Drainage Manual Chapter 7.</p>
+                        <div class="form-group">
+                            <label>Required Treatment Volume (Cu Ft):</label>
+                            <input type="number" id="trench-vol" value="1500" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                            <label style="margin-top:8px;">Hydraulic Conductivity K (cfs/ft²/ft):</label>
+                            <input type="number" id="trench-k" value="0.00015" step="0.00001" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                        </div>
+                        <button class="btn btn-accent" id="btn-calc-trench"><i class="fa-solid fa-calculator"></i> Size Trench Length</button>
+                        <div id="trench-results" class="results-box hidden"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: C3D Block Libraries -->
+            <section id="tab-blocks-lib" class="tab-pane">
+                <div class="glass-panel" style="padding: 1.5rem;">
+                    <h2><i class="fa-solid fa-cubes"></i> Official FDOT C3D Block Libraries</h2>
+                    <p class="subtitle">2,500+ standard block definitions extracted from 29 DWG master libraries.</p>
+                    <div class="subassembly-cards-grid" id="blocks-library-grid" style="margin-top:1.25rem;">
+                        <!-- Dynamic Blocks -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 1: Layer Standards -->
+            <section id="tab-layers" class="tab-pane">
+                <div class="filter-bar">
+                    <div class="discipline-pills" id="discipline-filters">
+                        <button class="pill-btn active" data-discipline="ALL">All Disciplines</button>
+                        <button class="pill-btn" data-discipline="ROAD">Roadway (ROAD)</button>
+                        <button class="pill-btn" data-discipline="DRAIN">Drainage (DRAIN)</button>
+                        <button class="pill-btn" data-discipline="SURV">Survey (SURV)</button>
+                        <button class="pill-btn" data-discipline="UTIL">Utilities (UTIL)</button>
+                        <button class="pill-btn" data-discipline="STR">Structures (STR)</button>
+                        <button class="pill-btn" data-discipline="RW">Right of Way (RW)</button>
+                        <button class="pill-btn" data-discipline="ENV">Environmental (ENV)</button>
+                        <button class="pill-btn" data-discipline="TRAF">Traffic Design (TRAF)</button>
+                    </div>
+                    <div class="filter-actions">
+                        <select id="select-plot-filter" class="custom-select">
+                            <option value="ALL">Plot Status: All</option>
+                            <option value="PLOT">Plotting Layers Only</option>
+                            <option value="NOPLOT">Non-Plotting (NoPlot)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-card glass-panel">
+                    <div class="table-container">
+                        <table class="data-table" id="layers-table">
+                            <thead>
+                                <tr>
+                                    <th>Color</th>
+                                    <th>Layer Name</th>
+                                    <th>Discipline</th>
+                                    <th>Linetype</th>
+                                    <th>Lineweight</th>
+                                    <th>Plot</th>
+                                    <th>Description / Purpose</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="layers-tbody">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-footer">
+                        <span id="layers-count-summary">Showing 0 layers</span>
+                        <div class="pagination-controls" id="layers-pagination"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 2: Pay Item Takeoff Explorer -->
+            <section id="tab-payitems" class="tab-pane">
+                <div class="stats-grid">
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon blue"><i class="fa-solid fa-list-check"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Pay Items</h3>
+                            <p class="stat-number" id="stat-payitems-total">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon green"><i class="fa-solid fa-cubes"></i></div>
+                        <div class="stat-details">
+                            <h3>Categories</h3>
+                            <p class="stat-number">Roadway, Structure, Drainage</p>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon purple"><i class="fa-solid fa-calculator"></i></div>
+                        <div class="stat-details">
+                            <h3>QTO Estimator</h3>
+                            <p class="stat-number">Active Calculator</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="payitem-grid">
+                    <div class="table-card glass-panel payitem-list-panel">
+                        <div class="panel-header">
+                            <h2><i class="fa-solid fa-table-list"></i> FDOT Pay Item Database</h2>
+                            <div class="search-box inline-search">
+                                <input type="text" id="payitem-search" placeholder="Search Pay Item # or description...">
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table" id="payitem-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pay Item #</th>
+                                        <th>Description</th>
+                                        <th>Unit</th>
+                                        <th>Category</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payitem-tbody">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel payitem-detail-panel" id="payitem-detail-view">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-hand-pointer"></i>
+                            <p>Select a Pay Item from the table to view FDOT Civil 3D target layer mapping and QTO calculations.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 3: Survey & Description Keys -->
+            <section id="tab-survey" class="tab-pane">
+                <div class="filter-bar">
+                    <div class="search-box inline-search">
+                        <input type="text" id="survey-search" placeholder="Search point code, key pattern, symbol block...">
+                    </div>
+                </div>
+                <div class="table-card glass-panel">
+                    <div class="table-container">
+                        <table class="data-table" id="survey-table">
+                            <thead>
+                                <tr>
+                                    <th>Point Code / Pattern</th>
+                                    <th>Style Block</th>
+                                    <th>Target Layer</th>
+                                    <th>Point Group</th>
+                                    <th>FDOT Standard Description</th>
+                                    <th>Format String</th>
+                                </tr>
+                            </thead>
+                            <tbody id="survey-tbody">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 4: Subassemblies & PKT Viewer -->
+            <section id="tab-subassemblies" class="tab-pane">
+                <div class="subassembly-cards-grid" id="subassemblies-grid">
+                    <!-- Dynamic -->
+                </div>
+            </section>
+
+            <!-- Tab 5: Sheet DWT Standards -->
+            <section id="tab-sheets" class="tab-pane">
+                <div class="subassembly-cards-grid" id="sheets-grid">
+                    <!-- Dynamic Sheet DWT Cards -->
+                </div>
+            </section>
+
+            <!-- Tab 6: Plat-to-DXF Computer Vision Studio -->
+            <section id="tab-plat2dxf" class="tab-pane">
+                <div class="qc-container">
+                    <div class="glass-panel qc-checklist-card">
+                        <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Native Plat-to-DXF Computer Vision AI Studio</h2>
+                        <p class="subtitle">Upload survey plat raster images (.png / .jpg) to run Moore-Neighbor contour tracing, extract COGO calls, and generate DXF vectors.</p>
+                        
+                        <div style="border: 2px dashed var(--primary); padding: 2rem; border-radius: var(--radius-md); text-align: center; margin-top: 1.25rem; background: var(--primary-light);">
+                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2.5rem; color: var(--primary);"></i>
+                            <p style="margin-top: 0.5rem; font-weight: 600;">Drag & Drop Survey Plat Image Here</p>
+                            <small style="color: var(--text-muted);">Supports PNG, JPG, TIFF (V3 Structural Pattern Recognition & Red Dot Node Tracing)</small>
+                            <div style="margin-top: 1rem;">
+                                <button class="btn btn-primary" id="btn-sim-upload">
+                                    <i class="fa-solid fa-upload"></i> Process Sample Plat Image
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="plat-tracing-preview" style="margin-top: 1.5rem;" class="hidden">
+                            <h3><i class="fa-solid fa-bullseye" style="color: var(--danger);"></i> Moore-Neighbor Red Dot Skeletal Trace Nodes</h3>
+                            <div style="background: #000; height: 180px; border-radius: var(--radius-md); margin-top: 0.75rem; position: relative; border: 1px solid var(--glass-border); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                <svg width="100%" height="100%" viewBox="0 0 400 160">
+                                    <polygon points="50,30 350,30 320,130 80,130" fill="rgba(2, 132, 199, 0.15)" stroke="#0284c7" stroke-width="2" stroke-dasharray="4" />
+                                    <circle cx="50" cy="30" r="5" fill="#ef4444" />
+                                    <circle cx="350" cy="30" r="5" fill="#ef4444" />
+                                    <circle cx="320" cy="130" r="5" fill="#ef4444" />
+                                    <circle cx="80" cy="130" r="5" fill="#ef4444" />
+                                </svg>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                                <button class="btn btn-accent" id="btn-download-dxf"><i class="fa-solid fa-download"></i> Download `.dxf` CAD Vector</button>
+                                <button class="btn btn-primary" id="btn-download-txt"><i class="fa-solid fa-file-code"></i> Download Points `.txt`</button>
+                                <button class="btn btn-primary" id="btn-download-cogo"><i class="fa-solid fa-terminal"></i> Download COGO Script</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel qc-calculator-card">
+                        <h2><i class="fa-solid fa-microchip"></i> BoundaryQC AI Heuristics Engine</h2>
+                        <div class="qc-items-list" id="heuristics-list">
+                            <!-- Dynamic Heuristics -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 7: QC & Traverse Auditor -->
+            <section id="tab-qc" class="tab-pane">
+                <div class="qc-container">
+                    <div class="glass-panel qc-checklist-card">
+                        <h2><i class="fa-solid fa-shield-halved"></i> FDOT CADD Deliverable Quality Control Checklist</h2>
+                        <p class="subtitle">Verify compliance before submittal to FDOT District CADD Manager.</p>
+
+                        <div class="qc-items-list" id="qc-items-container">
+                            <!-- Dynamic QC Items -->
+                        </div>
+                    </div>
+
+                    <div class="glass-panel qc-calculator-card">
+                        <h2><i class="fa-solid fa-draw-polygon"></i> Boundary Traverse & Bowtie Prevention Tool</h2>
+                        <p class="subtitle">Validate legal description bearings, curve directions, and prevent intersecting line errors.</p>
+                        
+                        <div class="form-group">
+                            <label for="traverse-input">Enter Call List (e.g. N45°12'30"E 125.50'):</label>
+                            <textarea id="traverse-input" rows="5" placeholder="N 45-12-30 E 150.00&#10;S 44-47-30 E 200.00&#10;S 45-12-30 W 150.00&#10;N 44-47-30 W 200.00"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button class="btn btn-accent" id="btn-calc-traverse">
+                                <i class="fa-solid fa-calculator"></i> Run Bow-tie Verification
+                            </button>
+                            <button class="btn btn-primary" id="btn-gen-qc-report">
+                                <i class="fa-solid fa-file-invoice"></i> Generate Jacksonville Heights Report
+                            </button>
+                        </div>
+
+                        <div id="traverse-results" class="results-box hidden">
+                            <!-- Dynamic -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 8: State Kit Inspector -->
+            <section id="tab-inspector" class="tab-pane">
+                <div class="glass-panel" style="padding: 1.5rem;">
+                    <h2><i class="fa-solid fa-boxes-packing"></i> Reverse-Engineered FDOT Civil 3D State Kit Architecture</h2>
+                    <p class="subtitle">Parsed components from 3,458 installer files extracted from `disk1.cab`.</p>
+                    <div class="tree-view" id="state-kit-tree" style="margin-top: 1.25rem;">
+                        <!-- Dynamic Tree view -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 9: Commercial SaaS Plans & Financial Engine -->
+            <section id="tab-commercial" class="tab-pane">
+                <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(2, 132, 199, 0.08)); border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                        <div>
+                            <h2 style="color:var(--success);"><i class="fa-solid fa-chart-line"></i> Commercial SaaS Revenue Engine ($100,000/Yr Net Profit Goal)</h2>
+                            <p class="subtitle">20-Agent consensus financial model delivering $107,688/year net operating profit with 82.9% net margin.</p>
+                        </div>
+                        <div style="display:flex; gap:0.75rem;">
+                            <a href="commercial_plan.md" target="_blank" class="btn btn-accent"><i class="fa-solid fa-file-contract"></i> View commercial_plan.md</a>
+                            <button class="btn btn-primary" id="btn-open-checkout-top"><i class="fa-solid fa-bolt"></i> Activate Plan Demo</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Cards Grid -->
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:1.25rem; margin-bottom: 1.5rem;">
+                    <!-- Free Tier -->
+                    <div class="glass-panel" style="padding: 1.5rem; border-top: 4px solid var(--text-muted); display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <span class="badge" style="background:var(--bg-secondary); color:var(--text-secondary);">LEAD MAGNET</span>
+                            <h3 style="margin-top:0.5rem; font-size:1.4rem;">Free Tier</h3>
+                            <div style="font-size:2.2rem; font-weight:800; margin:0.5rem 0;">$0 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">For junior CAD techs & students searching standard layers.</p>
+                            <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
+                                <li>Searchable FDOT Layer Standards</li>
+                                <li>Basic 2D DXF Viewer</li>
+                                <li>3 Error Teaser Preview</li>
+                                <li>Community Support</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-secondary trigger-checkout" data-plan="Free" style="margin-top:1.5rem; width:100%;">Current Plan</button>
+                    </div>
+
+                    <!-- Pro Tier -->
+                    <div class="glass-panel" style="padding: 1.5rem; border-top: 4px solid var(--primary); display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <span class="badge" style="background:var(--primary);">SOLO SURVEYOR</span>
+                            <h3 style="margin-top:0.5rem; font-size:1.4rem;">Pro Tier</h3>
+                            <div style="font-size:2.2rem; font-weight:800; color:var(--primary); margin:0.5rem 0;">$49 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: 40 Solo Surveyors & CAD Contractors ($23,520 ARR).</p>
+                            <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
+                                <li><strong>Unlimited DXF Error Scanning</strong></li>
+                                <li><strong>1-Click Auto-Fix (.scr) Export</strong></li>
+                                <li>QTO Quantity Takeoff Engine</li>
+                                <li>Bowditch Traverse Solver</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-primary trigger-checkout" data-plan="Pro" data-price="49" style="margin-top:1.5rem; width:100%;">Subscribe Pro ($49/mo)</button>
+                    </div>
+
+                    <!-- Firm Tier -->
+                    <div class="glass-panel" style="padding: 1.5rem; border-top: 4px solid var(--accent); position:relative; display:flex; flex-direction:column; justify-content:space-between; background: rgba(14, 165, 233, 0.05);">
+                        <span style="position:absolute; top:-12px; right:12px; background:var(--accent); color:#fff; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:700;">MOST POPULAR</span>
+                        <div>
+                            <span class="badge" style="background:var(--accent);">SURVEY & CIVIL FIRMS</span>
+                            <h3 style="margin-top:0.5rem; font-size:1.4rem;">Firm Tier</h3>
+                            <div style="font-size:2.2rem; font-weight:800; color:var(--accent); margin:0.5rem 0;">$199 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: 22 Surveying & Civil Engineering Firms ($52,536 ARR).</p>
+                            <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
+                                <li><strong>5 User Seats Included</strong></li>
+                                <li><strong>Unlimited Plat-to-DXF AI Extractions</strong></li>
+                                <li><strong>9-Section Jacksonville Heights QC</strong></li>
+                                <li>Bowtie & Quadrant Self-Correction</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-accent trigger-checkout" data-plan="Firm" data-price="199" style="margin-top:1.5rem; width:100%;">Subscribe Firm ($199/mo)</button>
+                    </div>
+
+                    <!-- Enterprise Tier -->
+                    <div class="glass-panel" style="padding: 1.5rem; border-top: 4px solid var(--success); display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <span class="badge" style="background:var(--success);">FDOT PRIMES & AEC</span>
+                            <h3 style="margin-top:0.5rem; font-size:1.4rem;">Enterprise</h3>
+                            <div style="font-size:2.2rem; font-weight:800; color:var(--success); margin:0.5rem 0;">$499 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: 9 FDOT Prime Consultants & AECs ($53,892 ARR).</p>
+                            <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
+                                <li><strong>20 User Seats Included</strong></li>
+                                <li><strong>Civil 3D C# Ribbon Plugin (.dll)</strong></li>
+                                <li>White-Label Portal (qc.firm.com)</li>
+                                <li>REST API & Priority 1h SLA</li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-primary trigger-checkout" data-plan="Enterprise" data-price="499" style="margin-top:1.5rem; width:100%; background:var(--success);">Subscribe Enterprise ($499/mo)</button>
+                    </div>
+                </div>
+
+                <!-- Financial P&L Table -->
+                <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <h3><i class="fa-solid fa-table-cells"></i> Financial P&L Statement (Annual Breakdown)</h3>
+                    <div style="overflow-x: auto; margin-top: 1rem;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--glass-border); text-align: left;">
+                                    <th style="padding: 0.6rem;">P&L Item</th>
+                                    <th style="padding: 0.6rem;">Monthly ($)</th>
+                                    <th style="padding: 0.6rem;">Annual ($)</th>
+                                    <th style="padding: 0.6rem;">% Revenue</th>
+                                    <th style="padding: 0.6rem;">Strategic Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid var(--glass-border); font-weight: 700; background: rgba(16, 185, 129, 0.05);">
+                                    <td style="padding: 0.6rem; color:var(--success);">Gross Revenue (ARR)</td>
+                                    <td style="padding: 0.6rem;">$10,829.00</td>
+                                    <td style="padding: 0.6rem;">$129,948.00</td>
+                                    <td style="padding: 0.6rem;">100.0%</td>
+                                    <td style="padding: 0.6rem;">71 Active Accounts (40 Pro, 22 Firm, 9 Enterprise)</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border);">
+                                    <td style="padding: 0.6rem; padding-left: 1.5rem;">Cloud Hosting (WASM CDN)</td>
+                                    <td style="padding: 0.6rem;">$15.00</td>
+                                    <td style="padding: 0.6rem;">$180.00</td>
+                                    <td style="padding: 0.6rem;">0.1%</td>
+                                    <td style="padding: 0.6rem;">Client-side WebAssembly execution (<$15/mo)</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border);">
+                                    <td style="padding: 0.6rem; padding-left: 1.5rem;">AI Vision OCR Tokens</td>
+                                    <td style="padding: 0.6rem;">$400.00</td>
+                                    <td style="padding: 0.6rem;">$4,800.00</td>
+                                    <td style="padding: 0.6rem;">3.7%</td>
+                                    <td style="padding: 0.6rem;">Selective Llama-Vision / GPT-4o OCR calls</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border);">
+                                    <td style="padding: 0.6rem; padding-left: 1.5rem;">Merchant Processing (Stripe)</td>
+                                    <td style="padding: 0.6rem;">$320.00</td>
+                                    <td style="padding: 0.6rem;">$3,840.00</td>
+                                    <td style="padding: 0.6rem;">3.0%</td>
+                                    <td style="padding: 0.6rem;">2.9% + $0.30 merchant fees</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border); font-weight: 600; background: rgba(2, 132, 199, 0.05);">
+                                    <td style="padding: 0.6rem;">Total COGS</td>
+                                    <td style="padding: 0.6rem;">$855.00</td>
+                                    <td style="padding: 0.6rem;">$10,260.00</td>
+                                    <td style="padding: 0.6rem;">7.9%</td>
+                                    <td style="padding: 0.6rem;">92.1% Gross Profit Margin</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border);">
+                                    <td style="padding: 0.6rem; padding-left: 1.5rem;">B2B Marketing & FSMS Ads</td>
+                                    <td style="padding: 0.6rem;">$600.00</td>
+                                    <td style="padding: 0.6rem;">$7,200.00</td>
+                                    <td style="padding: 0.6rem;">5.5%</td>
+                                    <td style="padding: 0.6rem;">Targeting 2,500+ Florida PSM/PE database</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--glass-border); font-weight: 800; background: rgba(16, 185, 129, 0.15);">
+                                    <td style="padding: 0.8rem; color:var(--success); font-size:1.05rem;">NET OPERATING PROFIT</td>
+                                    <td style="padding: 0.8rem; color:var(--success); font-size:1.05rem;">$8,974.00</td>
+                                    <td style="padding: 0.8rem; color:var(--success); font-size:1.05rem;">$107,688.00</td>
+                                    <td style="padding: 0.8rem; color:var(--success); font-size:1.05rem;">82.9%</td>
+                                    <td style="padding: 0.8rem; color:var(--success);">Exceeds $100,000/year Net Profit Goal!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 10: Enterprise & Civil 3D Plugin Hub -->
+            <section id="tab-enterprise" class="tab-pane">
+                <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <h2><i class="fa-solid fa-building-user"></i> Civil 3D C# Ribbon Plugin (.dll) & Enterprise Portal Manager</h2>
+                    <p class="subtitle">Deploy native desktop Ribbon add-ins, white-labeled portals (`qc.firmname.com`), and FBPE Rule 61G15-23.004 digital seal validators.</p>
+                    
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem; margin-top:1.5rem;">
+                        <div class="glass-panel" style="padding: 1.25rem; border: 1px solid var(--primary);">
+                            <h3><i class="fa-solid fa-puzzle-piece" style="color:var(--primary);"></i> Civil 3D C# Ribbon Plugin</h3>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin:0.5rem 0;">Direct integration into Autodesk Civil 3D 2020-2026. Entitlement checked via cloud licensing server.</p>
+                            <pre style="background:#000; padding:0.75rem; border-radius:var(--radius-sm); font-size:0.75rem; color:#38bdf8; overflow-x:auto;">[RequiresEntitlement("CMD_ADVANCED_QC")]
+public class CmdBoundaryQC : IExternalCommand {
+    // 1-Click CAD Ribbon Execution
+}</pre>
+                            <button class="btn btn-primary" style="margin-top:0.75rem; width:100%;" onclick="alert('Civil 3D .NET Plugin Installer downloaded: BoundaryQC_C3D_Setup.msi');"><i class="fa-solid fa-download"></i> Download Civil 3D Plugin (.msi)</button>
+                        </div>
+
+                        <div class="glass-panel" style="padding: 1.25rem; border: 1px solid var(--accent);">
+                            <h3><i class="fa-solid fa-globe" style="color:var(--accent);"></i> White-Label Enterprise Portal</h3>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin:0.5rem 0;">Branded portal domain for top 20 Florida AEC firms (Kimley-Horn, RS&H, WGI, DRMP, Jacobs).</p>
+                            <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                                <input type="text" id="custom-domain-input" value="qc.kimley-horn.com" style="flex:1; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-size:0.85rem;">
+                                <button class="btn btn-accent" onclick="alert('CNAME configured for domain: ' + document.getElementById('custom-domain-input').value);"><i class="fa-solid fa-link"></i> Verify CNAME</button>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel" style="padding: 1.25rem; border: 1px solid var(--success);">
+                            <h3><i class="fa-solid fa-stamp" style="color:var(--success);"></i> PKI Digital Seal Validator</h3>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin:0.5rem 0;">Verifies F.A.C. 61G15-23.004 (PE) and F.A.C. 5J-17.062 (PSM) digital seals and SHA-256 digests.</p>
+                            <div style="background:rgba(16, 185, 129, 0.1); padding:0.75rem; border-radius:var(--radius-sm); font-size:0.8rem; color:var(--success); border:1px solid rgba(16, 185, 129, 0.3);">
+                                <i class="fa-solid fa-circle-check"></i> <strong>PAdES-LTV Active</strong>: IdenTrust / Identros Certificate Chain Valid
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 12: CMS Control Panel & Commercial Auth -->
+            <section id="tab-cms" class="tab-pane">
+                <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                        <div>
+                            <h2><i class="fa-solid fa-server" style="color:var(--primary);"></i> DOT & BoundaryQC CMS Control Panel</h2>
+                            <p class="subtitle">Enterprise Content Management, User Registrations, Role Access (RBAC), Submittal Vaults, and Commercial Transaction Ledgers.</p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button class="btn btn-accent" id="btn-cms-new-proj"><i class="fa-solid fa-folder-plus"></i> New DOT Project</button>
+                            <button class="btn btn-secondary" id="btn-cms-switch-user"><i class="fa-solid fa-right-to-bracket"></i> Switch Account</button>
+                        </div>
+                    </div>
+
+                    <!-- User Active Profile Header Card -->
+                    <div class="glass-panel" style="margin-top:1.25rem; padding:1.25rem; background:var(--bg-secondary); border-left:4px solid var(--primary);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div style="width:48px; height:48px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:1.4rem; color:#fff;">
+                                    <i class="fa-solid fa-user-shield"></i>
+                                </div>
+                                <div>
+                                    <h3 id="cms-profile-name">Jane Doe, PSM</h3>
+                                    <span style="font-size:0.85rem; color:var(--text-secondary);" id="cms-profile-email">jane.doe@kimley-horn.com</span>
+                                    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+                                        <span class="badge" style="background:var(--success);" id="cms-profile-role">PSM Surveyor</span>
+                                        <span class="badge" style="background:var(--bg-primary); border:1px solid var(--glass-border);" id="cms-profile-license">FL PSM #LS6842</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <small style="color:var(--text-muted); display:block;">Enterprise Team Workspace</small>
+                                <strong id="cms-org-name" style="color:var(--accent);">Kimley-Horn & Associates, Inc.</strong>
+                                <small style="display:block; color:var(--text-secondary);" id="cms-seat-usage">Auto-Join Active (@kimley-horn.com) • 12 / 25 Seats</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CMS Subsystems Layout -->
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:1.25rem; margin-top:1.5rem;">
+                        <!-- DOT Projects & Submittals Manager -->
+                        <div class="glass-panel" style="padding:1.25rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                                <h3><i class="fa-solid fa-folder-tree" style="color:var(--primary);"></i> DOT Projects Manager</h3>
+                                <span class="badge" style="background:var(--primary);" id="cms-proj-count">2 Projects</span>
+                            </div>
+                            <div id="cms-projects-list" style="display:flex; flex-direction:column; gap:0.75rem;">
+                                <!-- Dynamic Project Items -->
+                            </div>
+                        </div>
+
+                        <!-- Submittals & 9-Section QC Vault -->
+                        <div class="glass-panel" style="padding:1.25rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                                <h3><i class="fa-solid fa-file-pdf" style="color:var(--accent);"></i> Submittal & QC Report Vault</h3>
+                                <span class="badge" style="background:var(--accent);" id="cms-sub-count">1 Submittals</span>
+                            </div>
+                            <div id="cms-submittals-list" style="display:flex; flex-direction:column; gap:0.75rem;">
+                                <!-- Dynamic Submittal Items -->
+                            </div>
+                        </div>
+
+                        <!-- Commercial Transactions & ASC 606 Billing Ledger -->
+                        <div class="glass-panel" style="padding:1.25rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                                <h3><i class="fa-solid fa-receipt" style="color:var(--success);"></i> Transaction Ledger (ASC 606)</h3>
+                                <span class="badge" style="background:var(--success);">PAID ACTIVE</span>
+                            </div>
+                            <div id="cms-transactions-list" style="display:flex; flex-direction:column; gap:0.75rem;">
+                                <!-- Dynamic Transaction Items -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Organization Team Directory & User Management Table -->
+                    <div class="glass-panel" style="padding:1.25rem; margin-top:1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h3><i class="fa-solid fa-users-gear" style="color:var(--primary);"></i> Organization Team Directory & User Management</h3>
+                            <button class="btn btn-primary btn-sm" id="btn-cms-add-user"><i class="fa-solid fa-user-plus"></i> Add Team Member</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--glass-border); color:var(--text-muted);">
+                                        <th style="padding:0.5rem;">User Name</th>
+                                        <th style="padding:0.5rem;">Email Address</th>
+                                        <th style="padding:0.5rem;">Role Designation</th>
+                                        <th style="padding:0.5rem;">State License</th>
+                                        <th style="padding:0.5rem;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cms-users-table-body">
+                                    <!-- Dynamic Users -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- F.A.C. PKI Seal & Immutable Audit Log -->
+                    <div class="glass-panel" style="padding:1.25rem; margin-top:1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+                            <div>
+                                <h3><i class="fa-solid fa-link" style="color:var(--warning);"></i> F.A.C. PKI Audit Log & SHA-256 Merkle Chain</h3>
+                                <small style="color:var(--text-secondary);">Cryptographically chained write-ahead audit ledger compliant with Florida Rules 61G15-23.004 / 5J-17.062 & SOC 2.</small>
+                            </div>
+                            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                                <span class="badge" id="cms-audit-status-badge" style="background:var(--bg-secondary); border:1px solid var(--warning); color:var(--warning); font-weight:700;"><i class="fa-solid fa-clock"></i> UNVERIFIED LEDGER</span>
+                                <button class="btn btn-primary btn-sm" id="btn-verify-audit-chain"><i class="fa-solid fa-shield-halved"></i> Verify Merkle Chain</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-export-cloud-sync" title="Generate PostgreSQL with Row-Level Security sync payload"><i class="fa-solid fa-cloud-arrow-down"></i> Cloud Sync</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-mint-c3d-jwt" title="Generate asymmetric license token for Civil 3D ribbon plugin"><i class="fa-solid fa-key"></i> Mint C3D Token</button>
+                            </div>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--glass-border); color:var(--text-muted);">
+                                        <th style="padding:0.5rem;">Seq #</th>
+                                        <th style="padding:0.5rem;">Actor</th>
+                                        <th style="padding:0.5rem;">Action Category</th>
+                                        <th style="padding:0.5rem;">Details</th>
+                                        <th style="padding:0.5rem;">SHA-256 Digest</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cms-audit-table-body">
+                                    <!-- Dynamic Audit Logs -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Commercial Authentication & Registration Modal -->
+    <div id="modal-auth" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:99999;">
+        <div class="glass-panel" style="width:90%; max-width:520px; padding:2rem; background:var(--bg-primary); border:1px solid var(--primary); border-radius:var(--radius-lg); max-height:90vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <h3><i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> Commercial Auth & Registration</h3>
+                <button class="icon-btn" id="btn-close-auth"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Tab Buttons for Sign In / Register -->
+            <div style="display:flex; gap:0.5rem; background:var(--bg-secondary); padding:0.25rem; border-radius:var(--radius-sm); margin-bottom:1.25rem;">
+                <button class="btn btn-secondary" id="tab-btn-login" style="flex:1; padding:0.5rem; font-size:0.85rem; border:none; background:var(--primary); color:#fff;">Sign In</button>
+                <button class="btn btn-secondary" id="tab-btn-register" style="flex:1; padding:0.5rem; font-size:0.85rem; border:none; background:transparent; color:var(--text-muted);">Create Account</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="form-auth-login">
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--primary); font-weight:600;"><i class="fa-solid fa-users"></i> Quick Account Switcher</label>
+                    <select id="login-quick-select" style="width:100%; padding:0.65rem; background:var(--bg-secondary); border:1px solid var(--primary); color:#fff; border-radius:var(--radius-sm); font-size:0.85rem;">
+                        <!-- Dynamic User Options -->
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Account Email Address</label>
+                    <input type="email" id="login-email" value="jane.doe@kimley-horn.com" required style="width:100%; padding:0.65rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Password (Argon2id Hashed)</label>
+                    <input type="password" value="••••••••••••" required style="width:100%; padding:0.65rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <button type="button" id="btn-do-login" class="btn btn-primary" style="width:100%;"><i class="fa-solid fa-right-to-bracket"></i> Sign In to Platform</button>
+                    <button type="button" id="btn-webauthn-login" class="btn btn-secondary" data-action="webauthn" style="width:100%; font-size:0.8rem;"><i class="fa-solid fa-key"></i> Authenticate with YubiKey / WebAuthn</button>
+                </div>
+            </form>
+
+            <!-- Registration Form (Hidden by default) -->
+            <form id="form-auth-register" class="hidden">
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Full Name & Title</label>
+                    <input type="text" id="reg-name" placeholder="Jane Doe, PSM" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Work Email (Auto-Join domain @kimley-horn.com)</label>
+                    <input type="email" id="reg-email" placeholder="jane.doe@kimley-horn.com" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Role & License Designation (RBAC)</label>
+                    <select id="reg-role" style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                        <option value="PSM_SURVEYOR">PSM Surveyor (F.A.C. 5J-17.062 Seal Authority)</option>
+                        <option value="PE_ENGINEER">PE Engineer (F.A.C. 61G15-23.004 Seal Authority)</option>
+                        <option value="FIRM_ADMIN">Firm Admin (Practice & Seat Management)</option>
+                        <option value="MUNICIPAL_REVIEWER">Municipal / FDOT District Reviewer</option>
+                        <option value="CONTRACTOR">Heavy Civil Contractor / Estimator</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">FL State License Number (Optional)</label>
+                    <input type="text" id="reg-license" placeholder="LS6842" style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Firm / Entity Name</label>
+                    <input type="text" id="reg-company" placeholder="Kimley-Horn & Associates, Inc." style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <button type="button" id="btn-do-register" class="btn btn-accent" style="width:100%;"><i class="fa-solid fa-user-plus"></i> Create Commercial Account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Subscription Checkout Modal -->
+    <div id="modal-checkout" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
+        <div class="glass-panel" style="width: 90%; max-width: 500px; padding: 2rem; background: var(--bg-primary); border: 1px solid var(--primary); border-radius: var(--radius-md);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 id="modal-plan-title"><i class="fa-solid fa-credit-card" style="color:var(--primary);"></i> Activate Pro Tier ($49/mo)</h3>
+                <button class="icon-btn" id="btn-close-checkout"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">Simulated Stripe checkout integration for BoundaryQC & FDOT Civil3D Commercial Suite.</p>
+
+            <form id="form-stripe-demo" onsubmit="event.preventDefault(); window.simCheckout();">
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Company / Practice Name</label>
+                    <input type="text" value="Florida Land Surveying & Engineering LLC" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:0.75rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Licensee Email (Domain Auto-Claim)</label>
+                    <input type="email" value="surveyor@fl-land-survey.com" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted);">Card Number (Demo Stripe Gateway)</label>
+                    <input type="text" value="4242 •••• •••• 4242" readonly style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:var(--success); border-radius:var(--radius-sm); font-family:monospace;">
+                </div>
+                <div style="display:flex; gap:0.75rem;">
+                    <button type="submit" class="btn btn-accent" style="flex:1;"><i class="fa-solid fa-lock"></i> Start 14-Day Free Trial</button>
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-checkout">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="data.js"></script>
+    <script src="dxf-parser.js"></script>
+    <script src="security-crypto.js"></script>
+    <script src="wasm-dxf-engine.js"></script>
+    <script src="billing-portal.js"></script>
+    <script src="cms-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
