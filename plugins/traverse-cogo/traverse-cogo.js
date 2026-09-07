@@ -18,7 +18,14 @@
     };
 
     // FDOT boundary/right-of-way surveys are expected to close to at least 1:10,000 (Rule 5J-17).
-    const PRECISION_PASS_DENOMINATOR = 10000;
+    const PRECISION_PASS_DEFAULT = 10000;
+    // Pass threshold comes from the active client master template when one is set.
+    function precisionPass() {
+        const v = window.BoundaryQCCMS && window.BoundaryQCCMS.getActiveTemplateSetting
+            ? window.BoundaryQCCMS.getActiveTemplateSetting("precisionPass", PRECISION_PASS_DEFAULT)
+            : PRECISION_PASS_DEFAULT;
+        return Number(v) || PRECISION_PASS_DEFAULT;
+    }
     let _lastTraverse = null; // stashed for the Map Check Report export
 
     /**
@@ -114,7 +121,8 @@
         const precisionDenominator = linearMisclosure > 1e-9
             ? perimeter / linearMisclosure
             : Infinity;
-        const passes = precisionDenominator >= PRECISION_PASS_DENOMINATOR;
+        const passThreshold = precisionPass();
+        const passes = precisionDenominator >= passThreshold;
 
         // Bearing of the misclosure course (direction from the computed end back to the POB).
         let misclosureBearing = "—";
@@ -175,7 +183,7 @@
                         : `<strong style="color:var(--success);"><i class="fa-solid fa-circle-check"></i> No self-intersection:</strong> the plotted polygon boundary does not cross itself.`
                     }
                 </div>
-                ${passes ? '' : `<small style="color:var(--danger);">Misclosure exceeds 1:${PRECISION_PASS_DENOMINATOR.toLocaleString()} — review course bearings/distances before certifying.</small>`}
+                ${passes ? '' : `<small style="color:var(--danger);">Misclosure exceeds 1:${passThreshold.toLocaleString()} — review course bearings/distances before certifying.</small>`}
             </div>`);
     }
 

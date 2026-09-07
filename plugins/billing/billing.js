@@ -19,12 +19,18 @@ class BillingPortalEngine {
         this.userEmail = localStorage.getItem("bqc_user_email") || "surveyor@kimley-horn.com";
         this.companyName = localStorage.getItem("bqc_company_name") || "Kimley-Horn & Associates, Inc.";
 
+        // `clientTemplates` = how many per-client master templates a user may keep.
+        // The base plans allow 5; more requires a higher tier.
         this.tierLimits = {
-            Free:       { seats: 1,  platExtractions: 3,    autoFixSCR: false, fullQCReport: false, c3dPlugin: false, apiAccess: false },
-            Pro:        { seats: 1,  platExtractions: 50,   autoFixSCR: true,  fullQCReport: true,  c3dPlugin: false, apiAccess: false },
-            Firm:       { seats: 25, platExtractions: 9999, autoFixSCR: true,  fullQCReport: true,  c3dPlugin: true,  apiAccess: true  },
-            Enterprise: { seats: 50, platExtractions: 9999, autoFixSCR: true,  fullQCReport: true,  c3dPlugin: true,  apiAccess: true  }
+            Free:       { seats: 1,  platExtractions: 3,    clientTemplates: 5,   autoFixSCR: false, fullQCReport: false, c3dPlugin: false, apiAccess: false },
+            Pro:        { seats: 1,  platExtractions: 50,   clientTemplates: 5,   autoFixSCR: true,  fullQCReport: true,  c3dPlugin: false, apiAccess: false },
+            Firm:       { seats: 25, platExtractions: 9999, clientTemplates: 25,  autoFixSCR: true,  fullQCReport: true,  c3dPlugin: true,  apiAccess: true  },
+            Enterprise: { seats: 50, platExtractions: 9999, clientTemplates: 999, autoFixSCR: true,  fullQCReport: true,  c3dPlugin: true,  apiAccess: true  }
         };
+
+        // Monthly price per tier — used for upsell copy.
+        this.tierPrice = { Free: 0, Pro: 49, Firm: 199, Enterprise: 499 };
+        this.tierOrder = ["Free", "Pro", "Firm", "Enterprise"];
 
         // Generate an ECDSA P-256 key pair for JWT signing on construction.
         // NOTE (demo): a fresh key pair is created per page load, so these tokens are only
@@ -65,6 +71,23 @@ class BillingPortalEngine {
 
     getLimits() {
         return this.tierLimits[this.currentTier] || this.tierLimits.Free;
+    }
+
+    /** Max per-client master templates allowed on the current tier. */
+    getTemplateLimit() {
+        return this.getLimits().clientTemplates || 5;
+    }
+
+    /** The cheapest tier above the current one that raises the template cap, for upsell copy. */
+    nextTierForTemplates() {
+        const current = this.getTemplateLimit();
+        const idx = this.tierOrder.indexOf(this.currentTier);
+        for (let i = Math.max(0, idx) + 1; i < this.tierOrder.length; i++) {
+            const name = this.tierOrder[i];
+            const cap = this.tierLimits[name].clientTemplates;
+            if (cap > current) return { name, price: this.tierPrice[name], limit: cap };
+        }
+        return null;
     }
 
     /**

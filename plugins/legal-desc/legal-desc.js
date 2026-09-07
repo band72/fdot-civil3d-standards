@@ -23,7 +23,14 @@
         dependencies: ["security-pki"]
     };
 
-    const PRECISION_PASS = 10000; // 1:10,000 survey-grade closure (FL Rule 5J-17)
+    const PRECISION_PASS_DEFAULT = 10000; // 1:10,000 survey-grade closure (FL Rule 5J-17)
+    // Threshold comes from the active client master template when one is set.
+    function PRECISION_PASS_() {
+        const v = window.BoundaryQCCMS && window.BoundaryQCCMS.getActiveTemplateSetting
+            ? window.BoundaryQCCMS.getActiveTemplateSetting("precisionPass", PRECISION_PASS_DEFAULT)
+            : PRECISION_PASS_DEFAULT;
+        return Number(v) || PRECISION_PASS_DEFAULT;
+    }
     let _last = null;             // last parse result, for the export buttons
 
     // ── Parsing ──────────────────────────────────────────────────────────────
@@ -151,9 +158,9 @@
             if (traverse.misclosure > 0.02) {
                 issues.push({ sev: "ERROR", code: "CLOSURE_FAIL",
                     msg: `Boundary does not close: misclosure ${traverse.misclosure.toFixed(3)} ft.` });
-            } else if (traverse.precisionDenominator !== Infinity && traverse.precisionDenominator < PRECISION_PASS) {
+            } else if (traverse.precisionDenominator !== Infinity && traverse.precisionDenominator < PRECISION_PASS_()) {
                 issues.push({ sev: "WARNING", code: "PRECISION_WARNING",
-                    msg: `Closure precision below survey grade: 1:${Math.round(traverse.precisionDenominator).toLocaleString()} (need ≥ 1:${PRECISION_PASS.toLocaleString()}).` });
+                    msg: `Closure precision below survey grade: 1:${Math.round(traverse.precisionDenominator).toLocaleString()} (need ≥ 1:${PRECISION_PASS_().toLocaleString()}).` });
             }
             const bt = window.COGO.selfIntersects(traverse.vertices.slice(0, -1));
             if (bt) issues.push({ sev: "ERROR", code: "SELF_INTERSECTION",
@@ -182,7 +189,7 @@
             L.push(`  Precision ratio: ${traverse.precisionDenominator === Infinity ? "exact" : "1 : " + Math.round(traverse.precisionDenominator).toLocaleString()}`);
             L.push(`  Perimeter: ${traverse.perimeter.toFixed(2)} ft`);
             L.push(`  Computed area (Shoelace): ${traverse.areaSqFt.toFixed(2)} sq ft = ${traverse.areaAcres.toFixed(2)} acres`);
-            L.push(`  Status: ${traverse.misclosure <= 0.02 && (traverse.precisionDenominator === Infinity || traverse.precisionDenominator >= PRECISION_PASS) ? "[PASS]" : "[FAIL/WARNING]"}`);
+            L.push(`  Status: ${traverse.misclosure <= 0.02 && (traverse.precisionDenominator === Infinity || traverse.precisionDenominator >= PRECISION_PASS_()) ? "[PASS]" : "[FAIL/WARNING]"}`);
         } else {
             L.push("  Not enough parsable geometry to compute closure.");
         }
@@ -235,7 +242,7 @@
                  </div>
                  <div style="background:var(--bg-surface); padding:0.75rem; border-radius:var(--radius-sm);">
                    <small style="color:var(--text-muted);">Precision</small>
-                   <div style="font-weight:700; color:${traverse.precisionDenominator === Infinity || traverse.precisionDenominator >= PRECISION_PASS ? 'var(--success)' : 'var(--danger)'};">
+                   <div style="font-weight:700; color:${traverse.precisionDenominator === Infinity || traverse.precisionDenominator >= PRECISION_PASS_() ? 'var(--success)' : 'var(--danger)'};">
                      ${traverse.precisionDenominator === Infinity ? 'exact' : '1 : ' + Math.round(traverse.precisionDenominator).toLocaleString()}</div>
                    <small style="color:var(--text-muted);">Area ${traverse.areaAcres.toFixed(2)} ac (${traverse.areaSqFt.toFixed(0)} sf)</small>
                  </div>

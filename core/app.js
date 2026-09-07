@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "tab-inspector":      ["State Kit Inspector", "Reference view of the reverse-engineered FDOT Civil 3D State Kit folder structure."],
         "tab-commercial":     ["Commercial SaaS Plans (Demo)", "Subscription tiers and an ASC 606 ledger model. Client-side demo — tier is read from localStorage; nothing gates a feature or takes a payment."],
         "tab-enterprise":     ["Enterprise & C3D Plugin (Demo)", "Civil 3D C# Ribbon add-in scaffold and portal manager. Demo build — licensing, seals, and portals are not enforced."],
-        "tab-cms":            ["CMS Control Panel & Auth (Demo)", "Browser-local user registry, RBAC, projects/submittals, and a SHA-256 hash-chained audit log. No server; sign-in has no password."],
+        "tab-cms":            ["CMS Control Panel & Auth (Demo)", "Sign-in with salted PBKDF2 passwords + sessions, per-user client master templates (5 on the base plan), RBAC, projects/submittals, and a hash-chained audit log. Browser-local — not a security boundary."],
         "tab-help":           ["Help & User Manual", "How every tab works, the input formats they accept, what they compute, and the limits of this demo build."]
     };
 

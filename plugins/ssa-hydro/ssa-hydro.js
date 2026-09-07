@@ -27,10 +27,18 @@
             opt.textContent = `Zone ${z.zone}: ${z.counties}`;
             select.appendChild(opt);
         });
+        // Default the zone from the active client master template, if one is set.
+        const zone = window.BoundaryQCCMS && window.BoundaryQCCMS.getActiveTemplateSetting
+            ? window.BoundaryQCCMS.getActiveTemplateSetting("idfZone", null) : null;
+        if (zone != null && select.querySelector(`option[value="${zone}"]`)) select.value = String(zone);
     }
 
     const Plugin = {
         init() {
+            renderIDFOptions();
+        },
+
+        onTabActivate() {
             renderIDFOptions();
         },
 

@@ -153,6 +153,32 @@
                 </ul>`
         },
         {
+            id: "accounts",
+            title: "4. Accounts, sign-in & client templates (CMS tab)",
+            html: `
+                <h4>Sign in</h4>
+                <p>Open the CMS Control Panel tab (or <em>Switch Account</em>). Sign in with an email + password. Passwords are salted and hashed with <strong>PBKDF2-SHA-256</strong> (SubtleCrypto) — the plaintext is never stored. After 5 wrong attempts the account is locked for 60 seconds. A session lasts 8 hours, or 30 days with <em>Keep me signed in</em>. Sign out from the header.</p>
+                <p>The three bundled demo accounts all use the password <code>Fdot2026!</code>:</p>
+                <ul>
+                    <li><code>jane.doe@kimley-horn.com</code> — PSM Surveyor</li>
+                    <li><code>robert.vance@kimley-horn.com</code> — PE Engineer</li>
+                    <li><code>sarah.c@kimley-horn.com</code> — Firm Admin</li>
+                </ul>
+                <p><em>Create Account</em> registers a new user (min 8-char password with a letter and a digit). <em>Change password</em> is on the CMS profile card. The team directory's <em>Switch</em> button changes the active account within the workspace without re-entering a password — it is a convenience, and every switch is written to the audit log.</p>
+                <h4>Client master templates</h4>
+                <p>Each user keeps their own set of <strong>master templates</strong> — one per client. A template stores the defaults you use for that client: discipline, IDF zone, sheet template (DWT), closure pass ratio, FPID prefix, county, and district.</p>
+                <ul>
+                    <li><strong>Create</strong> — <em>New Template</em> opens the form. Fill in at least a client name and Save.</li>
+                    <li><strong>Activate</strong> — the <em>Active</em> dropdown at the top of the panel selects which template is current. The active client shows as a badge on your profile and drives defaults elsewhere: the SSA Hydrology tab pre-selects the template's IDF zone, and the Traverse Auditor / Legal Description QC use its closure pass ratio instead of the default 1:10,000.</li>
+                    <li><strong>Edit / Delete</strong> — buttons on each row. Deleting the active template moves "active" to the next one.</li>
+                </ul>
+                <h4>License limit</h4>
+                <p>The <strong>Free</strong> and <strong>Pro</strong> plans allow <strong>5 templates per user</strong>. Creating a sixth is blocked with an upgrade prompt. <strong>Firm</strong> ($199/mo) raises the cap to 25; <strong>Enterprise</strong> ($499/mo) is unlimited. Change the plan from the Commercial SaaS Plans tab (demo checkout).</p>
+                <div class="help-note help-note--warn">
+                    <strong>All of this runs in your browser.</strong> The password hashing, sessions, lockout, per-user isolation, and the template limit are real code, but there is no server — a determined user can edit <code>localStorage</code> from devtools and bypass any of it. Treat it as a UX model, not a security boundary.
+                </div>`
+        },
+        {
             id: "fmt",
             title: "5. Input format reference",
             html: `
@@ -213,7 +239,7 @@
             title: "8. Limits of this build",
             html: `
                 <ul>
-                    <li><strong>No server.</strong> Sign-in has no password, subscription tier is just a value in <code>localStorage</code>, "Stripe webhooks" and PKI seal validation are simulated, and the CMS audit log is a local hash chain (tamper-evident for in-place edits only — it is not an external notarization).</li>
+                    <li><strong>No server.</strong> Sign-in uses real salted PBKDF2 password hashing, sessions, and lockout, and the template limit is enforced in code — but it all lives in <code>localStorage</code> on this device and can be bypassed from devtools. Subscription tier is just a stored value, "Stripe webhooks" and PKI seal validation are simulated, and the CMS audit log is a local hash chain (tamper-evident for in-place edits only — not an external notarization).</li>
                     <li><strong>The C# Civil 3D add-in</strong> in <code>plugins/civil3d-addin/</code> is a licensing/ribbon scaffold. The audit, layer-purge, and manifest commands are stubs; they do not read the drawing.</li>
                     <li><strong>No image / plat tracing.</strong> Parcel → DXF works from typed calls, not scanned plats.</li>
                     <li><strong>Ideal PLSS only.</strong> The breakdown assumes a perfect 5,280 ft section. Real retracement must honor the GLO plat, found corners, and fractional lots.</li>

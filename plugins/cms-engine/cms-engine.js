@@ -16,12 +16,30 @@ class BoundaryQCCMSEngine {
         this.STORAGE_KEYS = {
             USERS: "bqc_cms_users",
             CURRENT_USER: "bqc_cms_current_user",
+            SESSION: "bqc_cms_session",
+            LOGIN_ATTEMPTS: "bqc_cms_login_attempts",
             ORGS: "bqc_cms_organizations",
             PROJECTS: "bqc_cms_projects",
             SUBMITTALS: "bqc_cms_submittals",
             TRANSACTIONS: "bqc_cms_transactions",
+            TEMPLATES: "bqc_cms_templates",
+            ACTIVE_TEMPLATE: "bqc_cms_active_template",
             AUDIT_LOGS: "bqc_cms_audit_logs",
-            WEBHOOK_IDEMPOTENCY: "bqc_cms_idempotency_keys"
+            WEBHOOK_IDEMPOTENCY: "bqc_cms_idempotency_keys",
+            SCHEMA_VERSION: "bqc_cms_schema_version"
+        };
+
+        // Auth policy (client-side; enforcement is best-effort — see constructor warning).
+        this.AUTH = {
+            SCHEMA_VERSION: 3,
+            DEMO_PASSWORD: "Fdot2026!",          // seed accounts; shown as a hint on the login form
+            PBKDF2_ITERATIONS: 100000,
+            SYNC_ITERATIONS: 20000,
+            SEED_ITERATIONS: 2000,   // lighter: seeds/migration run synchronously at page load
+            SESSION_HOURS: 8,
+            REMEMBER_DAYS: 30,
+            MAX_FAILED: 5,
+            LOCKOUT_MS: 60 * 1000
         };
 
         this.roles = {
@@ -33,12 +51,165 @@ class BoundaryQCCMSEngine {
         };
 
         this.initStorageDefaults();
+        this._migrate();
 
         console.warn(
-            "[BoundaryQCCMS] Demo build: users, roles, sessions, billing and the audit log live in " +
-            "localStorage on this device only. Sign-in has no password, Stripe webhooks are not signature-" +
-            "verified, and nothing here enforces an entitlement or isolates a tenant."
+            "[BoundaryQCCMS] Demo build. Auth now uses salted PBKDF2 password hashes, sessions with " +
+            "expiry, and failed-login lockout — but it all runs in this browser against localStorage, so " +
+            "a determined user can bypass it from devtools. Real user management, licensing, and tenant " +
+            "isolation require a server. Seed accounts use the password: " + this.AUTH.DEMO_PASSWORD
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Password hashing & sessions (client-side, best-effort)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    _randomSaltHex(bytes = 16) {
+        const a = new Uint8Array(bytes);
+        if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+        else for (let i = 0; i < bytes; i++) a[i] = Math.floor(Math.random() * 256);
+        return Array.from(a).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    _hexToBytes(hex) {
+        const out = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+        return out;
+    }
+
+    /** Iterated salted SHA-256 (synchronous fallback; used for seed accounts). */
+    _deriveHashSync(password, saltHex, iterations) {
+        const S = window.BoundaryQCSecurity;
+        let h = `${password}|${saltHex}`;
+        for (let i = 0; i < iterations; i++) {
+            h = S ? S.computeTextSHA256Sync(`${h}|${i}`) : `${h}|${i}`;
+        }
+        return h;
+    }
+
+    /** PBKDF2-SHA-256 via SubtleCrypto when available; else the sync fallback. */
+    async _deriveHash(password, saltHex, algo, iterations) {
+        if (algo === "pbkdf2" && window.crypto && window.crypto.subtle) {
+            const keyMat = await window.crypto.subtle.importKey(
+                "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+            const bits = await window.crypto.subtle.deriveBits(
+                { name: "PBKDF2", salt: this._hexToBytes(saltHex), iterations, hash: "SHA-256" }, keyMat, 256);
+            return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+        return this._deriveHashSync(password, saltHex, iterations);
+    }
+
+    _safeEqual(a, b) {
+        if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+        let diff = 0;
+        for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        return diff === 0;
+    }
+
+    _validatePassword(pw) {
+        if (typeof pw !== "string" || pw.length < 8) {
+            throw new Error("Password must be at least 8 characters.");
+        }
+        if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) {
+            throw new Error("Password must contain at least one letter and one digit.");
+        }
+    }
+
+    /** Build a credential record for a user object (sync path — used for seeds/migration). */
+    _makeCredentialSync(password, iterations) {
+        const iter = iterations || this.AUTH.SYNC_ITERATIONS;
+        const salt = this._randomSaltHex();
+        return { algo: "s256i", salt, iterations: iter,
+                 hash: this._deriveHashSync(password, salt, iter) };
+    }
+
+    /** Build a credential record (async PBKDF2 path — used for real registrations / password changes). */
+    async _makeCredential(password) {
+        const useSubtle = !!(window.crypto && window.crypto.subtle);
+        const algo = useSubtle ? "pbkdf2" : "s256i";
+        const iterations = useSubtle ? this.AUTH.PBKDF2_ITERATIONS : this.AUTH.SYNC_ITERATIONS;
+        const salt = this._randomSaltHex();
+        return { algo, salt, iterations, hash: await this._deriveHash(password, salt, algo, iterations) };
+    }
+
+    async _verifyCredential(cred, password) {
+        if (!cred || !cred.hash || !cred.salt) return false;
+        const attempt = await this._deriveHash(password, cred.salt, cred.algo || "s256i",
+            cred.iterations || this.AUTH.SYNC_ITERATIONS);
+        return this._safeEqual(attempt, cred.hash);
+    }
+
+    _getSession() {
+        const s = this._readJSON(this.STORAGE_KEYS.SESSION, null);
+        if (!s || typeof s.expiresAt !== "number") return null;
+        if (Date.now() > s.expiresAt) return null;
+        return s;
+    }
+
+    _startSession(user, remember) {
+        const ttlMs = (remember ? this.AUTH.REMEMBER_DAYS * 24 : this.AUTH.SESSION_HOURS) * 3600 * 1000;
+        const session = {
+            userId: user.id,
+            token: this._randomSaltHex(24),
+            issuedAt: Date.now(),
+            expiresAt: Date.now() + ttlMs,
+            remember: !!remember
+        };
+        this._writeJSON(this.STORAGE_KEYS.SESSION, session);
+        localStorage.setItem(this.STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+        return session;
+    }
+
+    _failInfo(email) {
+        const map = this._readJSON(this.STORAGE_KEYS.LOGIN_ATTEMPTS, {});
+        return map[email.toLowerCase()] || { count: 0, lockedUntil: 0 };
+    }
+
+    _recordFail(email) {
+        const map = this._readJSON(this.STORAGE_KEYS.LOGIN_ATTEMPTS, {});
+        const k = email.toLowerCase();
+        const info = map[k] || { count: 0, lockedUntil: 0 };
+        info.count += 1;
+        if (info.count >= this.AUTH.MAX_FAILED) {
+            info.lockedUntil = Date.now() + this.AUTH.LOCKOUT_MS;
+            info.count = 0;
+        }
+        map[k] = info;
+        this._writeJSON(this.STORAGE_KEYS.LOGIN_ATTEMPTS, map);
+    }
+
+    _clearFails(email) {
+        const map = this._readJSON(this.STORAGE_KEYS.LOGIN_ATTEMPTS, {});
+        delete map[email.toLowerCase()];
+        this._writeJSON(this.STORAGE_KEYS.LOGIN_ATTEMPTS, map);
+    }
+
+    /** One-time upgrade: backfill password credentials on accounts created before auth v3. */
+    _migrate() {
+        const ver = parseInt(localStorage.getItem(this.STORAGE_KEYS.SCHEMA_VERSION) || "0", 10);
+        if (ver >= this.AUTH.SCHEMA_VERSION) return;
+
+        const users = this.getUsers();
+        let changed = false;
+        users.forEach(u => {
+            if (!u.credentials) { u.credentials = this._makeCredentialSync(this.AUTH.DEMO_PASSWORD, this.AUTH.SEED_ITERATIONS); changed = true; }
+        });
+        if (changed) this._writeJSON(this.STORAGE_KEYS.USERS, users);
+
+        if (!localStorage.getItem(this.STORAGE_KEYS.TEMPLATES)) {
+            this._writeJSON(this.STORAGE_KEYS.TEMPLATES, []);
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.ACTIVE_TEMPLATE)) {
+            this._writeJSON(this.STORAGE_KEYS.ACTIVE_TEMPLATE, {});
+        }
+        // If a legacy current-user exists without a session, mint one so the demo keeps working.
+        if (localStorage.getItem(this.STORAGE_KEYS.CURRENT_USER) && !this._getSession()) {
+            const cu = this._readJSON(this.STORAGE_KEYS.CURRENT_USER, null);
+            const full = cu && this.getUsers().find(u => u.id === cu.id);
+            if (full) this._startSession(full, false);
+        }
+        localStorage.setItem(this.STORAGE_KEYS.SCHEMA_VERSION, String(this.AUTH.SCHEMA_VERSION));
     }
 
     /** Read a JSON value from localStorage, returning `fallback` on missing/corrupt/unavailable storage. */
@@ -67,6 +238,7 @@ class BoundaryQCCMSEngine {
 
     initStorageDefaults() {
         if (!localStorage.getItem(this.STORAGE_KEYS.USERS)) {
+            const cred = () => this._makeCredentialSync(this.AUTH.DEMO_PASSWORD, this.AUTH.SEED_ITERATIONS);
             const seedUsers = [
                 {
                     id: "usr_psm_01",
@@ -76,6 +248,7 @@ class BoundaryQCCMSEngine {
                     licenseNumber: "LS6842",
                     licenseState: "FL",
                     orgId: "org_kh_01",
+                    credentials: cred(),
                     createdAt: "2026-08-01T10:00:00Z"
                 },
                 {
@@ -86,6 +259,7 @@ class BoundaryQCCMSEngine {
                     licenseNumber: "PE89210",
                     licenseState: "FL",
                     orgId: "org_kh_01",
+                    credentials: cred(),
                     createdAt: "2026-08-02T11:30:00Z"
                 },
                 {
@@ -96,10 +270,29 @@ class BoundaryQCCMSEngine {
                     licenseNumber: "ADM101",
                     licenseState: "FL",
                     orgId: "org_kh_01",
+                    credentials: cred(),
                     createdAt: "2026-08-03T09:15:00Z"
                 }
             ];
             localStorage.setItem(this.STORAGE_KEYS.USERS, JSON.stringify(seedUsers));
+        }
+
+        if (!localStorage.getItem(this.STORAGE_KEYS.TEMPLATES)) {
+            this._writeJSON(this.STORAGE_KEYS.TEMPLATES, [
+                {
+                    id: "tpl_seed_1", ownerId: "usr_psm_01", clientName: "Orange County BCC",
+                    label: "SR-50 boundary standard", createdAt: "2026-08-05T09:00:00Z", updatedAt: "2026-08-05T09:00:00Z",
+                    settings: { discipline: "SURV", idfZone: 7, sheetDwt: "keysht_WithoutMap.dwt", precisionPass: 10000, fpidPrefix: "432109", county: "Orange", district: 5, notes: "R/W retracement package." }
+                },
+                {
+                    id: "tpl_seed_2", ownerId: "usr_psm_01", clientName: "City of Sanford",
+                    label: "Drainage as-built", createdAt: "2026-08-06T09:00:00Z", updatedAt: "2026-08-06T09:00:00Z",
+                    settings: { discipline: "DRAIN", idfZone: 7, sheetDwt: "FDOT-PlanProfile.dwt", precisionPass: 7500, fpidPrefix: "882019", county: "Seminole", district: 5, notes: "" }
+                }
+            ]);
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.ACTIVE_TEMPLATE)) {
+            this._writeJSON(this.STORAGE_KEYS.ACTIVE_TEMPLATE, { usr_psm_01: "tpl_seed_1" });
         }
 
         if (!localStorage.getItem(this.STORAGE_KEYS.ORGS)) {
@@ -209,16 +402,29 @@ class BoundaryQCCMSEngine {
             localStorage.setItem(this.STORAGE_KEYS.WEBHOOK_IDEMPOTENCY, JSON.stringify([]));
         }
 
-        // Auto-login default user if not logged in
-        if (!localStorage.getItem(this.STORAGE_KEYS.CURRENT_USER)) {
+        // Auto-login on a fresh install (or after an upgrade with no session) so the demo is
+        // usable immediately. Prefer the previously-active account if one is recorded.
+        if (!localStorage.getItem(this.STORAGE_KEYS.SESSION)) {
             const users = this._readJSON(this.STORAGE_KEYS.USERS, []);
-            if (users[0]) localStorage.setItem(this.STORAGE_KEYS.CURRENT_USER, JSON.stringify(users[0]));
+            const prev = this._readJSON(this.STORAGE_KEYS.CURRENT_USER, null);
+            const who = (prev && users.find(u => u.id === prev.id)) || users[0];
+            if (who) this._startSession(who, false);
         }
     }
 
+    /** Current signed-in user, or null if there is no valid (unexpired) session. */
     getCurrentUser() {
-        return this._readJSON(this.STORAGE_KEYS.CURRENT_USER, null);
+        if (!this._getSession()) {
+            localStorage.removeItem(this.STORAGE_KEYS.CURRENT_USER);
+            return null;
+        }
+        const cu = this._readJSON(this.STORAGE_KEYS.CURRENT_USER, null);
+        if (!cu) return null;
+        // Return the canonical record from USERS so role/license/credential edits are reflected.
+        return this.getUsers().find(u => u.id === cu.id) || cu;
     }
+
+    isAuthenticated() { return !!this.getCurrentUser(); }
 
     getUsers() {
         return this._readJSON(this.STORAGE_KEYS.USERS, []);
@@ -268,13 +474,14 @@ class BoundaryQCCMSEngine {
         return target;
     }
 
-    registerUser(fullName, email, role, licenseNumber, companyName) {
+    async registerUser(fullName, email, role, licenseNumber, companyName, password) {
         const users = this.getUsers();
 
         // Basic email shape check — rejects attribute-breakout payloads before they reach storage/DOM.
         if (typeof email !== "string" || !/^[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+$/.test(email.trim())) {
             throw new Error("Please enter a valid email address.");
         }
+        this._validatePassword(password);
         email = email.trim();
         const domain = email.split("@")[1]?.toLowerCase() || "";
 
@@ -317,7 +524,7 @@ class BoundaryQCCMSEngine {
         };
 
         const newUser = {
-            id: "usr_" + Date.now(),
+            id: this._uid("usr"),
             fullName: clean(fullName, "Unnamed User"),
             email: email.toLowerCase(),
             role: this.roles[role] ? role : "PSM_SURVEYOR",
@@ -325,34 +532,244 @@ class BoundaryQCCMSEngine {
             licenseState: "FL",
             companyName: clean(companyName, ""),
             orgId: orgId,
+            credentials: await this._makeCredential(password),
             createdAt: new Date().toISOString()
         };
 
         users.push(newUser);
-        localStorage.setItem(this.STORAGE_KEYS.USERS, JSON.stringify(users));
-        localStorage.setItem(this.STORAGE_KEYS.CURRENT_USER, JSON.stringify(newUser));
+        this._writeJSON(this.STORAGE_KEYS.USERS, users);
+        this._startSession(newUser, false);
+        this._clearFails(email);
 
         this.addAuditLog(newUser.fullName, "USER_REGISTERED", `New user registered with role ${newUser.role} in org ${orgId}`);
         return newUser;
     }
 
-    loginUser(email) {
-        const users = this.getUsers();
-        const target = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (!target) {
-            throw new Error("No user account found matching this email. Please register first.");
+    /**
+     * Authenticate with email + password. Enforces a lockout after repeated failures.
+     * @returns {Promise<Object>} the user record
+     */
+    async loginUser(email, password, remember) {
+        if (typeof email !== "string" || !email.trim()) throw new Error("Enter your account email.");
+        email = email.trim();
+
+        const fail = this._failInfo(email);
+        if (fail.lockedUntil && Date.now() < fail.lockedUntil) {
+            const secs = Math.ceil((fail.lockedUntil - Date.now()) / 1000);
+            throw new Error(`Too many failed attempts. Try again in ${secs}s.`);
         }
-        localStorage.setItem(this.STORAGE_KEYS.CURRENT_USER, JSON.stringify(target));
-        this.addAuditLog(target.fullName, "USER_LOGIN", `User authenticated successfully.`);
+
+        const target = this.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+        // Same generic error whether the account is missing or the password is wrong.
+        const ok = target && target.credentials
+            ? await this._verifyCredential(target.credentials, password || "")
+            : false;
+        if (!ok) {
+            this._recordFail(email);
+            const info = this._failInfo(email);
+            if (info.lockedUntil && Date.now() < info.lockedUntil) {
+                const secs = Math.ceil((info.lockedUntil - Date.now()) / 1000);
+                throw new Error(`Too many failed attempts. Account locked for ${secs}s.`);
+            }
+            const remaining = Math.max(0, this.AUTH.MAX_FAILED - info.count);
+            throw new Error(`Incorrect email or password. ${remaining} attempt(s) before lockout.`);
+        }
+
+        this._clearFails(email);
+        this._startSession(target, remember);
+        this.addAuditLog(target.fullName, "USER_LOGIN", "Password authentication succeeded.");
         return target;
+    }
+
+    /**
+     * Switch the active session to another account in the same workspace WITHOUT a password.
+     * Only permitted while already authenticated (a demo convenience for the team directory).
+     */
+    impersonate(email) {
+        if (!this.isAuthenticated()) throw new Error("Sign in first.");
+        const target = this.getUsers().find(u => u.email.toLowerCase() === String(email).toLowerCase());
+        if (!target) throw new Error("No account with that email.");
+        const from = this.getCurrentUser();
+        this._startSession(target, false);
+        this.addAuditLog(target.fullName, "SESSION_SWITCHED", `Active session switched from ${from ? from.fullName : "?"} (demo convenience — no re-authentication).`);
+        return target;
+    }
+
+    /** Change the current user's password (requires the old password). */
+    async changePassword(oldPassword, newPassword) {
+        const current = this.getCurrentUser();
+        if (!current) throw new Error("Not signed in.");
+        const users = this.getUsers();
+        const rec = users.find(u => u.id === current.id);
+        if (!rec || !(await this._verifyCredential(rec.credentials, oldPassword || ""))) {
+            throw new Error("Current password is incorrect.");
+        }
+        this._validatePassword(newPassword);
+        rec.credentials = await this._makeCredential(newPassword);
+        this._writeJSON(this.STORAGE_KEYS.USERS, users);
+        this.addAuditLog(rec.fullName, "PASSWORD_CHANGED", "Account password updated.");
+        return true;
     }
 
     logoutUser() {
         const current = this.getCurrentUser();
         if (current) {
-            this.addAuditLog(current.fullName, "USER_LOGOUT", `User session terminated.`);
+            this.addAuditLog(current.fullName, "USER_LOGOUT", "Session ended.");
         }
+        localStorage.removeItem(this.STORAGE_KEYS.SESSION);
         localStorage.removeItem(this.STORAGE_KEYS.CURRENT_USER);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Client master templates (per user; count gated by the billing tier)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /** Collision-resistant id (Date.now() alone repeats inside a loop). */
+    _uid(prefix) {
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    _allTemplates() { return this._readJSON(this.STORAGE_KEYS.TEMPLATES, []); }
+
+    /** Templates owned by the current user. */
+    getTemplates() {
+        const u = this.getCurrentUser();
+        if (!u) return [];
+        return this._allTemplates().filter(t => t.ownerId === u.id);
+    }
+
+    /** How many templates the current user's plan allows. */
+    getTemplateLimit() {
+        if (window.BoundaryQCBilling && window.BoundaryQCBilling.getTemplateLimit) {
+            return window.BoundaryQCBilling.getTemplateLimit();
+        }
+        return 5;
+    }
+
+    /** The cheapest tier that raises the template cap, for the upsell message. */
+    getTemplateUpgrade() {
+        if (window.BoundaryQCBilling && window.BoundaryQCBilling.nextTierForTemplates) {
+            return window.BoundaryQCBilling.nextTierForTemplates();
+        }
+        return { name: "Firm", price: 199, limit: 25 };
+    }
+
+    createTemplate(clientName, label, settings) {
+        const u = this.getCurrentUser();
+        if (!u) throw new Error("Sign in to create templates.");
+        const name = String(clientName || "").trim();
+        if (!name) throw new Error("Client name is required.");
+
+        const mine = this.getTemplates();
+        const limit = this.getTemplateLimit();
+        if (mine.length >= limit) {
+            const up = this.getTemplateUpgrade();
+            const err = new Error(
+                `Template limit reached — ${mine.length} of ${limit} on the ${this._planLabel()} plan. ` +
+                (up ? `Upgrade to ${up.name} ($${up.price}/mo, ${up.limit >= 999 ? "unlimited" : up.limit} templates) to add more.` :
+                      "Upgrade your plan to add more."));
+            err.code = "TEMPLATE_LIMIT";
+            throw err;
+        }
+
+        const clean = v => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(v ?? "")) : String(v ?? "");
+        const now = new Date().toISOString();
+        const tpl = {
+            id: this._uid("tpl"),
+            ownerId: u.id,
+            clientName: clean(name),
+            label: clean(label || name),
+            createdAt: now,
+            updatedAt: now,
+            settings: this._normalizeSettings(settings)
+        };
+        const all = this._allTemplates();
+        all.push(tpl);
+        this._writeJSON(this.STORAGE_KEYS.TEMPLATES, all);
+        if (!this.getActiveTemplateId()) this.setActiveTemplate(tpl.id);
+        this.addAuditLog(u.fullName, "TEMPLATE_CREATED", `Master template "${tpl.label}" for client "${tpl.clientName}" (${mine.length + 1}/${limit}).`);
+        return tpl;
+    }
+
+    updateTemplate(id, patch) {
+        const u = this.getCurrentUser();
+        if (!u) throw new Error("Sign in first.");
+        const all = this._allTemplates();
+        const tpl = all.find(t => t.id === id && t.ownerId === u.id);
+        if (!tpl) throw new Error("Template not found.");
+        const clean = v => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(v ?? "")) : String(v ?? "");
+        if (patch.clientName != null) tpl.clientName = clean(patch.clientName);
+        if (patch.label != null) tpl.label = clean(patch.label);
+        if (patch.settings) tpl.settings = this._normalizeSettings({ ...tpl.settings, ...patch.settings });
+        tpl.updatedAt = new Date().toISOString();
+        this._writeJSON(this.STORAGE_KEYS.TEMPLATES, all);
+        this.addAuditLog(u.fullName, "TEMPLATE_UPDATED", `Master template "${tpl.label}" updated.`);
+        return tpl;
+    }
+
+    deleteTemplate(id) {
+        const u = this.getCurrentUser();
+        if (!u) throw new Error("Sign in first.");
+        const all = this._allTemplates();
+        const tpl = all.find(t => t.id === id && t.ownerId === u.id);
+        if (!tpl) return false;
+        this._writeJSON(this.STORAGE_KEYS.TEMPLATES, all.filter(t => t.id !== id));
+        if (this.getActiveTemplateId() === id) {
+            const remaining = this.getTemplates();
+            this.setActiveTemplate(remaining[0] ? remaining[0].id : null);
+        }
+        this.addAuditLog(u.fullName, "TEMPLATE_DELETED", `Master template "${tpl.label}" deleted.`);
+        return true;
+    }
+
+    getActiveTemplateId() {
+        const u = this.getCurrentUser();
+        if (!u) return null;
+        const map = this._readJSON(this.STORAGE_KEYS.ACTIVE_TEMPLATE, {});
+        return map[u.id] || null;
+    }
+
+    setActiveTemplate(id) {
+        const u = this.getCurrentUser();
+        if (!u) return;
+        const map = this._readJSON(this.STORAGE_KEYS.ACTIVE_TEMPLATE, {});
+        if (id) map[u.id] = id; else delete map[u.id];
+        this._writeJSON(this.STORAGE_KEYS.ACTIVE_TEMPLATE, map);
+        if (id) {
+            const tpl = this.getTemplates().find(t => t.id === id);
+            if (tpl) this.addAuditLog(u.fullName, "TEMPLATE_ACTIVATED", `Active template set to "${tpl.label}" (${tpl.clientName}).`);
+        }
+    }
+
+    getActiveTemplate() {
+        const id = this.getActiveTemplateId();
+        return id ? this.getTemplates().find(t => t.id === id) || null : null;
+    }
+
+    /** Read one setting from the active template, or a fallback. Used by other plugins. */
+    getActiveTemplateSetting(key, fallback) {
+        const t = this.getActiveTemplate();
+        return t && t.settings && t.settings[key] != null ? t.settings[key] : fallback;
+    }
+
+    _normalizeSettings(s) {
+        s = s || {};
+        const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+        return {
+            discipline: String(s.discipline || "ALL").toUpperCase().slice(0, 8),
+            idfZone: Math.min(11, Math.max(1, Math.round(num(s.idfZone, 7)))),
+            sheetDwt: String(s.sheetDwt || "CombinedLayers.dwt").slice(0, 60),
+            precisionPass: Math.max(1000, Math.round(num(s.precisionPass, 10000))),
+            fpidPrefix: String(s.fpidPrefix || "").replace(/[^\d-]/g, "").slice(0, 12),
+            county: String(s.county || "").slice(0, 40),
+            district: Math.min(8, Math.max(1, Math.round(num(s.district, 5)))),
+            notes: String(s.notes || "").slice(0, 500)
+        };
+    }
+
+    _planLabel() {
+        if (window.BoundaryQCBilling && window.BoundaryQCBilling.currentTier) return window.BoundaryQCBilling.currentTier;
+        return "Free";
     }
 
     /**
@@ -563,7 +980,7 @@ if (window.PluginRegistry) {
     window.PluginRegistry.register({
         name: "cms-engine",
         version: "2.6.0",
-        description: "Browser-local (localStorage) demo CMS: user registry, RBAC, projects/submittals, and a SHA-256 hash-chained audit log. No server, no real enforcement.",
+        description: "Demo CMS: PBKDF2 password sign-in + sessions + lockout, per-user client master templates (billing-tier limited), RBAC, projects/submittals, and a hash-chained audit log. Browser-local — best-effort, not a security boundary.",
         tab: "tab-cms",
         icon: "fa-database",
         tier: "Firm",
@@ -580,13 +997,33 @@ if (window.PluginRegistry) {
         renderCMSUI(ctx) {
             if (!window.BoundaryQCCMS) return;
             const currentUser = window.BoundaryQCCMS.getCurrentUser();
-            if (!currentUser) return;
 
-            // Update top header user indicator
             const headerName = document.getElementById("header-user-name");
             const headerRole = document.getElementById("header-user-role");
+            const activeBadge = document.getElementById("cms-active-client-badge");
+
+            if (!currentUser) {
+                // Signed out (no session / expired). Show a notice and prompt sign-in.
+                if (headerName) headerName.textContent = "Signed out";
+                if (headerRole) headerRole.textContent = "—";
+                if (activeBadge) activeBadge.hidden = true;
+                const panel = document.getElementById("cms-templates-list");
+                if (panel) window.setSafeHTML(panel, `<div style="color:var(--text-muted); padding:0.5rem 0;"><i class="fa-solid fa-user-lock"></i> Sign in to manage client templates and workspace.</div>`);
+                const nameEl = document.getElementById("cms-profile-name");
+                if (nameEl) nameEl.textContent = "Not signed in";
+                return;
+            }
+
+            // Update top header user indicator
             if (headerName) headerName.textContent = currentUser.fullName;
             if (headerRole) headerRole.textContent = currentUser.role.split("_")[0];
+
+            const activeTpl = window.BoundaryQCCMS.getActiveTemplate();
+            if (activeBadge) {
+                if (activeTpl) { activeBadge.textContent = "Client: " + activeTpl.clientName; activeBadge.hidden = false; }
+                else activeBadge.hidden = true;
+            }
+            this.renderTemplates(ctx);
 
             // Update CMS tab profile card
             const profileName = document.getElementById("cms-profile-name");
@@ -710,6 +1147,77 @@ if (window.PluginRegistry) {
             }
         },
 
+        /** Render the Client Master Templates panel (count, active dropdown, list, upsell, form selects). */
+        renderTemplates() {
+            const cms = window.BoundaryQCCMS;
+            if (!cms || !cms.isAuthenticated()) return;
+
+            const templates = cms.getTemplates();
+            const limit = cms.getTemplateLimit();
+            const activeId = cms.getActiveTemplateId();
+            const disc = (window.FDOT_DATA && window.FDOT_DATA.disciplines) || [{ id: "ALL", name: "All Disciplines" }];
+            const sheets = (window.FDOT_DATA && window.FDOT_DATA.sheetStandards) || [];
+
+            const countEl = document.getElementById("cms-tpl-count");
+            if (countEl) {
+                countEl.textContent = `${templates.length} / ${limit >= 999 ? "∞" : limit}`;
+                countEl.style.color = templates.length >= limit ? "var(--danger)" : "var(--text-secondary)";
+            }
+
+            // Upsell strip when at (or over) the limit.
+            const upsell = document.getElementById("cms-tpl-upsell");
+            if (upsell) {
+                const atLimit = templates.length >= limit;
+                upsell.hidden = !atLimit;
+                if (atLimit) {
+                    const up = cms.getTemplateUpgrade();
+                    const txt = document.getElementById("cms-tpl-upsell-text");
+                    const btn = document.getElementById("btn-cms-tpl-upgrade");
+                    if (txt) txt.textContent = up
+                        ? `Template limit reached (${templates.length}/${limit} on the ${cms._planLabel()} plan). ${up.name} raises it to ${up.limit >= 999 ? "unlimited" : up.limit} for $${up.price}/mo.`
+                        : `Template limit reached (${templates.length}/${limit}).`;
+                    if (btn && up) { btn.setAttribute("data-plan", up.name); btn.setAttribute("data-price", String(up.price)); }
+                }
+            }
+
+            // Active-template dropdown.
+            const sel = document.getElementById("cms-active-template");
+            if (sel) {
+                window.setSafeHTML(sel, [
+                    `<option value="">— none —</option>`,
+                    ...templates.map(t => `<option value="${t.id}" ${t.id === activeId ? "selected" : ""}>${t.clientName} — ${t.label}</option>`)
+                ].join(""));
+            }
+
+            // Template list.
+            const list = document.getElementById("cms-templates-list");
+            if (list) {
+                window.setSafeHTML(list, templates.length ? templates.map(t => `
+                    <div style="background:var(--bg-primary); padding:0.7rem 0.85rem; border-radius:var(--radius-sm); border:1px solid ${t.id === activeId ? "var(--accent)" : "var(--glass-border)"}; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+                        <div>
+                            <strong style="color:var(--text-main); font-size:0.88rem;">${t.clientName}</strong>
+                            ${t.id === activeId ? '<span class="badge" style="background:var(--accent); font-size:0.62rem; margin-left:6px;">ACTIVE</span>' : ''}
+                            <div style="font-size:0.74rem; color:var(--text-muted); margin-top:0.15rem;">
+                                ${t.label} · ${t.settings.discipline} · IDF ${t.settings.idfZone} · ${t.settings.sheetDwt} · close 1:${Number(t.settings.precisionPass).toLocaleString()}${t.settings.fpidPrefix ? " · FPID " + t.settings.fpidPrefix : ""}
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:0.35rem;">
+                            <button class="btn btn-secondary btn-sm btn-tpl-edit" data-id="${t.id}" style="padding:0.15rem 0.5rem; font-size:0.72rem;">Edit</button>
+                            <button class="btn btn-secondary btn-sm btn-tpl-del" data-id="${t.id}" style="padding:0.15rem 0.5rem; font-size:0.72rem; color:var(--danger); border-color:var(--danger-light);">Delete</button>
+                        </div>
+                    </div>
+                `).join("") : `<div style="color:var(--text-muted); font-size:0.82rem; padding:0.3rem 0;">No templates yet. Click <strong>New Template</strong> to create per-client defaults.</div>`);
+            }
+
+            // Populate the create/edit form's select options (once per render is fine).
+            const dSel = document.getElementById("tpl-discipline");
+            if (dSel) window.setSafeHTML(dSel, disc.map(d => `<option value="${d.id}">${d.name}</option>`).join(""));
+            const iSel = document.getElementById("tpl-idf");
+            if (iSel) window.setSafeHTML(iSel, Array.from({ length: 11 }, (_, i) => `<option value="${i + 1}">Zone ${i + 1}</option>`).join(""));
+            const sSel = document.getElementById("tpl-sheet");
+            if (sSel) window.setSafeHTML(sSel, (sheets.length ? sheets.map(s => s.dwt) : ["CombinedLayers.dwt"]).map(n => `<option value="${n}">${n}</option>`).join(""));
+        },
+
         setupEvents(ctx) {
             const authModal = document.getElementById("modal-auth");
             const openAuthModal = () => {
@@ -759,11 +1267,12 @@ if (window.PluginRegistry) {
                 if (switchBtn) {
                     const email = switchBtn.getAttribute("data-email");
                     try {
-                        const user = window.BoundaryQCCMS.loginUser(email);
+                        // Team-directory switch is a within-workspace convenience (no re-auth).
+                        const user = window.BoundaryQCCMS.impersonate(email);
                         this.renderCMSUI(ctx);
-                        ctx.showToast(`Switched active session to ${user.fullName}!`);
+                        ctx.showToast(`Switched active session to ${user.fullName}.`);
                     } catch (err) {
-                        ctx.showToast(`Error: ${err.message}`);
+                        ctx.showToast(`Error: ${err.message}`, true);
                     }
                 }
 
@@ -804,34 +1313,47 @@ if (window.PluginRegistry) {
                 formLogin?.classList.add("hidden");
             });
 
-            // Wire login submit
-            document.getElementById("btn-do-login")?.addEventListener("click", () => {
+            // Wire login submit (async — password verification)
+            const loginBtn = document.getElementById("btn-do-login");
+            loginBtn?.addEventListener("click", async () => {
                 const email = document.getElementById("login-email")?.value;
-                if (!email) return;
+                const password = document.getElementById("login-password")?.value || "";
+                const remember = !!document.getElementById("login-remember")?.checked;
+                if (!email) { ctx.showToast("Enter your account email.", true); return; }
+                loginBtn.disabled = true;
                 try {
-                    const user = window.BoundaryQCCMS.loginUser(email);
+                    const user = await window.BoundaryQCCMS.loginUser(email, password, remember);
+                    const pw = document.getElementById("login-password"); if (pw) pw.value = "";
                     authModal?.classList.add("hidden");
                     this.renderCMSUI(ctx);
-                    ctx.showToast(`Authenticated as ${user.fullName} (${user.role})!`);
+                    ctx.showToast(`Signed in as ${user.fullName}.`);
                 } catch (err) {
-                    ctx.showToast(`Login Error: ${err.message}`, true);
+                    ctx.showToast(err.message, true);
+                } finally {
+                    loginBtn.disabled = false;
                 }
             });
 
-            // Wire register submit
-            document.getElementById("btn-do-register")?.addEventListener("click", () => {
+            // Wire register submit (async — password hashing)
+            const regBtn = document.getElementById("btn-do-register");
+            regBtn?.addEventListener("click", async () => {
                 const name = document.getElementById("reg-name")?.value;
                 const email = document.getElementById("reg-email")?.value;
                 const role = document.getElementById("reg-role")?.value;
                 const license = document.getElementById("reg-license")?.value;
                 const company = document.getElementById("reg-company")?.value;
+                const password = document.getElementById("reg-password")?.value || "";
+                const password2 = document.getElementById("reg-password2")?.value || "";
 
                 if (!name || !email) { ctx.showToast("Name and email are required.", true); return; }
+                if (password !== password2) { ctx.showToast("Passwords do not match.", true); return; }
+                regBtn.disabled = true;
                 try {
-                    const user = window.BoundaryQCCMS.registerUser(name, email, role, license, company);
+                    const user = await window.BoundaryQCCMS.registerUser(name, email, role, license, company, password);
+                    ["reg-password", "reg-password2"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
                     authModal?.classList.add("hidden");
                     this.renderCMSUI(ctx);
-                    ctx.showToast(`Registered & Authenticated as ${user.fullName}!`);
+                    ctx.showToast(`Account created — signed in as ${user.fullName}.`);
                 } catch (err) {
                     ctx.showToast(`Registration Error: ${err.message}`, true);
                 }
@@ -846,6 +1368,114 @@ if (window.PluginRegistry) {
                 window.BoundaryQCCMS.createProject(fpid, name, "Orange", 5);
                 this.renderCMSUI(ctx);
                 ctx.showToast(`Created DOT Project ${fpid}!`);
+            });
+
+            // Change password
+            document.getElementById("btn-cms-change-pw")?.addEventListener("click", async () => {
+                if (!window.BoundaryQCCMS.isAuthenticated()) { ctx.showToast("Sign in first.", true); return; }
+                const oldPw = await ctx.showInputModal("Current password:", "");
+                if (oldPw == null) return;
+                const newPw = await ctx.showInputModal("New password (min 8, 1 letter + 1 digit):", "");
+                if (newPw == null) return;
+                const confirm = await ctx.showInputModal("Confirm new password:", "");
+                if (confirm == null) return;
+                if (newPw !== confirm) { ctx.showToast("New passwords do not match.", true); return; }
+                try {
+                    await window.BoundaryQCCMS.changePassword(oldPw, newPw);
+                    ctx.showToast("Password updated.");
+                } catch (err) {
+                    ctx.showToast(err.message, true);
+                }
+            });
+
+            // ── Client Master Templates ──────────────────────────────────────
+            const tplForm = document.getElementById("cms-tpl-form");
+            const showTplForm = (tpl) => {
+                if (!tplForm) return;
+                document.getElementById("tpl-edit-id").value = tpl ? tpl.id : "";
+                document.getElementById("tpl-client").value = tpl ? tpl.clientName : "";
+                document.getElementById("tpl-label").value = tpl ? tpl.label : "";
+                const s = (tpl && tpl.settings) || {};
+                const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
+                set("tpl-discipline", s.discipline || "ALL");
+                set("tpl-idf", s.idfZone || 7);
+                set("tpl-sheet", s.sheetDwt || "CombinedLayers.dwt");
+                set("tpl-precision", s.precisionPass || 10000);
+                set("tpl-fpid", s.fpidPrefix || "");
+                set("tpl-county", s.county || "");
+                set("tpl-district", s.district || 5);
+                set("tpl-notes", s.notes || "");
+                tplForm.hidden = false;
+            };
+
+            document.getElementById("btn-cms-new-tpl")?.addEventListener("click", () => {
+                const cms = window.BoundaryQCCMS;
+                if (cms.getTemplates().length >= cms.getTemplateLimit()) {
+                    const up = cms.getTemplateUpgrade();
+                    ctx.showToast(up
+                        ? `Template limit reached. Upgrade to ${up.name} ($${up.price}/mo) for ${up.limit >= 999 ? "unlimited" : up.limit} templates.`
+                        : "Template limit reached.", true);
+                    this.renderTemplates();
+                    return;
+                }
+                showTplForm(null);
+            });
+            document.getElementById("btn-tpl-cancel")?.addEventListener("click", () => { if (tplForm) tplForm.hidden = true; });
+
+            document.getElementById("btn-tpl-save")?.addEventListener("click", () => {
+                const id = document.getElementById("tpl-edit-id")?.value;
+                const clientName = document.getElementById("tpl-client")?.value;
+                const label = document.getElementById("tpl-label")?.value;
+                const settings = {
+                    discipline: document.getElementById("tpl-discipline")?.value,
+                    idfZone: document.getElementById("tpl-idf")?.value,
+                    sheetDwt: document.getElementById("tpl-sheet")?.value,
+                    precisionPass: document.getElementById("tpl-precision")?.value,
+                    fpidPrefix: document.getElementById("tpl-fpid")?.value,
+                    county: document.getElementById("tpl-county")?.value,
+                    district: document.getElementById("tpl-district")?.value,
+                    notes: document.getElementById("tpl-notes")?.value
+                };
+                try {
+                    if (id) {
+                        window.BoundaryQCCMS.updateTemplate(id, { clientName, label, settings });
+                        ctx.showToast("Template updated.");
+                    } else {
+                        const t = window.BoundaryQCCMS.createTemplate(clientName, label, settings);
+                        ctx.showToast(`Template "${t.label}" created.`);
+                    }
+                    if (tplForm) tplForm.hidden = true;
+                    this.renderCMSUI(ctx);
+                } catch (err) {
+                    ctx.showToast(err.message, true);
+                    if (err.code === "TEMPLATE_LIMIT") this.renderTemplates();
+                }
+            });
+
+            document.getElementById("cms-templates-list")?.addEventListener("click", (e) => {
+                const editBtn = e.target.closest(".btn-tpl-edit");
+                if (editBtn) {
+                    const t = window.BoundaryQCCMS.getTemplates().find(x => x.id === editBtn.getAttribute("data-id"));
+                    if (t) showTplForm(t);
+                    return;
+                }
+                const delBtn = e.target.closest(".btn-tpl-del");
+                if (delBtn) {
+                    const id = delBtn.getAttribute("data-id");
+                    ctx.showConfirmModal("Delete this client master template?").then(ok => {
+                        if (!ok) return;
+                        window.BoundaryQCCMS.deleteTemplate(id);
+                        this.renderCMSUI(ctx);
+                        ctx.showToast("Template deleted.");
+                    });
+                }
+            });
+
+            document.getElementById("cms-active-template")?.addEventListener("change", (e) => {
+                window.BoundaryQCCMS.setActiveTemplate(e.target.value || null);
+                this.renderCMSUI(ctx);
+                const t = window.BoundaryQCCMS.getActiveTemplate();
+                ctx.showToast(t ? `Active template: ${t.clientName} — ${t.label}` : "No active template.");
             });
 
             // Audit hash-chain verifier (recompute every block digest, check prevHash links)

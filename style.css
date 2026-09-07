@@ -661,16 +661,22 @@ body {
 }
 
 .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
-.form-group textarea {
+.form-group textarea,
+.form-group input:not([type="checkbox"]):not([type="radio"]),
+.form-group select {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    padding: 0.85rem;
+    padding: 0.65rem 0.85rem;
     color: var(--text-primary);
     font-family: var(--font-mono);
     font-size: 0.85rem;
     outline: none;
-    resize: vertical;
+    box-sizing: border-box;
+}
+.form-group textarea { padding: 0.85rem; resize: vertical; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--primary);
 }
 
 .results-box {
