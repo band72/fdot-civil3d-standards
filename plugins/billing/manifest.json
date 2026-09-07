@@ -1,0 +1,1 @@
+﻿{"name":"billing","version":"2.6.0","description":"ECDSA P-256 JWT license minting, Stripe webhook simulation, ASC 606 revenue recognition, and feature-gating by subscription tier.","author":"BoundaryQC Enterprise","entrypoint":"billing.js","dependencies":["security-pki"],"tab":"tab-commercial","icon":"fa-credit-card","tier":"Pro"}

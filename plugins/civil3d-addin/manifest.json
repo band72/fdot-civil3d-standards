@@ -1,0 +1,1 @@
+﻿{"name":"civil3d-addin","version":"2.6.0","description":".NET 8 C# AutoCAD Civil 3D Ribbon Add-in: AES lease encryption, ECDSA JWT entitlement, hardware fingerprint lock, FDOT layer purge commands.","author":"BoundaryQC Enterprise","entrypoint":"BoundaryQC_Plugin.cs","dependencies":[],"tab":null,"icon":"fa-puzzle-piece","tier":"Enterprise","runtime":"dotnet8"}

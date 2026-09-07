@@ -1,0 +1,1 @@
+﻿{"name":"layer-stds","version":"2.6.0","description":"FDOT 2026 Layer Standards browser: discipline/plot filters, copy-to-clipboard, survey description key sets, and pay item catalog.","author":"BoundaryQC Enterprise","entrypoint":"layer-stds.js","dependencies":[],"tab":"tab-layers","icon":"fa-layer-group","tier":"Free"}

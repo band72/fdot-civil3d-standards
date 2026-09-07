@@ -1,0 +1,1 @@
+﻿{"name":"cms-engine","version":"2.6.0","description":"Multi-tenant user registry, RBAC roles, project/submittal management, Merkle audit log, and PostgreSQL/Supabase cloud sync payload.","author":"BoundaryQC Enterprise","entrypoint":"cms-engine.js","dependencies":["security-pki","billing"],"tab":"tab-enterprise","icon":"fa-users-gear","tier":"Firm"}
