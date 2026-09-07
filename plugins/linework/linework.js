@@ -303,6 +303,7 @@
         sel: null,                 // { figId, kind:"vert"|"seg", idx }
         view: { x: -50, y: -50, w: 100, h: 100 },
         hist: [], hidx: -1, drag: null, pan: null,
+        seq: [], playPos: -1, playTimer: null,   // shot-by-shot playback scrubber
 
         mount(rootId, ctx) {
             this.ctx = ctx;
@@ -320,6 +321,7 @@
         setModel(m) {
             this.model = m && m.figures ? m : { figures: [] };
             this.sel = null;
+            this._stopPlay(); this.playPos = -1;
             this.hist = []; this.hidx = -1;
             this._snapshot();
             this.fit();
@@ -344,7 +346,7 @@
         },
         undo() { if (this.hidx > 0) { this.hidx--; this.model = JSON.parse(this.hist[this.hidx]); this.sel = null; this._afterChange(); } },
         redo() { if (this.hidx < this.hist.length - 1) { this.hidx++; this.model = JSON.parse(this.hist[this.hidx]); this.sel = null; this._afterChange(); } },
-        _commit() { this._snapshot(); this._afterChange(); },
+        _commit() { this._stopPlay(); this._snapshot(); this._afterChange(); },
 
         fit() {
             const pts = this._allPts();
@@ -369,39 +371,138 @@
             while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
             const u = this.view.w / 620; // ~1px in world units
 
+            // Playback progress: how far each figure has been "walked" by the scrubber.
+            let prog = null;
+            if (this.playPos >= 0 && this.seq.length) {
+                prog = {};
+                for (let k = 0; k <= this.playPos && k < this.seq.length; k++) {
+                    const s = this.seq[k];
+                    prog[s.figId] = Math.max(prog[s.figId] == null ? -1 : prog[s.figId], s.idx);
+                }
+            }
+
             this.model.figures.forEach(f => {
                 if (f.pts.length < 1) return;
-                const selFig = this.sel && this.sel.figId === f.id;
-                if (f.pts.length >= 2) {
-                    const dstr = f.pts.map(p => `${p.e},${-p.n}`).join(" ");
-                    this.svg.appendChild(this._mk(f.closed ? "polygon" : "polyline", {
-                        points: dstr,
-                        fill: f.closed ? "rgba(56,189,248,0.07)" : "none",
-                        stroke: f.__bt ? "#f43f5e" : (selFig ? "#7dd3fc" : "#38bdf8"),
-                        "stroke-width": u * 1.6, "stroke-linejoin": "round", "stroke-linecap": "round"
+                const upto = prog ? (prog[f.id] == null ? -1 : prog[f.id]) : Infinity;
+                const base = f.__bt ? "#f43f5e" : (this.sel && this.sel.figId === f.id ? "#7dd3fc" : "#38bdf8");
+                const dim = "#334155";
+
+                if (f.closed && f.pts.length >= 3) {
+                    this.svg.appendChild(this._mk("polygon", {
+                        points: f.pts.map(p => `${p.e},${-p.n}`).join(" "),
+                        fill: "rgba(56,189,248,0.06)", stroke: "none"
                     }));
+                }
+                if (f.pts.length >= 2) {
                     const segN = f.closed ? f.pts.length : f.pts.length - 1;
                     for (let i = 0; i < segN; i++) {
                         const a = f.pts[i], b = f.pts[(i + 1) % f.pts.length];
                         const on = this.sel && this.sel.figId === f.id && this.sel.kind === "seg" && this.sel.idx === i;
+                        const isClosing = i === f.pts.length - 1;
+                        const reached = prog ? (isClosing ? upto >= f.pts.length - 1 : upto >= i + 1) : true;
+                        // visible course line
                         this.svg.appendChild(this._mk("line", {
                             x1: a.e, y1: -a.n, x2: b.e, y2: -b.n,
-                            stroke: on ? "#facc15" : "#000",
-                            "stroke-opacity": on ? 0.9 : 0.001,
-                            "stroke-width": u * (on ? 3 : 12),
+                            stroke: on ? "#facc15" : (reached ? base : dim),
+                            "stroke-opacity": reached || on ? 1 : 0.55,
+                            "stroke-width": u * (on ? 3 : 1.6),
+                            "stroke-linecap": "round"
+                        }));
+                        // fat transparent hit line
+                        this.svg.appendChild(this._mk("line", {
+                            x1: a.e, y1: -a.n, x2: b.e, y2: -b.n,
+                            stroke: "#000", "stroke-opacity": 0.001, "stroke-width": u * 12,
                             "data-fig": f.id, "data-seg": i, style: "cursor:pointer"
                         }));
                     }
                 }
                 f.pts.forEach((p, idx) => {
-                    const on = this.sel && this.sel.figId === f.id && this.sel.kind === "vert" && this.sel.idx === idx;
+                    const sel = this.sel && this.sel.figId === f.id && this.sel.kind === "vert" && this.sel.idx === idx;
+                    const reached = prog ? idx <= upto : true;
+                    const cur = prog && this.playPos >= 0 && this.seq[this.playPos] &&
+                        this.seq[this.playPos].figId === f.id && this.seq[this.playPos].idx === idx;
                     this.svg.appendChild(this._mk("circle", {
-                        cx: p.e, cy: -p.n, r: u * (on ? 5 : 3.4),
-                        fill: on ? "#facc15" : "#ef4444", stroke: "#fff", "stroke-width": u,
+                        cx: p.e, cy: -p.n,
+                        r: u * (sel || cur ? 5 : (reached ? 3.4 : 2.4)),
+                        fill: (sel || cur) ? "#facc15" : (reached ? "#ef4444" : "#475569"),
+                        "fill-opacity": reached || sel || cur ? 1 : 0.7,
+                        stroke: "#fff", "stroke-width": u * (reached ? 1 : 0.5),
                         "data-fig": f.id, "data-vert": idx, style: "cursor:pointer"
                     }));
                 });
             });
+        },
+
+        // ── shot-by-shot playback ─────────────────────────────────
+        _buildSeq() {
+            this.seq = [];
+            this.model.figures.forEach(f => f.pts.forEach((_, i) => this.seq.push({ figId: f.id, idx: i })));
+            const sc = document.getElementById("lw-scrub");
+            if (sc) {
+                sc.max = Math.max(0, this.seq.length - 1);
+                sc.disabled = this.seq.length < 2;
+                if (this.playPos > this.seq.length - 1) this.playPos = this.seq.length ? this.seq.length - 1 : -1;
+                sc.value = this.playPos < 0 ? 0 : this.playPos;
+            }
+            this._playRead();
+        },
+        _playRead() {
+            const el = document.getElementById("lw-play-read");
+            if (!el) return;
+            if (!this.seq.length) { el.textContent = "—"; return; }
+            if (this.playPos < 0) { el.textContent = `${this.seq.length} shots`; return; }
+            const s = this.seq[this.playPos], f = this._fig(s.figId), p = f && f.pts[s.idx];
+            el.textContent = p
+                ? `${this.playPos + 1}/${this.seq.length} · ${f.name} #${p.ptNum != null ? p.ptNum : s.idx + 1} · E ${p.e.toFixed(2)} N ${p.n.toFixed(2)}`
+                : `${this.playPos + 1}/${this.seq.length}`;
+        },
+        _ensureVisible(x, y, center) {
+            const m = 0.14;
+            const inX = x > this.view.x + this.view.w * m && x < this.view.x + this.view.w * (1 - m);
+            const inY = y > this.view.y + this.view.h * m && y < this.view.y + this.view.h * (1 - m);
+            if (center || !inX || !inY) {
+                this.view.x = x - this.view.w / 2;
+                this.view.y = y - this.view.h / 2;
+                this._applyView();
+            }
+        },
+        playSeek(i, center) {
+            if (!this.seq.length) return;
+            this.playPos = Math.max(0, Math.min(this.seq.length - 1, i | 0));
+            const sc = document.getElementById("lw-scrub");
+            if (sc && +sc.value !== this.playPos) sc.value = this.playPos;
+            const s = this.seq[this.playPos];
+            this.sel = { figId: s.figId, kind: "vert", idx: s.idx };
+            const f = this._fig(s.figId), p = f && f.pts[s.idx];
+            if (p) this._ensureVisible(p.e, -p.n, center);
+            this._playRead();
+            this.render();
+            this._renderSelection();
+        },
+        playStep(d) { this.playSeek((this.playPos < 0 ? -1 : this.playPos) + d); },
+        _playIcon(playing) {
+            const b = document.getElementById("btn-lw-play");
+            if (b) window.setSafeHTML(b, playing ? `<i class="fa-solid fa-pause"></i>` : `<i class="fa-solid fa-play"></i>`);
+        },
+        _stopPlay() {
+            if (this.playTimer) { clearInterval(this.playTimer); this.playTimer = null; this._playIcon(false); }
+        },
+        playToggle() {
+            if (this.playTimer) { this._stopPlay(); return; }
+            if (!this.seq.length) return;
+            if (this.playPos >= this.seq.length - 1) this.playPos = -1;
+            this._playIcon(true);
+            this.playTimer = setInterval(() => {
+                const active = document.getElementById("tab-linework");
+                if (active && !active.classList.contains("active")) { this._stopPlay(); return; }
+                if (this.playPos >= this.seq.length - 1) { this._stopPlay(); return; }
+                this.playSeek(this.playPos + 1);
+            }, 280);
+        },
+        playSyncToSel() {
+            if (!this.sel || this.sel.kind !== "vert") return;
+            const k = this.seq.findIndex(s => s.figId === this.sel.figId && s.idx === this.sel.idx);
+            if (k >= 0) { this.playPos = k; const sc = document.getElementById("lw-scrub"); if (sc) sc.value = k; this._playRead(); }
         },
 
         _svgWorld(evt) {
@@ -436,6 +537,7 @@
                     const f = this._fig(figId);
                     this.sel = { figId, kind: "vert", idx };
                     this.drag = { figId, idx, moved: false, e0: f.pts[idx].e, n0: f.pts[idx].n };
+                    this.playSyncToSel();
                     try { svg.setPointerCapture(e.pointerId); } catch (x) {}
                     this.render(); this._renderSelection();
                     return;
@@ -588,7 +690,7 @@
         },
 
         // ── right-rail panels ──────────────────────────────────────
-        _afterChange() { this._renderChecks(); this._renderFigures(); this._renderSelection(); this._hud(); this.render(); },
+        _afterChange() { this._buildSeq(); this._renderChecks(); this._renderFigures(); this._renderSelection(); this._hud(); this.render(); },
 
         _hud(msg) {
             const el = document.getElementById("lw-hud");
@@ -821,6 +923,12 @@
             document.getElementById("btn-lw-redo")?.addEventListener("click", () => Ed.redo());
             document.getElementById("lw-traverse-mode")?.addEventListener("change", () => Ed._renderSelection());
 
+            // Shot-by-shot playback scrubber
+            document.getElementById("lw-scrub")?.addEventListener("input", e => Ed.playSeek(+e.target.value));
+            document.getElementById("btn-lw-play-back")?.addEventListener("click", () => Ed.playStep(-1));
+            document.getElementById("btn-lw-play-fwd")?.addEventListener("click", () => Ed.playStep(1));
+            document.getElementById("btn-lw-play")?.addEventListener("click", () => Ed.playToggle());
+
             const dl = (name, txt, mime) => { if (!txt) { ctx.showToast("Nothing to export.", true); return; } window.COGO.downloadText(name, txt, mime); ctx.showToast("Exported " + name); };
             document.getElementById("btn-lw-exp-dxf")?.addEventListener("click", () => dl("linework.dxf", exportDXF(), "application/dxf"));
             document.getElementById("btn-lw-exp-pnezd")?.addEventListener("click", () => dl("linework_coordinates.txt", exportPNEZD(), "text/csv"));
@@ -885,15 +993,18 @@
                 else Ed.applyFix(f.fix);
             });
 
-            // Keyboard: undo/redo, delete selected vertex
+            // Keyboard: undo/redo, delete selected vertex, ← → to scrub shots, space to play
             window.addEventListener("keydown", e => {
                 if (Ed.model.figures.length === 0) return;
+                if (!document.getElementById("tab-linework")?.classList.contains("active")) return;
                 const tag = (e.target.tagName || "").toLowerCase();
                 if (tag === "input" || tag === "textarea" || tag === "select") return;
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); Ed.undo(); }
                 else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); Ed.redo(); }
-                else if ((e.key === "Delete" || e.key === "Backspace") && Ed.sel && Ed.sel.kind === "vert" &&
-                         document.getElementById("tab-linework")?.classList.contains("active")) {
+                else if (e.key === "ArrowRight") { e.preventDefault(); Ed.playStep(1); }
+                else if (e.key === "ArrowLeft") { e.preventDefault(); Ed.playStep(-1); }
+                else if (e.key === " ") { e.preventDefault(); Ed.playToggle(); }
+                else if ((e.key === "Delete" || e.key === "Backspace") && Ed.sel && Ed.sel.kind === "vert") {
                     e.preventDefault(); Ed.deleteVertex(Ed.sel.figId, Ed.sel.idx);
                 }
             });

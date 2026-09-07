@@ -108,6 +108,8 @@
                 </ul>
                 <h4>Checks</h4>
                 <p>Run automatically on import and after every edit: coincident / zero-length courses, spike / backtrack vertices (a course that reverses on itself — usually a mis-sequenced shot), near-coincident vertices (merge candidates), self-intersection (bow-tie), traverse misclosure and precision (calls only), duplicate point numbers, coordinates outside the Florida State Plane envelope, and figures that cross each other. Each finding has <em>Go to</em> (select and pan to it) and, where possible, <em>Fix</em> (delete the vertex, merge, snap to POB, or auto-untangle a bow-tie).</p>
+                <h4>Playback</h4>
+                <p>The bar under the canvas walks the shots <strong>in field-collection order</strong>. Drag the slider, use ◀ ▶ (or the <kbd>←</kbd> <kbd>→</kbd> keys), or press play (<kbd>Space</kbd>) to animate. Points and courses up to the cursor are drawn bright, the rest dimmed, and the readout shows the current shot number, code, and coordinates — a fast way to find the exact shot where the linework goes wrong. Clicking a vertex moves the slider to it.</p>
                 <h4>Editing</h4>
                 <ul>
                     <li><strong>Navigate</strong> — scroll to zoom, drag the background to pan, <em>Fit</em> to reset.</li>

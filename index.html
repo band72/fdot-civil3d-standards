@@ -622,7 +622,14 @@
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-calls">Calls</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-report">Map Check</button>
                         </div>
-                        <div id="lw-editor" style="width:100%; height:460px; background:#0b1220; border:1px solid var(--glass-border); border-radius:var(--radius-sm); overflow:hidden; position:relative;"></div>
+                        <div id="lw-editor" style="width:100%; height:440px; background:#0b1220; border:1px solid var(--glass-border); border-radius:var(--radius-sm); overflow:hidden; position:relative;"></div>
+                        <div id="lw-play" style="display:flex; align-items:center; gap:0.5rem; margin-top:0.4rem;">
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-play-back" title="Previous shot"><i class="fa-solid fa-backward-step"></i></button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-play" title="Play / pause the field shots in order"><i class="fa-solid fa-play"></i></button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-play-fwd" title="Next shot"><i class="fa-solid fa-forward-step"></i></button>
+                            <input type="range" id="lw-scrub" min="0" max="0" value="0" step="1" title="Scrub through the field shots in order" style="flex:1; accent-color:var(--primary);">
+                            <span id="lw-play-read" style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-secondary); min-width:13rem; text-align:right;">—</span>
+                        </div>
                         <div id="lw-hud" style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-muted); margin-top:0.35rem;">Load field data to begin.</div>
                     </div>
 
