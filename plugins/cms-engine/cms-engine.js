@@ -1098,7 +1098,7 @@ if (window.PluginRegistry) {
             const auditTable = document.getElementById("cms-audit-table-body");
             const logs = window.BoundaryQCCMS.getAuditLogs();
             if (auditTable) {
-                window.setSafeHTML(auditTable, logs.slice().reverse().map(l => `
+                window.setSafeRows(auditTable, logs.slice().reverse().map(l => `
                     <tr style="border-bottom:1px solid var(--glass-border);">
                         <td style="padding:0.5rem; font-family:monospace; color:var(--primary);">${l.sequence}</td>
                         <td style="padding:0.5rem;">${l.actor}</td>
@@ -1113,7 +1113,7 @@ if (window.PluginRegistry) {
             const usersTable = document.getElementById("cms-users-table-body");
             const allUsers = window.BoundaryQCCMS.getUsers();
             if (usersTable) {
-                window.setSafeHTML(usersTable, allUsers.map(u => `
+                window.setSafeRows(usersTable, allUsers.map(u => `
                     <tr style="border-bottom:1px solid var(--glass-border); ${u.id === currentUser.id ? 'background:rgba(2, 132, 199, 0.08);' : ''}">
                         <td style="padding:0.5rem;">
                             <strong>${u.fullName}</strong>

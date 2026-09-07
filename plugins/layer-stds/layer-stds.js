@@ -47,11 +47,9 @@
             );
         }
 
-        tbody.innerHTML = "";
-        layers.forEach(layer => {
-            const tr = document.createElement("tr");
-            window.setSafeHTML(tr, `
-                <td style="font-family:var(--font-mono); font-size:0.8rem;">
+        window.setSafeRows(tbody, layers.map(layer => `
+            <tr>
+                <td style="font-family:var(--font-mono); font-size:0.8rem; white-space:nowrap;">
                     <span style="display:inline-block; width:0.8rem; height:0.8rem; border-radius:2px; vertical-align:middle; margin-right:0.4rem; background:${layer.colorHex || '#888'}; border:1px solid var(--glass-border);"></span>${layer.colorName || layer.color}
                 </td>
                 <td style="font-family:var(--font-mono); font-weight:600; color:var(--primary);">${layer.name}</td>
@@ -64,9 +62,8 @@
                     <button class="btn btn-secondary btn-sm btn-copy-layer" data-layer="${layer.name}" title="Copy layer name">
                         <i class="fa-solid fa-copy"></i>
                     </button>
-                </td>`);
-            tbody.appendChild(tr);
-        });
+                </td>
+            </tr>`).join(""));
 
         if (summary) summary.textContent = `${layers.length} layers`;
     }
@@ -84,10 +81,8 @@
             (p.unit || "").toLowerCase().includes(q)
         );
 
-        tbody.innerHTML = "";
-        items.forEach(item => {
-            const tr = document.createElement("tr");
-            window.setSafeHTML(tr, `
+        window.setSafeRows(tbody, items.map(item => `
+            <tr>
                 <td style="font-family:var(--font-mono); color:var(--primary);">${item.code}</td>
                 <td>${item.description}</td>
                 <td style="font-family:var(--font-mono);">${item.unit}</td>
@@ -96,9 +91,8 @@
                     <button class="btn btn-secondary btn-sm btn-copy-layer" data-layer="${item.code}" title="Copy pay item number">
                         <i class="fa-solid fa-copy"></i>
                     </button>
-                </td>`);
-            tbody.appendChild(tr);
-        });
+                </td>
+            </tr>`).join(""));
     }
 
     function renderSurveyKeys(state) {
@@ -113,18 +107,15 @@
             k.description.toLowerCase().includes(q)
         );
 
-        tbody.innerHTML = "";
-        keys.forEach(k => {
-            const tr = document.createElement("tr");
-            window.setSafeHTML(tr, `
+        window.setSafeRows(tbody, keys.map(k => `
+            <tr>
                 <td style="font-family:var(--font-mono); font-weight:700; color:var(--accent);">${k.code}</td>
                 <td style="font-family:var(--font-mono); font-size:0.8rem;">${k.block}</td>
                 <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--primary);">${k.layer}</td>
                 <td style="font-size:0.8rem; color:var(--text-muted);">${k.group}</td>
                 <td style="font-size:0.8rem; color:var(--text-secondary);">${k.description}</td>
-                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--accent);">${k.format || ""}</td>`);
-            tbody.appendChild(tr);
-        });
+                <td style="font-family:var(--font-mono); font-size:0.8rem; color:var(--accent);">${k.format || ""}</td>
+            </tr>`).join(""));
     }
 
     // ── Plugin API ──────────────────────────────────────────────────────────

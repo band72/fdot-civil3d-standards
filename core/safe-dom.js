@@ -47,6 +47,26 @@
         el.innerHTML = safeHTML(html);
     }
 
+    /**
+     * Replace the rows of a <tbody> (or <thead>/<table>) with sanitized <tr> markup.
+     * A bare "<tr><td>…" string can't be sanitized on its own — the HTML parser drops
+     * table tags that aren't inside a <table>, collapsing every cell into one. So we
+     * sanitize the rows wrapped in a real table, then transplant the <tr> nodes.
+     * @param {Element|null} el   the <tbody> to fill
+     * @param {string} rowsHtml   one or more "<tr>…</tr>" strings
+     */
+    function setSafeRows(el, rowsHtml) {
+        if (!el) return;
+        const clean = safeHTML("<table><tbody>" + (rowsHtml || "") + "</tbody></table>");
+        const tpl = document.createElement("template");
+        tpl.innerHTML = clean; // already sanitized; parsed here in valid table context
+        const tb = tpl.content.querySelector("tbody");
+        const rows = tb ? Array.prototype.filter.call(tb.childNodes, function (n) { return n.nodeType === 1; }) : [];
+        if (el.replaceChildren) el.replaceChildren.apply(el, rows);
+        else { el.innerHTML = ""; rows.forEach(function (n) { el.appendChild(n); }); }
+    }
+
     window.safeHTML = safeHTML;
     window.setSafeHTML = setSafeHTML;
+    window.setSafeRows = setSafeRows;
 })();

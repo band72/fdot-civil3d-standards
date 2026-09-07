@@ -27,29 +27,33 @@
     const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
     const nz = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 
-    // Realistic Florida State Plane East (US ft) coordinates. Contains, on purpose:
-    //  - BND: a normal closed boundary (closes fine)
-    //  - BLDG: a closed building, but the crew re-shot the POB as the last point (redundant)
-    //  - EP: an open line with a duplicated shot (#11 == #10) — a zero-length course
-    //  - BOW: a closed figure with the point order wrong — a bow-tie
+    // Realistic Florida State Plane East (US ft) coordinates. Field-coded per the
+    // Civil 3D linework code set (B begin, C continue, E end, CLS close). On purpose:
+    //  - BND:  a normal closed boundary
+    //  - BLDG: a closed building, POB re-shot as the last point (redundant)
+    //  - EP:   an open line, interrupted by a TREE shot then continued (C); a
+    //          duplicated shot (#12 == #11) makes a zero-length course
+    //  - BOW:  a closed figure with the point order wrong — a bow-tie
     const SAMPLE = [
         "1,2015000.00,642000.00,12.5,BND B",
         "2,2015300.00,642000.00,12.6,BND",
         "3,2015300.00,642210.00,12.4,BND",
-        "4,2015000.00,642210.00,12.5,BND Z",
+        "4,2015000.00,642210.00,12.5,BND CLS",
         "5,2015050.00,642050.00,11.9,BLDG B",
         "6,2015050.00,642120.00,11.9,BLDG",
         "7,2015095.00,642120.00,11.9,BLDG",
         "8,2015095.00,642050.00,11.9,BLDG",
-        "9,2015050.00,642050.00,11.9,BLDG Z",
-        "10,2015400.00,642000.00,12.5,EP",
+        "9,2015050.00,642050.00,11.9,BLDG CLS",
+        "10,2015400.00,642000.00,12.5,EP B",
         "11,2015600.00,642000.00,12.5,EP",
         "12,2015600.00,642000.00,12.5,EP",
-        "13,2015610.00,642400.00,12.4,EP",
-        "14,2016000.00,643000.00,10.0,BOW B",
-        "15,2016100.00,643100.00,10.0,BOW",
-        "16,2016000.00,643100.00,10.0,BOW",
-        "17,2016100.00,643000.00,10.0,BOW Z"
+        "13,2015700.00,642050.00,11.8,TREE",
+        "14,2015610.00,642400.00,12.4,EP C",
+        "15,2015620.00,642700.00,12.4,EP E",
+        "16,2016000.00,643000.00,10.0,BOW B",
+        "17,2016100.00,643100.00,10.0,BOW",
+        "18,2016000.00,643100.00,10.0,BOW",
+        "19,2016100.00,643000.00,10.0,BOW CLS"
     ].join("\n");
 
     // ── Parsing ──────────────────────────────────────────────────────────────
@@ -83,19 +87,45 @@
         return { points, bad };
     }
 
-    const CTRL_BEGIN = /^(B|BEG|BEGIN|START|PB)$/i;
-    const CTRL_CLOSE = /^(Z|C|E|END|CLS|CLOSE|PE)$/i;
+    // Linework Code Set — matches the Civil 3D "Edit Linework Code Set" defaults.
+    // Editable at runtime via window.Linework.CODESET before importing.
+    const CODESET = {
+        delimiter: " ",          // Feature/Code delimiter (<Space>)
+        escape: "/",             // Field code escape (also separates multi-figure membership)
+        begin:    ["B", "BEG", "BEGIN", "START"],
+        continue: ["C", "CONT"],                 // resume an interrupted figure of this code
+        end:      ["E", "END"],                  // end the figure — NO closing segment
+        close:    ["CLS", "CLO", "CLOSE", "CL", "Z"], // end AND draw the closing segment
+        // Recognized but not yet built as geometry (drawn as straight chords):
+        lineSeg:  ["RECT", "RT", "X", "RPN", "CPN"],
+        curveSeg: ["BC", "EC", "CIR", "OC"],
+        offset:   ["SO"]         // plus H<n> / V<n>, matched by regex
+    };
+    const inSet = (arr, t) => arr.indexOf(t) !== -1;
 
+    /**
+     * Parse a survey description into { code, fig, control, closeFlag, segCodes }.
+     * control ∈ "" | "begin" | "continue" | "end" | "close".
+     */
     function splitDesc(desc) {
-        const toks = String(desc || "").split(/[\s/]+/).filter(Boolean);
-        let closeFlag = false, fig = "", code = [];
-        for (const t of toks) {
-            if (CTRL_CLOSE.test(t)) closeFlag = true;
-            else if (CTRL_BEGIN.test(t)) { /* marker only */ }
+        const toks = String(desc || "").trim().split(/\s+/).filter(Boolean);
+        if (!toks.length) return { code: "LINE", fig: "1", control: "", closeFlag: false, segCodes: [] };
+
+        const primary = toks[0].split(CODESET.escape)[0].toUpperCase() || "LINE";
+        let control = "", fig = "";
+        const segCodes = [];
+        for (const raw of toks.slice(1)) {
+            const t = raw.toUpperCase();
+            if (inSet(CODESET.begin, t)) control = control || "begin";
+            else if (inSet(CODESET.continue, t)) control = "continue";
+            else if (inSet(CODESET.end, t)) control = control || "end";
+            else if (inSet(CODESET.close, t)) control = "close";
             else if (/^\d{1,3}$/.test(t)) fig = t;
-            else code.push(t);
+            else if (inSet(CODESET.lineSeg, t) || inSet(CODESET.curveSeg, t) ||
+                     inSet(CODESET.offset, t) || /^[HV]-?\d/.test(t)) segCodes.push(t);
+            // unknown tokens are ignored
         }
-        return { code: code.join(" ") || String(desc || "").trim() || "LINE", fig: fig || "1", closeFlag };
+        return { code: primary, fig: fig || "1", control, closeFlag: control === "close", segCodes };
     }
 
     function defaultLayer(code) {
@@ -125,29 +155,52 @@
         return String(x.ptNum).localeCompare(String(y.ptNum));
     };
 
-    /** Group points into figures. mode = "byCode" | "byFigure" | "single". */
+    /**
+     * Group points into figures, honoring the linework code set:
+     *  - B / begin   → start a new figure of that code (a second B on the same code
+     *                  starts a separate figure — "Automatic begin on figure prefix match")
+     *  - C / continue → resume the current (or most recent) figure of that code
+     *  - E / end      → finish the figure, no closing segment
+     *  - CLS / close  → finish the figure AND draw the segment back to the start
+     * Points within a figure connect in point-number order.
+     * mode = "byCode" | "byFigure" | "single".
+     */
     function buildFigures(points, mode) {
+        const pt = p => ({ e: p.e, n: p.n, z: p.z, ptNum: p.ptNum, desc: p.desc });
+
         if (mode === "single") {
-            const pts = points.slice().sort(byNum).map(p => ({ e: p.e, n: p.n, z: p.z, ptNum: p.ptNum, desc: p.desc }));
-            return pts.length ? [{ id: "F1", name: "LINE-1", layer: defaultLayer("LINE"), closed: false, pts }] : [];
+            const pts = points.slice().sort(byNum).map(pt);
+            return pts.length >= 2 ? [{ id: "F1", name: "LINE-1", layer: defaultLayer("LINE"), closed: false, pts, segCodes: [] }] : [];
         }
-        const groups = new Map();
-        points.forEach(p => {
-            const { code, fig, closeFlag } = splitDesc(p.desc);
-            const key = mode === "byFigure" ? `${code} #${fig}` : code;
-            let g = groups.get(key);
-            if (!g) { g = { key, code, closed: false, items: [] }; groups.set(key, g); }
-            g.items.push(p);
-            if (closeFlag) g.closed = true;
+
+        const ordered = points.slice().sort(byNum);
+        const out = [];
+        const current = {};   // key → figure currently open for that key
+        let n = 0;
+
+        ordered.forEach(p => {
+            const d = splitDesc(p.desc);
+            const key = mode === "byFigure" ? `${d.code} #${d.fig}` : d.code;
+
+            if (d.control === "begin" || !current[key]) {
+                current[key] = { id: "F" + (++n), name: key, code: d.code, layer: defaultLayer(d.code), closed: false, pts: [], segCodes: [] };
+                out.push(current[key]);
+            } else if (d.control === "continue" && !current[key]) {
+                // resume the last output figure with this key
+                const prev = [...out].reverse().find(f => f.name === key);
+                current[key] = prev || (current[key] = { id: "F" + (++n), name: key, code: d.code, layer: defaultLayer(d.code), closed: false, pts: [], segCodes: [] });
+                if (!prev) out.push(current[key]);
+            }
+
+            const fig = current[key];
+            fig.pts.push(pt(p));
+            d.segCodes.forEach(c => { if (fig.segCodes.indexOf(c) === -1) fig.segCodes.push(c); });
+
+            if (d.control === "close") { fig.closed = true; current[key] = null; }
+            else if (d.control === "end") { current[key] = null; }
         });
-        let idx = 0;
-        return Array.from(groups.values()).map(g => ({
-            id: "F" + (++idx),
-            name: g.key,
-            layer: defaultLayer(g.code),
-            closed: g.closed,
-            pts: g.items.slice().sort(byNum).map(p => ({ e: p.e, n: p.n, z: p.z, ptNum: p.ptNum, desc: p.desc }))
-        })).filter(f => f.pts.length);
+
+        return out.filter(f => f.pts.length >= 2);
     }
 
     /** Parse a bearing/distance call list into a single figure. */
@@ -212,6 +265,10 @@
         model.figures.forEach(f => {
             const pts = f.pts;
             if (pts.length < 2) { add("WARNING", `${f.name}: only ${pts.length} point — nothing to draw.`, f.id, null, null); return; }
+
+            if (f.segCodes && f.segCodes.length) {
+                add("INFO", `${f.name}: carries field code(s) ${f.segCodes.join(", ")} — curve / rectangle / offset segments are drawn as straight chords in this build; build the true arcs in CAD.`, f.id, null, null);
+            }
 
             // zero-length / duplicate consecutive
             for (let i = 1; i < pts.length; i++) {
@@ -1012,5 +1069,5 @@
     };
 
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
-    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, _Ed: Ed };
+    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, CODESET, _Ed: Ed };
 })();
