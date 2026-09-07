@@ -95,8 +95,33 @@
                 <p><em>Generate Map Check Report</em> downloads a <code>.log</code> with the course list, closure statistics, area, self-intersection result, and a P,N,E,Z,D coordinate block (points from 500, "COGO POB / COGO P1 …").</p>`
         },
         {
+            id: "linework",
+            title: "3.4  Linework Editor",
+            html: `
+                <p><em>Purpose:</em> import linework from <strong>field data</strong>, check it for the common blunders, and correct it interactively. (Linework already inside a DXF is corrected in the DXF Project Auditor.)</p>
+                <h4>Import</h4>
+                <ul>
+                    <li><strong>Point file</strong> — a P,N,E,Z,D coordinate file (comma, tab, or space delimited; Z optional). Set the coordinate order (P,N,E,… or P,E,N,…). Descriptions carry linework codes: a control word (<code>B</code>/<code>BEG</code> to start, <code>Z</code>/<code>CLOSE</code> to close a figure) and an optional figure number.</li>
+                    <li><strong>Build linework</strong> — <em>By description code</em> connects points that share a code, in point-number order. <em>By figure</em> also splits on a trailing figure number (so <code>EP 1</code> and <code>EP 2</code> are separate lines). <em>Single line</em> connects every point in order.</li>
+                    <li><strong>Bearing/distance calls</strong> — paste a traverse (one course per line) and <em>Import as calls</em>. This figure is treated as a traverse, so misclosure and precision are checked.</li>
+                    <li><em>Load sample field data</em> gives you a set with a normal boundary, a re-shot POB, a duplicate shot, and a bow-tie to see the checks fire.</li>
+                </ul>
+                <h4>Checks</h4>
+                <p>Run automatically on import and after every edit: coincident / zero-length courses, spike / backtrack vertices (a course that reverses on itself — usually a mis-sequenced shot), near-coincident vertices (merge candidates), self-intersection (bow-tie), traverse misclosure and precision (calls only), duplicate point numbers, coordinates outside the Florida State Plane envelope, and figures that cross each other. Each finding has <em>Go to</em> (select and pan to it) and, where possible, <em>Fix</em> (delete the vertex, merge, snap to POB, or auto-untangle a bow-tie).</p>
+                <h4>Editing</h4>
+                <ul>
+                    <li><strong>Navigate</strong> — scroll to zoom, drag the background to pan, <em>Fit</em> to reset.</li>
+                    <li><strong>Vertex</strong> — click a red dot to select; drag to move (it snaps to a nearby vertex). The Selection panel gives numeric E/N, <em>Snap to nearest</em>, <em>Swap with next</em> (point-order bow-tie fix), and <em>Delete</em>. <kbd>Delete</kbd> removes the selected vertex.</li>
+                    <li><strong>Course</strong> — click a segment to select; edit its bearing and distance numerically. <em>Traverse edit</em> (checkbox) shifts every downstream vertex with the course; otherwise only the far vertex moves. <em>Flip E/W</em> / <em>Flip N/S</em> fix a bearing entered in the wrong quadrant; <em>Insert vertex</em> splits the course.</li>
+                    <li><strong>Figure</strong> — rename, set the target layer (defaulted from the description code and your active client template), toggle closed, reverse point order, delete, or add a new empty figure.</li>
+                    <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> undo / redo.</li>
+                </ul>
+                <h4>Export</h4>
+                <p><strong>DXF</strong> (closed/open polylines on the assigned layers), <strong>P,N,E,Z,D</strong> point file, <strong>Calls</strong> (bearing/distance per figure), and a <strong>Map Check</strong> report (perimeter, misclosure/precision for closed figures, area, self-intersection, and the full check list).</p>`
+        },
+        {
             id: "legal-desc",
-            title: "3.4  Legal Description QC",
+            title: "3.5  Legal Description QC",
             html: `
                 <p><em>Purpose:</em> parse a written metes-and-bounds legal description and check it, without hand-keying each call.</p>
                 <p><strong>Input:</strong> paste the narrative text. The parser splits on <code>THENCE</code> / <code>COMMENCE</code> / <code>BEGINNING</code> and recognizes:</p>
@@ -109,7 +134,7 @@
         },
         {
             id: "plss",
-            title: "3.5  PLSS Section Breakdown",
+            title: "3.6  PLSS Section Breakdown",
             html: `
                 <p><em>Purpose:</em> resolve an aliquot ("quarter-quarter") description into a rectangle, dimensions, and acreage.</p>
                 <p><strong>Input:</strong> an aliquot description, e.g. <code>S 1/2 of the SE 1/4 of the NE 1/4 of Section 8, Township 7 North, Range 7 East</code>. Put one parcel per line for a multi-parcel description. Spelled-out compass words ("Northeast 1/4") and abbreviations ("NE 1/4") both work.</p>
@@ -122,7 +147,7 @@
         },
         {
             id: "plat2dxf",
-            title: "3.6  Parcel → DXF / Points / COGO",
+            title: "3.7  Parcel → DXF / Points / COGO",
             html: `
                 <p><em>Purpose:</em> turn a bearing/distance call list into CAD-ready files. <strong>There is no image tracing in this build</strong> — the earlier "computer vision" wording was a mockup.</p>
                 <p><strong>Input:</strong> a call list (one <code>N 45-12-30 E 150.00</code> per line) in the box, or leave it empty to use the bundled sample parcel. Click <em>Build Parcel DXF / Points</em>.</p>
@@ -135,14 +160,14 @@
         },
         {
             id: "signs-ssa",
-            title: "3.7  Sign QTO & SSA Hydrology",
+            title: "3.8  Sign QTO & SSA Hydrology",
             html: `
                 <p><strong>Sign Assemblies &amp; QTO</strong> — the FDOT sign assembly catalog (code, size, block, target pay item). The calculator takes a sign width and height (inches), computes the panel area in square feet, and classifies the pay item: ≤ 12 SF → <code>0700-1-11</code>, 12–20 SF → <code>0700-1-12</code>, &gt; 20 SF → <code>0700-1-14</code>.</p>
                 <p><strong>SSA Hydrology &amp; IDF</strong> — pick one of the 11 FDOT IDF zones, enter drainage area (acres), runoff coefficient C, and time of concentration t<sub>c</sub> (minutes). It computes rainfall intensity i = a / (t<sub>c</sub> + b)<sup>c</sup> and peak discharge <strong>Q = C·i·A</strong> (cfs). The trench sizer estimates exfiltration trench length from treatment volume and the hydraulic conductivity k (FDOT Drainage Manual Ch. 7).</p>`
         },
         {
             id: "reference-tabs",
-            title: "3.8  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
+            title: "3.9  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
             html: `
                 <p>Static reference cards:</p>
                 <ul>

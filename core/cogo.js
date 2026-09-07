@@ -70,6 +70,24 @@
         return { e: pt.e + Math.sin(a) * distance, n: pt.n + Math.cos(a) * distance };
     }
 
+    /** Plane distance between two {e, n} points. */
+    function distanceBetween(a, b) { return Math.hypot(b.e - a.e, b.n - a.n); }
+
+    /** Azimuth (deg, clockwise from north) from point a to point b. */
+    function azimuthDegBetween(a, b) {
+        const az = Math.atan2(b.e - a.e, b.n - a.n) * R2D;
+        return (az % 360 + 360) % 360;
+    }
+
+    /** Included angle (deg, 0..180) at vertex `at` between the rays to `prev` and `next`. */
+    function includedAngleDeg(prev, at, next) {
+        const a1 = azimuthDegBetween(at, prev);
+        const a2 = azimuthDegBetween(at, next);
+        let d = Math.abs(a1 - a2);
+        if (d > 180) d = 360 - d;
+        return d;
+    }
+
     /** Chord distance from radius + arc length: 2R·sin(Δ/2), Δ = arc/R. */
     function chordFromArc(radius, arcLength) {
         if (!(radius > 0) || !(arcLength > 0)) return 0;
@@ -210,6 +228,7 @@
     window.COGO = {
         D2R, R2D, SQFT_PER_ACRE,
         parseBearing, azimuthToBearing, advance,
+        distanceBetween, azimuthDegBetween, includedAngleDeg,
         chordFromArc, deltaDegFromArc, shoelaceArea,
         runTraverse, pnezd, selfIntersects, buildDxf, downloadText
     };

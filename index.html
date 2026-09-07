@@ -83,6 +83,11 @@
                     <i class="fa-solid fa-shield-halved"></i>
                     <span>QC & Traverse Auditor</span>
                 </button>
+                <button class="nav-btn" data-tab="tab-linework">
+                    <i class="fa-solid fa-pen-ruler"></i>
+                    <span>Linework Editor</span>
+                    <span class="badge" style="background:var(--accent);">NEW</span>
+                </button>
                 <button class="nav-btn" data-tab="tab-legal-desc">
                     <i class="fa-solid fa-file-lines"></i>
                     <span>Legal Description QC</span>
@@ -553,6 +558,89 @@
 
                         <div id="traverse-results" class="results-box hidden">
                             <!-- Dynamic -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Linework Editor — import & check linework from field data -->
+            <section id="tab-linework" class="tab-pane">
+                <div class="glass-panel" style="padding:1.25rem; margin-bottom:1rem;">
+                    <h2><i class="fa-solid fa-pen-ruler" style="color:var(--primary);"></i> Linework Editor — Field Data Import &amp; Check</h2>
+                    <p class="subtitle">Import linework from a point file (P,N,E,Z,D) or a bearing/distance call list, run the field-data checks, then edit vertices and courses interactively. DXF linework is corrected in the DXF Project Auditor.</p>
+
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end; margin-top:1rem;">
+                        <div class="form-group" style="margin:0;">
+                            <label for="lw-file">Point / coordinate file (.txt .csv)</label>
+                            <input type="file" id="lw-file" accept=".txt,.csv,.pts,.pnt">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="lw-order">Coordinate order</label>
+                            <select id="lw-order"><option value="NE">P, N, E, Z, D</option><option value="EN">P, E, N, Z, D</option></select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="lw-group">Build linework</label>
+                            <select id="lw-group">
+                                <option value="byCode">By description code</option>
+                                <option value="byFigure">By figure (code + number)</option>
+                                <option value="single">Single line, point order</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="lw-closetol">Close tol (ft)</label>
+                            <input type="number" id="lw-closetol" value="0.10" step="0.05" min="0" style="width:90px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="lw-snaptol">Snap tol (ft)</label>
+                            <input type="number" id="lw-snaptol" value="0.10" step="0.05" min="0" style="width:90px;">
+                        </div>
+                        <button class="btn btn-accent" id="btn-lw-sample"><i class="fa-solid fa-vial"></i> Load sample field data</button>
+                    </div>
+
+                    <div class="form-group" style="margin-top:0.75rem;">
+                        <label for="lw-paste">…or paste a point file, or bearing/distance calls (one course per line)</label>
+                        <textarea id="lw-paste" rows="3" placeholder="N 45-12-30 E 150.00&#10;S 44-47-30 E 200.00&#10;…"></textarea>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="btn-lw-parse-points"><i class="fa-solid fa-diagram-project"></i> Import as points</button>
+                        <button class="btn btn-primary" id="btn-lw-parse-calls"><i class="fa-solid fa-compass-drafting"></i> Import as calls</button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: minmax(0,2.2fr) minmax(260px,1fr); gap:1rem; align-items:start;">
+                    <div class="glass-panel" style="padding:0.75rem;">
+                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-fit" title="Zoom to fit"><i class="fa-solid fa-expand"></i> Fit</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-redo" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+                            <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:0.3rem; margin-left:0.5rem;">
+                                <input type="checkbox" id="lw-traverse-mode" style="width:auto;"> Traverse edit (downstream follows)
+                            </label>
+                            <span style="flex:1;"></span>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-dxf">DXF</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-pnezd">P,N,E,Z,D</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-calls">Calls</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-report">Map Check</button>
+                        </div>
+                        <div id="lw-editor" style="width:100%; height:460px; background:#0b1220; border:1px solid var(--glass-border); border-radius:var(--radius-sm); overflow:hidden; position:relative;"></div>
+                        <div id="lw-hud" style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-muted); margin-top:0.35rem;">Load field data to begin.</div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:1rem;">
+                        <div class="glass-panel" style="padding:0.9rem;">
+                            <h3 style="font-size:0.9rem; margin-bottom:0.5rem;"><i class="fa-solid fa-arrow-pointer" style="color:var(--accent);"></i> Selection</h3>
+                            <div id="lw-selection" style="font-size:0.8rem; color:var(--text-secondary);">Nothing selected. Click a vertex or a course.</div>
+                        </div>
+                        <div class="glass-panel" style="padding:0.9rem;">
+                            <h3 style="font-size:0.9rem; margin-bottom:0.5rem;"><i class="fa-solid fa-layer-group" style="color:var(--primary);"></i> Figures</h3>
+                            <div id="lw-figures" style="font-size:0.8rem;"></div>
+                        </div>
+                        <div class="glass-panel" style="padding:0.9rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                                <h3 style="font-size:0.9rem;"><i class="fa-solid fa-clipboard-check" style="color:var(--warning);"></i> Field data checks</h3>
+                                <span class="badge" id="lw-check-count" style="background:var(--bg-secondary); border:1px solid var(--glass-border);">—</span>
+                            </div>
+                            <div id="lw-checks" style="font-size:0.78rem; display:flex; flex-direction:column; gap:0.4rem;"></div>
                         </div>
                     </div>
                 </div>
@@ -1124,6 +1212,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/legal-desc/legal-desc.js"></script>
     <script src="plugins/plss-breakdown/plss-breakdown.js"></script>
     <script src="plugins/plat2dxf/plat2dxf.js"></script>
+    <script src="plugins/linework/linework.js"></script>
     <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->
