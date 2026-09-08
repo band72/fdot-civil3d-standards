@@ -68,7 +68,7 @@ class FDOTDXFInspector {
             // Parse Layer Table records
             if (inLayerTable && code === 0 && value === "LAYER") {
                 if (currentLayer) layers.push(currentLayer);
-                currentLayer = { name: "", color: 7, linetype: "CONTINUOUS", plot: true };
+                currentLayer = { name: "", color: 7, linetype: "CONTINUOUS", lineweight: null, plot: true };
                 continue;
             }
 
@@ -77,6 +77,7 @@ class FDOTDXFInspector {
                 if (code === 62) currentLayer.color = Math.abs(parseInt(value, 10));
                 if (code === 6) currentLayer.linetype = value;
                 if (code === 290) currentLayer.plot = value === "1";
+                if (code === 370) currentLayer.lineweight = parseInt(value, 10); // 1/100 mm, or -1/-2/-3
             }
 
             // Parse Entities Section

@@ -196,6 +196,7 @@
             _inspector = window.FDOTDXFInspector ? new window.FDOTDXFInspector(window.FDOT_DATA) : null;
             // Expose auditDXFText globally so the core app can call it from sample buttons
             window.__dxfAudit = auditDXFText;
+            window.__dxfSamples = { SR50_DXF, BOWTIE_DXF, NONCOMPLIANT_DXF };
         },
 
         setupEvents(ctx) {

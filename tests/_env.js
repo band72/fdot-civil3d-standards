@@ -93,6 +93,7 @@ function load() {
         "plugins/cms-engine/cms-engine.js",
         "plugins/dxf-auditor/dxf-parser.js",
         "plugins/dxf-auditor/dxf-auditor.js",
+        "plugins/template-cmp/template-cmp.js",
         "plugins/layer-stds/layer-stds.js",
         "plugins/sign-qto/sign-qto.js",
         "plugins/ssa-hydro/ssa-hydro.js",

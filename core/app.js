@@ -10,7 +10,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     // ── Application State ─────────────────────────────────────────────────────
     const state = {
-        activeTab: "tab-dxf-inspector",
+        activeTab: "tab-start",
         selectedDiscipline: "ALL",
         plotFilter: "ALL",
         searchQuery: "",
@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Per-tab header text. [title, subtitle]
     const PAGE_TITLES = {
+        "tab-start":          ["Start — Template Compare", "Pick or upload a standards-template DXF, then drop a drawing to diff its layer table against the template (missing / non-standard / mismatched layers)."],
         "tab-dxf-inspector":  ["DXF Project Auditor", "Upload an FDOT project DXF to score CADD-standards compliance, flag geometry errors, and export an auto-fix script."],
         "tab-layers":         ["FDOT 2026 Layer Standards", "Browse the discipline layer list with color, linetype, lineweight, and plot status. Filter by discipline or plot status; copy names."],
         "tab-signs":          ["Sign Assemblies & QTO", "FDOT sign assembly catalog and a MUTCD surface-area calculator that resolves the pay item from sign width x height."],

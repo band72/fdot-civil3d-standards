@@ -57,8 +57,28 @@
                 </table>`
         },
         {
+            id: "template-cmp",
+            title: "3.1  Start page — Template Compare",
+            html: `
+                <p><em>Purpose:</em> compare a drawing against a <strong>standards template</strong> — a DXF whose LAYER table <em>is</em> the standard. Unlike the DXF Project Auditor (which checks against the built-in FDOT 2026 rules), this checks against whatever template you pick, so a firm can enforce its own layer standard.</p>
+                <h4>Pick a template</h4>
+                <ul>
+                    <li><strong>Upload a template</strong> — an ASCII DXF (a company <code>.dwt</code> saved as DXF works well). Its layer table is parsed and saved in the browser; templates over 4 MB are rejected (trim to the layer table).</li>
+                    <li><strong>Select a template</strong> — the dropdown lists <em>FDOT 2026 Standard (built-in)</em> plus every template you've uploaded. The chosen one is the active standard until you change it.</li>
+                </ul>
+                <h4>Compare a drawing</h4>
+                <p>Drop a project DXF (or use a bundled sample). The report shows, against the active template:</p>
+                <ul>
+                    <li><strong>Missing</strong> — layers in the standard the drawing doesn't have.</li>
+                    <li><strong>Not in the standard</strong> — layers the drawing has that the template doesn't.</li>
+                    <li><strong>Property mismatches</strong> — layers in both whose colour (ACI), linetype, or lineweight differ. Tick <em>also compare Plot flag</em> to include plot/no-plot.</li>
+                    <li><strong>Entity placement</strong> — entities on Layer 0, DEFPOINTS, or any layer not in the standard.</li>
+                    <li>A <strong>score</strong> (100 minus weighted deductions) and two exports: a text <strong>diff report</strong>, and a <strong>conform <code>.scr</code></strong> that creates the missing layers and recolours the mismatched ones to the standard (non-standard layers are listed, not auto-deleted — review it first).</li>
+                </ul>`
+        },
+        {
             id: "dxf-auditor",
-            title: "3.1  DXF Project Auditor",
+            title: "3.2  DXF Project Auditor",
             html: `
                 <p><em>Purpose:</em> score an FDOT project DXF against CADD standards and flag geometry / scripting errors before submittal.</p>
                 <p><strong>Input:</strong> drag an ASCII DXF onto the drop zone, click <em>Browse DXF File</em>, or load one of the three bundled samples (SR-50 corridor, Jacksonville bow-tie, non-compliant drainage). Binary DXF is not supported — save as ASCII/plain DXF from Civil 3D.</p>
@@ -76,7 +96,7 @@
         },
         {
             id: "layers",
-            title: "3.2  Layer Standards / Pay Items / Survey Keys",
+            title: "3.3  Layer Standards / Pay Items / Survey Keys",
             html: `
                 <p><em>Purpose:</em> the FDOT 2026 reference catalogs.</p>
                 <ul>
@@ -87,7 +107,7 @@
         },
         {
             id: "qc-traverse",
-            title: "3.3  QC Checklist & Traverse Auditor",
+            title: "3.4  QC Checklist & Traverse Auditor",
             html: `
                 <p><em>Purpose:</em> the pre-submittal QA checklist plus a real traverse calculator.</p>
                 <p><strong>QC checklist</strong> — the 7-item Map Check specification (mathematical closure &amp; area, curve node labels PC/PT/PRC, surveyor certification, legal-description congruency, adjoining road / R-O-W, acreage annotation, and Map Check Report generation). Read the objective and pass/fail logic for each.</p>
@@ -96,7 +116,7 @@
         },
         {
             id: "linework",
-            title: "3.4  Linework Editor",
+            title: "3.5  Linework Editor",
             html: `
                 <p><em>Purpose:</em> import linework from <strong>field data</strong>, check it for the common blunders, and correct it interactively. (Linework already inside a DXF is corrected in the DXF Project Auditor.)</p>
                 <h4>Import</h4>
@@ -123,7 +143,7 @@
         },
         {
             id: "legal-desc",
-            title: "3.5  Legal Description QC",
+            title: "3.6  Legal Description QC",
             html: `
                 <p><em>Purpose:</em> parse a written metes-and-bounds legal description and check it, without hand-keying each call.</p>
                 <p><strong>Input:</strong> paste the narrative text. The parser splits on <code>THENCE</code> / <code>COMMENCE</code> / <code>BEGINNING</code> and recognizes:</p>
@@ -136,7 +156,7 @@
         },
         {
             id: "plss",
-            title: "3.6  PLSS Section Breakdown",
+            title: "3.7  PLSS Section Breakdown",
             html: `
                 <p><em>Purpose:</em> resolve an aliquot ("quarter-quarter") description into a rectangle, dimensions, and acreage.</p>
                 <p><strong>Input:</strong> an aliquot description, e.g. <code>S 1/2 of the SE 1/4 of the NE 1/4 of Section 8, Township 7 North, Range 7 East</code>. Put one parcel per line for a multi-parcel description. Spelled-out compass words ("Northeast 1/4") and abbreviations ("NE 1/4") both work.</p>
@@ -149,7 +169,7 @@
         },
         {
             id: "plat2dxf",
-            title: "3.7  Parcel → DXF / Points / COGO",
+            title: "3.8  Parcel → DXF / Points / COGO",
             html: `
                 <p><em>Purpose:</em> turn a bearing/distance call list into CAD-ready files. <strong>There is no image tracing in this build</strong> — the earlier "computer vision" wording was a mockup.</p>
                 <p><strong>Input:</strong> a call list (one <code>N 45-12-30 E 150.00</code> per line) in the box, or leave it empty to use the bundled sample parcel. Click <em>Build Parcel DXF / Points</em>.</p>
@@ -162,14 +182,14 @@
         },
         {
             id: "signs-ssa",
-            title: "3.8  Sign QTO & SSA Hydrology",
+            title: "3.9  Sign QTO & SSA Hydrology",
             html: `
                 <p><strong>Sign Assemblies &amp; QTO</strong> — the FDOT sign assembly catalog (code, size, block, target pay item). The calculator takes a sign width and height (inches), computes the panel area in square feet, and classifies the pay item: ≤ 12 SF → <code>0700-1-11</code>, 12–20 SF → <code>0700-1-12</code>, &gt; 20 SF → <code>0700-1-14</code>.</p>
                 <p><strong>SSA Hydrology &amp; IDF</strong> — pick one of the 11 FDOT IDF zones, enter drainage area (acres), runoff coefficient C, and time of concentration t<sub>c</sub> (minutes). It computes rainfall intensity i = a / (t<sub>c</sub> + b)<sup>c</sup> and peak discharge <strong>Q = C·i·A</strong> (cfs). The trench sizer estimates exfiltration trench length from treatment volume and the hydraulic conductivity k (FDOT Drainage Manual Ch. 7).</p>`
         },
         {
             id: "reference-tabs",
-            title: "3.9  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
+            title: "3.10  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
             html: `
                 <p>Static reference cards:</p>
                 <ul>
