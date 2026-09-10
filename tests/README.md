@@ -17,7 +17,9 @@ exposes the site globals (`COGO`, `FDOT_DATA`, `BoundaryQCCMS`, `Linework`, …)
 |---|---|
 | `cogo`     | bearing parsing, azimuth↔bearing round-trips, advance/inverse, chord-from-arc, Shoelace, self-intersection, `runTraverse`, PNEZD, `buildDxf` (incl. round-trip through the DXF parser) |
 | `data`     | `FDOT_DATA` integrity — layers, pay items, survey keys, IDF zones (+ Rational Method), blocks, subassemblies, sheets, QC checklist |
-| `dxf`      | `FDOTDXFInspector` parse + `inspectProject` findings, TABLES-section bleed, bow-tie, `.scr` generation, spatial telemetry, Fresnel spiral |
+| `dxf`      | `FDOTDXFInspector` parse (resilient tokenizer, old-style POLYLINE, on-axis envelope) + `inspectProject` findings, TABLES-section bleed, bow-tie, `.scr` generation, real R-tree window queries + measured height, Fresnel spiral |
 | `linework` | `splitDesc` Civil 3D code set, `buildFigures` begin/continue/end/close, `checkModel` findings, headless editor ops (delete/undo/redo/untangle/setSegment/playback) |
+| `template-cmp` | `TemplateCmp` built-in + stored standards, `compareStandards` layer diff + entity placement + score, lineweight/plot handling, diff-report + conform-`.scr` exports |
+| `stdn-cmp` | `StdnEngine` (ported `standardcompare-plugin`): DXF loader, `checkStandards`, `diffGeometry` (grid-indexed + deterministic), `standardFromMasterDxf` + `mergeStandards` field-merge, `dxfDocument` raw-text editor + strict-DXF guard, `healDxf` before/after + ByBlock exemption + block opt-in, `regexSafety`, `orchestrateCompare`, `svgOverlay` (real ARC sweep), `reportRenderer` HTML/Markdown |
 | `auth`     | PBKDF2 login, lockout, register, change-password, impersonate, per-user client templates + the 5-template license gate, audit hash chain |
 | `geo`      | pure-JS SHA-256 vs Node, PKI/TSA gates, WebAuthn fail-closed, plugin-loader topo sort, safe-dom fallback, legal-description parse/QC, PLSS aliquot table, plat2dxf |

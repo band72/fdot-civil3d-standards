@@ -42,6 +42,11 @@
                     <i class="fa-solid fa-file-circle-check"></i>
                     <span>DXF Project Auditor</span>
                 </button>
+                <button class="nav-btn" data-tab="tab-stdn-compare">
+                    <i class="fa-solid fa-code-branch"></i>
+                    <span>Standards Compare + Heal</span>
+                    <span class="badge" style="background:var(--accent);">NEW</span>
+                </button>
                 <button class="nav-btn" data-tab="tab-layers">
                     <i class="fa-solid fa-layer-group"></i>
                     <span>Layer Standards</span>
@@ -306,6 +311,16 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Standards Compare + Self-Heal (ported from the standardcompare-plugin project) -->
+            <section id="tab-stdn-compare" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-code-branch" style="color:var(--accent);"></i> Standards Compare &amp; Self-Heal</h2>
+                    <p class="subtitle">Check a DXF against a JSON standard and/or a master-template DXF (its LAYER / LTYPE / STYLE tables and BLOCKS become the rules), tolerance-diff its geometry against a reference drawing, then auto-correct the deficiencies that are safe to fix and download a corrected <code>.dxf</code>. Runs entirely in the browser — no upload.</p>
+                    <div id="stdn-controls" style="margin-top:1rem;"></div>
+                    <div id="stdn-results" class="hidden" style="margin-top:1.25rem;"></div>
                 </div>
             </section>
 
@@ -1267,6 +1282,8 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/dxf-auditor/dxf-parser.js"></script>
     <script src="plugins/dxf-auditor/dxf-auditor.js"></script>
     <script src="plugins/template-cmp/template-cmp.js"></script>
+    <script src="plugins/stdn-compare/stdn-engine.js"></script>
+    <script src="plugins/stdn-compare/stdn-compare.js"></script>
     <script src="plugins/layer-stds/layer-stds.js"></script>
     <script src="plugins/sign-qto/sign-qto.js"></script>
     <script src="plugins/ssa-hydro/ssa-hydro.js"></script>

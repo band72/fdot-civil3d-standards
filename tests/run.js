@@ -7,7 +7,7 @@ const path = require("path");
 const { t, summary } = require("./_assert");
 const env = require("./_env");
 
-const SUITES = ["cogo", "data", "dxf", "linework", "template-cmp", "auth", "geo"];
+const SUITES = ["cogo", "data", "dxf", "linework", "template-cmp", "stdn-cmp", "auth", "geo"];
 
 (async () => {
     const started = Date.now();
@@ -16,9 +16,9 @@ const SUITES = ["cogo", "data", "dxf", "linework", "template-cmp", "auth", "geo"
     t.group("env/load");
     t.eq(loadRes.errors.length, 0, "all source files eval without error" +
         (loadRes.errors.length ? " — " + loadRes.errors.join("; ") : ""));
-    t.eq(loadRes.loaded.length, 19, "19 source files loaded");
+    t.eq(loadRes.loaded.length, 21, "21 source files loaded");
     ["COGO", "FDOT_DATA", "FDOTDXFInspector", "PluginRegistry", "BoundaryQCSecurity",
-        "BoundaryQCBilling", "BoundaryQCCMS", "Linework", "safeHTML", "setSafeRows"]
+        "BoundaryQCBilling", "BoundaryQCCMS", "Linework", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows"]
         .forEach(g => t.ok(typeof loadRes.win[g] !== "undefined", "global " + g + " present"));
 
     const want = process.argv.slice(2).filter(a => SUITES.includes(a));
