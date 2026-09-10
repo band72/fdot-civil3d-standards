@@ -11,24 +11,59 @@ class FDOTDXFInspector {
         });
     }
 
+    /**
+     * Split a DXF text stream into (groupCode, value) pairs.
+     *
+     * DXF is a flat stream where every group code sits on its own line followed by
+     * its value on the next. Walking it pair-by-pair (rather than stepping a fixed
+     * even/odd index) means a stray blank line, a trailing newline, leading
+     * whitespace on a code line, CRLF endings, or a corrupt line can't shift every
+     * subsequent pair out of phase — the reader just resynchronises on the next
+     * line that looks like a group code.
+     * @param {string} dxfText
+     * @returns {Array<[number, string]>}
+     */
+    tokenizeDXF(dxfText) {
+        const raw = String(dxfText == null ? "" : dxfText).split(/\r?\n/);
+        const pairs = [];
+        let i = 0;
+        while (i < raw.length) {
+            // Find the next group-code line, skipping blanks / non-numeric noise.
+            let code = null;
+            while (i < raw.length) {
+                const tok = raw[i].trim();
+                i++;
+                if (tok === "") continue;                       // blank line between records
+                if (!/^[-+]?\d{1,4}$/.test(tok)) continue;      // not a group code — resync
+                code = parseInt(tok, 10);
+                break;
+            }
+            if (code === null || i >= raw.length) break;        // out of input / dangling code
+            pairs.push([code, raw[i].trim()]);                  // value may legitimately be ""
+            i++;
+        }
+        return pairs;
+    }
+
     parseDXF(dxfText) {
-        const lines = dxfText.split(/\r?\n/);
         let inEntities = false;
         let inTables = false;
         let currentSection = "";
-        
+
         const layers = [];
         const entities = [];
         let currentEntity = null;
         let currentLayer = null;
+        let openPolyline = null;    // old-style POLYLINE header while its VERTEX children stream in
         let inLayerTable = false;   // true only between `0/TABLE 2/LAYER` and `0/ENDTAB`
         let expectTableName = false;
 
-        for (let i = 0; i < lines.length; i += 2) {
-            if (i + 1 >= lines.length) break;
-            const code = parseInt(lines[i].trim(), 10);
-            const value = lines[i + 1].trim();
+        const pushed = new WeakSet();
+        const pushEntity = (e) => {
+            if (e && e.type !== "VERTEX" && !pushed.has(e)) { pushed.add(e); entities.push(e); }
+        };
 
+        for (const [code, value] of this.tokenizeDXF(dxfText)) {
             if (code === 0 && value === "SECTION") {
                 currentSection = "";
                 continue;
@@ -82,28 +117,61 @@ class FDOTDXFInspector {
 
             // Parse Entities Section
             if (inEntities && code === 0) {
-                if (currentEntity) entities.push(currentEntity);
-                
+                // SEQEND closes an old-style POLYLINE — its VERTEX children are already attached.
+                if (value === "SEQEND") {
+                    pushEntity(currentEntity);
+                    currentEntity = null;
+                    openPolyline = null;
+                    continue;
+                }
+
+                // A VERTEX belongs to the currently-open POLYLINE, not a standalone entity.
+                if (value === "VERTEX" && openPolyline) {
+                    const v = { x: 0, y: 0 };
+                    openPolyline.vertices.push(v);
+                    currentEntity = { type: "VERTEX", __vertex: v };
+                    continue;
+                }
+
+                pushEntity(currentEntity);
+
                 const entityType = value;
                 if (["LINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE", "TEXT", "MTEXT", "INSERT", "POINT"].includes(entityType)) {
+                    // Normalise the old heavy POLYLINE to LWPOLYLINE so every downstream
+                    // consumer (auditor, spatial index, canvas) treats them the same.
+                    const isOldPoly = entityType === "POLYLINE";
                     currentEntity = {
-                        type: entityType,
+                        type: isOldPoly ? "LWPOLYLINE" : entityType,
                         layer: "0",
                         color: 256, // BYLAYER
                         vertices: [],
                         startX: 0, startY: 0, endX: 0, endY: 0,
                         radius: 0, text: "", closed: false
                     };
+                    if (isOldPoly) {
+                        // A heavy POLYLINE is emitted now — its VERTEX children mutate it
+                        // by reference, so it is complete by the time SEQEND arrives.
+                        currentEntity.__heavy = true;
+                        openPolyline = currentEntity;
+                        pushEntity(currentEntity);
+                    }
                 } else {
                     currentEntity = null;
                 }
+                openPolyline = (currentEntity && currentEntity.__heavy) ? openPolyline : null;
+                continue;
+            }
+
+            if (inEntities && currentEntity && currentEntity.type === "VERTEX") {
+                if (code === 10) currentEntity.__vertex.x = parseFloat(value);
+                if (code === 20) currentEntity.__vertex.y = parseFloat(value);
                 continue;
             }
 
             if (inEntities && currentEntity) {
                 if (code === 8) currentEntity.layer = value.toUpperCase();
                 if (code === 62) currentEntity.color = Math.abs(parseInt(value, 10));
-                
+
                 if (currentEntity.type === "LINE") {
                     if (code === 10) currentEntity.startX = parseFloat(value);
                     if (code === 20) currentEntity.startY = parseFloat(value);
@@ -113,11 +181,15 @@ class FDOTDXFInspector {
 
                 if (currentEntity.type === "LWPOLYLINE") {
                     if (code === 70) currentEntity.closed = (parseInt(value, 10) & 1) === 1;
-                    if (code === 10) {
-                        currentEntity.vertices.push({ x: parseFloat(value), y: 0 });
-                    }
-                    if (code === 20 && currentEntity.vertices.length > 0) {
-                        currentEntity.vertices[currentEntity.vertices.length - 1].y = parseFloat(value);
+                    // The heavy POLYLINE header carries a dummy 10/20/30 — ignore it; the
+                    // real geometry arrives as VERTEX children.
+                    if (!currentEntity.__heavy) {
+                        if (code === 10) {
+                            currentEntity.vertices.push({ x: parseFloat(value), y: 0 });
+                        }
+                        if (code === 20 && currentEntity.vertices.length > 0) {
+                            currentEntity.vertices[currentEntity.vertices.length - 1].y = parseFloat(value);
+                        }
                     }
                 }
 
@@ -144,7 +216,10 @@ class FDOTDXFInspector {
         }
 
         if (currentLayer) layers.push(currentLayer);
-        if (currentEntity) entities.push(currentEntity);
+        pushEntity(currentEntity);
+
+        // Drop the internal bookkeeping markers before handing entities back.
+        entities.forEach(e => { delete e.__heavy; delete e.__vertex; });
 
         return { layers, entities };
     }
@@ -278,7 +353,10 @@ class FDOTDXFInspector {
             // Florida State Plane Datum Coordinate Check
             const px = ent.startX || (ent.vertices.length > 0 ? ent.vertices[0].x : 0);
             const py = ent.startY || (ent.vertices.length > 0 ? ent.vertices[0].y : 0);
-            if (px !== 0 && py !== 0) {
+            // Skip only when the entity has no position at all (both coords zero). A real
+            // Florida State Plane entity never has E==0 or N==0, so `||` still catches a
+            // point that sits exactly on one axis.
+            if (px !== 0 || py !== 0) {
                 if (px < 50000 || px > 3500000 || py < 50000 || py > 4500000) {
                     issues.push({
                         severity: "WARNING",

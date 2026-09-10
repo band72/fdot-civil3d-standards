@@ -121,7 +121,10 @@
      * Run a traverse from an origin through a list of legs.
      * Each leg: { kind:'line', azimuthDeg, distance } or
      *           { kind:'curve', chordAzimuthDeg, chordDistance, arcLength }.
-     * Returns { vertices, perimeter, misclosure, precisionDenominator, areaSqFt, areaAcres, closeAzimuthDeg }.
+     * Returns { vertices, perimeter, misclosure, precisionDenominator, areaSqFt,
+     *           areaAcres, closeAzimuthDeg, closes }.
+     * `closes` is true when the trace returns to the origin (misclosure ≈ 0); the
+     * area fields assume closure and are not meaningful for an open traverse.
      */
     function runTraverse(legs, origin) {
         const start = origin || { e: 0, n: 0 };
@@ -150,7 +153,8 @@
             : null;
         return {
             vertices, perimeter, misclosure, precisionDenominator,
-            areaSqFt, areaAcres: areaSqFt / SQFT_PER_ACRE, closeAzimuthDeg
+            areaSqFt, areaAcres: areaSqFt / SQFT_PER_ACRE, closeAzimuthDeg,
+            closes: misclosure <= 1e-4
         };
     }
 

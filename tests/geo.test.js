@@ -154,4 +154,44 @@ module.exports = async function (t, env) {
     const dxf = W.COGO.buildDxf({ layers: [{ name: "AI-PROP-BNDY", color: 4 }], polylines: [{ layer: "AI-PROP-BNDY", closed: true, points: t2.vertices.slice(0, -1) }], texts: [] });
     t.match(dxf.replace(/\r\n/g, " "), /TABLES.*ENTITIES.*LWPOLYLINE.*EOF/, "valid DXF assembled from calls");
     void P2;
+
+    // ── traverse-cogo (now delegates geometry to window.COGO) ───
+    t.group("traverse-cogo/closure + bow-tie via COGO");
+    const TCG = W.TraverseCogo;
+    t.ok(TCG && typeof TCG.parseCourses === "function" && typeof TCG.computeClosure === "function",
+        "window.TraverseCogo exposed");
+
+    const sqIn = "N 00-00-00 E 100\nS 90-00-00 E 100\nS 00-00-00 E 100\nN 90-00-00 W 100";
+    const sq = TCG.parseCourses(sqIn);
+    t.eq(sq.courses.length, 4, "4 courses parsed");
+    t.eq(sq.skipped.length, 0, "nothing skipped");
+    const sqC = TCG.computeClosure(sq.courses, 10000);
+    t.close(sqC.linearMisclosure, 0, 1e-6, "unit square closes");
+    t.eq(sqC.precisionDenominator, Infinity, "exact precision");
+    t.ok(sqC.passes, "closure passes the 1:10,000 gate");
+    t.close(sqC.areaAcres * W.COGO.SQFT_PER_ACRE, 10000, 1e-3, "Shoelace area = 100 x 100");
+    t.notOk(sqC.bowtie, "square is not self-intersecting");
+    t.eq(sqC.verts.length, 4, "walked to 4 polygon corners");
+    t.ok("e" in sqC.verts[0] && "n" in sqC.verts[0], "verts are {e,n} (COGO convention)");
+
+    // spelled-out bearings + a junk line the old regex would have silently dropped
+    const mix = TCG.parseCourses(
+        "North 45 degrees East 141.42\n-- not a course --\nSouth 45 degrees East 141.42\n" +
+        "South 45 degrees West 141.42\nNorth 45 degrees West 141.42");
+    t.eq(mix.courses.length, 4, "spelled-out bearings parse via COGO.parseBearing");
+    t.eq(mix.skipped.length, 1, "the junk line is reported, not swallowed");
+    t.eq(mix.skipped[0].line, 2, "skipped line number recorded");
+
+    // mis-ordered square -> bow-tie: corners (0,0)->(10,10)->(10,0)->(0,10)
+    const bt = TCG.parseCourses("N 45-00-00 E 14.1421\nS 00-00-00 E 10\nN 45-00-00 W 14.1421\nS 00-00-00 E 10");
+    const btC = TCG.computeClosure(bt.courses, 10000);
+    t.ok(btC.bowtie, "mis-ordered square is flagged as a bow-tie");
+    t.ok(btC.bowtie.i && btC.bowtie.j, "bow-tie names the two crossing courses");
+
+    // matches a hand-computed lat/dep closure and the pass gate is configurable
+    const openTrav = TCG.parseCourses("N 00-00-00 E 100\nN 90-00-00 E 100");
+    const openC = TCG.computeClosure(openTrav.courses, 10000);
+    t.close(openC.linearMisclosure, Math.hypot(100, 100), 1e-6, "open traverse misclosure = gap to POB");
+    t.notOk(openC.passes, "open traverse fails the closure gate");
+    t.eq(TCG.computeClosure(openTrav.courses, 1).passes, true, "a looser threshold lets it pass");
 };

@@ -117,6 +117,7 @@ module.exports = function (t, env) {
         const tr = C.runTraverse(legs, verts[0]);
         t.close(tr.misclosure, 0, 1e-6, "closed traverse misclosure ~0 #" + i);
         t.eq(tr.precisionDenominator, Infinity, "exact precision #" + i);
+        t.eq(tr.closes, true, "closed traverse reports closes:true #" + i);
         const per = legs.reduce((s2, l) => s2 + l.distance, 0);
         t.close(tr.perimeter, per, 1e-6, "perimeter sum #" + i);
         t.close(tr.areaAcres * C.SQFT_PER_ACRE, C.shoelaceArea(verts), Math.max(1e-4, per), "area matches shoelace #" + i);
@@ -128,6 +129,7 @@ module.exports = function (t, env) {
     const ot = C.runTraverse(openLegs, { e: 0, n: 0 });
     t.close(ot.misclosure, Math.hypot(100, 100), 1e-6, "open misclosure = gap to start");
     t.close(ot.precisionDenominator, 200 / Math.hypot(100, 100), 1e-6, "precision = perimeter/misclosure");
+    t.eq(ot.closes, false, "open traverse reports closes:false");
 
     t.group("cogo/pnezd format");
     const pn = C.pnezd([{ e: 10, n: 20 }, { e: 30, n: 40 }, { e: 50, n: 60 }]);

@@ -19,32 +19,26 @@
 
 class DxfSpatialRTree {
     constructor(maxEntries = 9) {
-        this.maxEntries = maxEntries;
-        this.minEntries = Math.max(2, Math.floor(maxEntries * 0.4));
-        this.root = { bbox: null, children: [], isLeaf: true };
+        this.maxEntries = Math.max(4, maxEntries);
+        this.minEntries = Math.max(2, Math.floor(this.maxEntries * 0.4));
+        this.root = this._newNode(true);
         this.totalEntities = 0;
     }
 
-    insert(entity) {
-        this.totalEntities++;
-        const bbox = this._computeBBox(entity);
-        const node = { entity, bbox, isLeaf: true };
-        this._insertNode(this.root, node);
-    }
+    _newNode(leaf) { return { leaf, bbox: null, children: [] }; }
 
     _computeBBox(entity) {
+        let box;
         if (entity.minX !== undefined && entity.maxX !== undefined) {
-            return [entity.minX, entity.minY, entity.maxX, entity.maxY];
-        }
-        if (entity.type === "LINE") {
-            return [
+            box = [entity.minX, entity.minY, entity.maxX, entity.maxY];
+        } else if (entity.type === "LINE") {
+            box = [
                 Math.min(entity.startX, entity.endX),
                 Math.min(entity.startY, entity.endY),
                 Math.max(entity.startX, entity.endX),
                 Math.max(entity.startY, entity.endY)
             ];
-        }
-        if (entity.type === "LWPOLYLINE" && entity.vertices && entity.vertices.length > 0) {
+        } else if ((entity.type === "LWPOLYLINE" || entity.type === "POLYLINE") && entity.vertices && entity.vertices.length > 0) {
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             for (const v of entity.vertices) {
                 if (v.x < minX) minX = v.x;
@@ -52,172 +46,141 @@ class DxfSpatialRTree {
                 if (v.x > maxX) maxX = v.x;
                 if (v.y > maxY) maxY = v.y;
             }
-            return [minX, minY, maxX, maxY];
-        }
-        if (entity.type === "ARC" || entity.type === "CIRCLE") {
+            box = [minX, minY, maxX, maxY];
+        } else if (entity.type === "ARC" || entity.type === "CIRCLE") {
             const r = entity.radius || 10;
-            return [entity.startX - r, entity.startY - r, entity.startX + r, entity.startY + r];
-        }
-        const px = entity.startX || 0;
-        const py = entity.startY || 0;
-        return [px - 1, py - 1, px + 1, py + 1];
-    }
-
-    _insertNode(parent, node) {
-        parent.children.push(node);
-        this._updateBBox(parent, node.bbox);
-
-        if (parent.children.length > this.maxEntries) {
-            this._splitNodeGuttman(parent);
-        }
-    }
-
-    _updateBBox(node, childBBox) {
-        if (!node.bbox) {
-            node.bbox = [...childBBox];
+            box = [entity.startX - r, entity.startY - r, entity.startX + r, entity.startY + r];
         } else {
-            node.bbox[0] = Math.min(node.bbox[0], childBBox[0]);
-            node.bbox[1] = Math.min(node.bbox[1], childBBox[1]);
-            node.bbox[2] = Math.max(node.bbox[2], childBBox[2]);
-            node.bbox[3] = Math.max(node.bbox[3], childBBox[3]);
+            const px = entity.startX || 0;
+            const py = entity.startY || 0;
+            box = [px - 1, py - 1, px + 1, py + 1];
         }
+        // A single bad coordinate would otherwise poison every area comparison.
+        return box.map(v => (Number.isFinite(v) ? v : 0));
     }
 
     /**
-     * FIX [P1]: Guttman Quadratic Split replaces the previous linear index-bisection.
-     *
-     * Algorithm:
-     * 1. Pick Seeds — find the pair (e1, e2) that would waste the most area if grouped together.
-     *    Waste = area(MBR(e1, e2)) - area(e1) - area(e2). Maximise this.
-     * 2. Distribute remaining entries — assign each to the group whose MBR needs the least
-     *    area enlargement to include it. Tie-break: smaller resulting area, then fewer entries.
-     * 3. Enforce min-entries constraint — if one group has too few remaining entries, assign all
-     *    remaining to it regardless of area.
+     * Guttman R-tree insert: descend to the best leaf, add the record, and let any
+     * overflow split propagate back up. Previous builds pushed every record straight
+     * into the root and re-split it from scratch — never a real hierarchy.
      */
-    _splitNodeGuttman(node) {
-        const entries = node.children;
-        const n = entries.length;
-
-        // Step 1: Pick seeds — maximise wasted area
-        let seed1 = 0, seed2 = 1, maxWaste = -Infinity;
-        for (let i = 0; i < n; i++) {
-            for (let j = i + 1; j < n; j++) {
-                const combined = this._combineBBoxes(entries[i].bbox, entries[j].bbox);
-                const waste = this._bboxArea(combined) - this._bboxArea(entries[i].bbox) - this._bboxArea(entries[j].bbox);
-                if (waste > maxWaste) {
-                    maxWaste = waste;
-                    seed1 = i;
-                    seed2 = j;
-                }
-            }
+    insert(entity) {
+        this.totalEntities++;
+        const record = { entity, bbox: this._computeBBox(entity), leaf: true };
+        const split = this._insert(this.root, record);
+        if (split) {
+            const newRoot = this._newNode(false);
+            newRoot.children.push(this.root, split);
+            newRoot.bbox = this._combine(this.root.bbox, split.bbox);
+            this.root = newRoot;
         }
-
-        // Initialise two groups
-        const groupA = [entries[seed1]];
-        const groupB = [entries[seed2]];
-        let bboxA = [...entries[seed1].bbox];
-        let bboxB = [...entries[seed2].bbox];
-
-        const remaining = entries.filter((_, i) => i !== seed1 && i !== seed2);
-
-        // Step 2: Distribute remaining
-        for (const entry of remaining) {
-            const remaining_needed_A = this.minEntries - groupA.length;
-            const remaining_needed_B = this.minEntries - groupB.length;
-
-            // Enforce min-entries — if one group needs all remaining, assign them
-            if (remaining_needed_A >= (remaining.length - groupA.length - groupB.length + 2)) {
-                groupA.push(entry);
-                bboxA = this._combineBBoxes(bboxA, entry.bbox);
-                continue;
-            }
-            if (remaining_needed_B >= (remaining.length - groupA.length - groupB.length + 2)) {
-                groupB.push(entry);
-                bboxB = this._combineBBoxes(bboxB, entry.bbox);
-                continue;
-            }
-
-            const enlargeA = this._bboxArea(this._combineBBoxes(bboxA, entry.bbox)) - this._bboxArea(bboxA);
-            const enlargeB = this._bboxArea(this._combineBBoxes(bboxB, entry.bbox)) - this._bboxArea(bboxB);
-
-            if (enlargeA < enlargeB ||
-                (enlargeA === enlargeB && this._bboxArea(bboxA) < this._bboxArea(bboxB)) ||
-                (enlargeA === enlargeB && this._bboxArea(bboxA) === this._bboxArea(bboxB) && groupA.length <= groupB.length)) {
-                groupA.push(entry);
-                bboxA = this._combineBBoxes(bboxA, entry.bbox);
-            } else {
-                groupB.push(entry);
-                bboxB = this._combineBBoxes(bboxB, entry.bbox);
-            }
-        }
-
-        // Rebuild node with two child nodes
-        const leftNode  = { bbox: bboxA, children: groupA, isLeaf: node.isLeaf };
-        const rightNode = { bbox: bboxB, children: groupB, isLeaf: node.isLeaf };
-
-        node.children = [leftNode, rightNode];
-        node.isLeaf = false;
-        node.bbox = this._combineBBoxes(bboxA, bboxB);
     }
 
-    _bboxArea(bbox) {
-        if (!bbox) return 0;
-        return Math.max(0, bbox[2] - bbox[0]) * Math.max(0, bbox[3] - bbox[1]);
+    /** Insert `item` under `node`; return a new sibling node if `node` overflowed, else null. */
+    _insert(node, item) {
+        if (node.leaf) {
+            node.children.push(item);
+            node.bbox = node.bbox ? this._combine(node.bbox, item.bbox) : [...item.bbox];
+            return node.children.length > this.maxEntries ? this._splitNode(node) : null;
+        }
+        const child = this._chooseSubtree(node, item.bbox);
+        const split = this._insert(child, item);
+        if (split) node.children.push(split);
+        node.bbox = this._calcBBox(node.children);
+        return node.children.length > this.maxEntries ? this._splitNode(node) : null;
     }
 
-    _combineBBoxes(b1, b2) {
-        return [
-            Math.min(b1[0], b2[0]),
-            Math.min(b1[1], b2[1]),
-            Math.max(b1[2], b2[2]),
-            Math.max(b1[3], b2[3])
-        ];
-    }
-
-    _calcBBoxForChildren(children) {
-        if (!children.length) return [0, 0, 0, 0];
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const c of children) {
-            if (c.bbox) {
-                if (c.bbox[0] < minX) minX = c.bbox[0];
-                if (c.bbox[1] < minY) minY = c.bbox[1];
-                if (c.bbox[2] > maxX) maxX = c.bbox[2];
-                if (c.bbox[3] > maxY) maxY = c.bbox[3];
+    /** Pick the child whose MBR needs the least area enlargement to swallow `bbox`. */
+    _chooseSubtree(node, bbox) {
+        let best = node.children[0], bestEnlarge = Infinity, bestArea = Infinity;
+        for (const c of node.children) {
+            const area = this._area(c.bbox);
+            const enlarge = this._area(this._combine(c.bbox, bbox)) - area;
+            if (enlarge < bestEnlarge || (enlarge === bestEnlarge && area < bestArea)) {
+                best = c; bestEnlarge = enlarge; bestArea = area;
             }
         }
-        return [minX, minY, maxX, maxY];
+        return best;
     }
 
     /**
-     * Query entities intersecting a 2D Viewport Bounding Box.
+     * Guttman quadratic split. Mutates `node` to hold group A and returns a new
+     * sibling holding group B.
+     *   1. Seeds = the pair that wastes the most area boxed together.
+     *   2. Each remaining entry joins the group it enlarges least (ties → smaller group).
+     *   3. If a group would be starved below minEntries, the rest are forced into it.
+     */
+    _splitNode(node) {
+        const entries = node.children;
+        let s1 = 0, s2 = 1, worst = -Infinity;
+        for (let i = 0; i < entries.length; i++) {
+            for (let j = i + 1; j < entries.length; j++) {
+                const waste = this._area(this._combine(entries[i].bbox, entries[j].bbox))
+                    - this._area(entries[i].bbox) - this._area(entries[j].bbox);
+                if (waste > worst) { worst = waste; s1 = i; s2 = j; }
+            }
+        }
+
+        const A = [entries[s1]], B = [entries[s2]];
+        let bboxA = [...entries[s1].bbox], bboxB = [...entries[s2].bbox];
+        const rest = entries.filter((_, i) => i !== s1 && i !== s2);
+
+        for (let k = 0; k < rest.length; k++) {
+            const e = rest[k];
+            const left = rest.length - k; // entries still to place, including e
+            if (this.minEntries - A.length >= left) { A.push(e); bboxA = this._combine(bboxA, e.bbox); continue; }
+            if (this.minEntries - B.length >= left) { B.push(e); bboxB = this._combine(bboxB, e.bbox); continue; }
+            const dA = this._area(this._combine(bboxA, e.bbox)) - this._area(bboxA);
+            const dB = this._area(this._combine(bboxB, e.bbox)) - this._area(bboxB);
+            if (dA < dB || (dA === dB && A.length <= B.length)) { A.push(e); bboxA = this._combine(bboxA, e.bbox); }
+            else { B.push(e); bboxB = this._combine(bboxB, e.bbox); }
+        }
+
+        node.children = A;
+        node.bbox = bboxA;
+        const sibling = this._newNode(node.leaf);
+        sibling.children = B;
+        sibling.bbox = bboxB;
+        return sibling;
+    }
+
+    _area(b) { return b ? Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]) : 0; }
+
+    _combine(a, b) {
+        return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+    }
+
+    _calcBBox(children) {
+        let box = null;
+        for (const c of children) box = box ? this._combine(box, c.bbox) : [...c.bbox];
+        return box;
+    }
+
+    /** Height of the tree (1 for a lone leaf). */
+    height() {
+        let h = 1, node = this.root;
+        while (node && !node.leaf && node.children.length) { h++; node = node.children[0]; }
+        return h;
+    }
+
+    /**
+     * Query entities whose MBR intersects a 2D viewport bounding box.
      * @param {Array<number>} queryBBox [minX, minY, maxX, maxY]
      * @returns {Array<Object>}
      */
     search(queryBBox) {
         const results = [];
-        this._searchRecursive(this.root, queryBBox, results);
-        return results;
-    }
-
-    _searchRecursive(node, queryBBox, results) {
-        if (!node.bbox || !this._intersects(node.bbox, queryBBox)) return;
-
-        if (node.isLeaf) {
-            if (node.entity) {
-                results.push(node.entity);
-            } else if (node.children) {
-                for (const child of node.children) {
-                    if (child.bbox && this._intersects(child.bbox, queryBBox)) {
-                        if (child.entity) results.push(child.entity);
-                    }
-                }
+        const stack = [this.root];
+        while (stack.length) {
+            const node = stack.pop();
+            if (!node.bbox || !this._intersects(node.bbox, queryBBox)) continue;
+            for (const c of node.children) {
+                if (!c.bbox || !this._intersects(c.bbox, queryBBox)) continue;
+                if (node.leaf) results.push(c.entity);
+                else stack.push(c);
             }
-            return;
         }
-
-        for (const child of node.children) {
-            this._searchRecursive(child, queryBBox, results);
-        }
+        return results;
     }
 
     _intersects(b1, b2) {
@@ -271,8 +234,8 @@ class BoundaryQCJSSpatialEngine {
             parseTimeMs: parseDurationMs,
             throughputMBs: throughputMBs,
             entitiesIndexed: entities.length,
-            spatialTreeHeight: Math.ceil(Math.log(Math.max(1, entities.length)) / Math.log(9)),
-            splitAlgorithm: "Guttman Quadratic Split (Optimal R-Tree)",
+            spatialTreeHeight: this.spatialIndex.height(),   // measured, not estimated
+            splitAlgorithm: "Guttman quadratic split (recursive R-tree)",
             timestamp: new Date().toISOString()
         };
 

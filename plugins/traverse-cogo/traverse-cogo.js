@@ -29,47 +29,68 @@
     let _lastTraverse = null; // stashed for the Map Check Report export
 
     /**
-     * Convert a quadrant bearing (e.g. quad "NE", 45°12'30") to an azimuth in radians
-     * measured clockwise from north.
+     * Parse a bearing/distance call list into courses. Delegates the bearing to
+     * window.COGO.parseBearing (accepts "N 45-12-30 E", "North 45 degrees ... East",
+     * "N45°12'30\"E", "N45d12m30sE", …), so this tab takes exactly the same formats
+     * as the Legal Description and Linework tools.
+     * @returns {{courses: Array, skipped: Array<{line:number, text:string}>}}
      */
-    function quadrantToAzimuthRad(quad, deg, min, sec) {
-        const angle = deg + min / 60 + sec / 3600; // decimal degrees within the quadrant
-        let azDeg;
-        switch (quad) {
-            case "NE": azDeg = angle; break;
-            case "SE": azDeg = 180 - angle; break;
-            case "SW": azDeg = 180 + angle; break;
-            case "NW": azDeg = 360 - angle; break;
-            default:   azDeg = angle;
-        }
-        return azDeg * Math.PI / 180;
+    function parseCourses(text) {
+        const courses = [];
+        const skipped = [];
+        String(text || "").split(/\r?\n/).forEach((line, i) => {
+            const s = line.trim();
+            if (!s) return;
+            const b = window.COGO.parseBearing(s);
+            const d = s.match(/([\d,]+(?:\.\d+)?)\s*(?:feet|foot|ft|')?\s*$/i);
+            if (!b || !d) { skipped.push({ line: i + 1, text: s }); return; }
+            const dist = parseFloat(d[1].replace(/,/g, ""));
+            const azRad = b.azimuthDeg * Math.PI / 180;
+            courses.push({
+                idx: courses.length + 1, quad: b.quad, deg: b.deg, min: b.min, sec: b.sec,
+                dist, azimuthDeg: b.azimuthDeg, azRad,
+                latitude: dist * Math.cos(azRad),   // +N / -S
+                departure: dist * Math.sin(azRad)    // +E / -W
+            });
+        });
+        return { courses, skipped };
     }
 
-    /** True if segment p1->p2 properly crosses segment p3->p4 (shared endpoints do not count). */
-    function segmentsCross(p1, p2, p3, p4) {
-        const cross = (a, b, c) => (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x);
-        const share = q => (q === p1 || q === p2 || q === p3 || q === p4);
-        if (share(p1) && (p1 === p3 || p1 === p4)) return false;
-        if (share(p2) && (p2 === p3 || p2 === p4)) return false;
-        const d1 = cross(p3, p4, p1), d2 = cross(p3, p4, p2);
-        const d3 = cross(p1, p2, p3), d4 = cross(p1, p2, p4);
-        return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) &&
-               ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
-    }
+    /**
+     * Latitude/departure closure + bow-tie + Shoelace area for a set of courses.
+     * All geometry goes through window.COGO so the traverse tab, linework editor,
+     * and legal-description QC agree to the last decimal.
+     */
+    function computeClosure(courses, passThreshold) {
+        const thr = Number(passThreshold) || PRECISION_PASS_DEFAULT;
+        const sumLat = courses.reduce((s, c) => s + c.latitude, 0);
+        const sumDep = courses.reduce((s, c) => s + c.departure, 0);
+        const perimeter = courses.reduce((s, c) => s + c.dist, 0);
+        const linearMisclosure = Math.hypot(sumLat, sumDep);
+        const precisionDenominator = linearMisclosure > 1e-9 ? perimeter / linearMisclosure : Infinity;
+        const passes = precisionDenominator >= thr;
 
-    /** Detect self-intersection on the closed polygon formed by the traverse vertices. */
-    function polygonSelfIntersects(vertices) {
-        const closed = vertices.concat([vertices[0]]);
-        const n = closed.length - 1; // number of segments (last returns to start)
-        for (let i = 0; i < n; i++) {
-            for (let j = i + 1; j < n; j++) {
-                if (j === i || j === i + 1 || (i === 0 && j === n - 1)) continue; // skip adjacent
-                if (segmentsCross(closed[i], closed[i + 1], closed[j], closed[j + 1])) {
-                    return { i: i + 1, j: j + 1 };
-                }
-            }
-        }
-        return null;
+        // Direction from the computed end of the traverse back to the POB.
+        const misclosureBearing = linearMisclosure > 1e-9
+            ? window.COGO.azimuthToBearing(
+                window.COGO.azimuthDegBetween({ e: 0, n: 0 }, { e: -sumDep, n: -sumLat }))
+            : "—";
+
+        // Walk the courses from an arbitrary origin; the polygon closes back to verts[0].
+        const verts = [{ e: 0, n: 0 }];
+        courses.forEach(c => {
+            const prev = verts[verts.length - 1];
+            verts.push({ e: prev.e + c.departure, n: prev.n + c.latitude });
+        });
+        verts.pop();
+        const bowtie = verts.length >= 3 ? window.COGO.selfIntersects(verts) : null;
+        const areaSqFt = window.COGO.shoelaceArea(verts);
+
+        return {
+            courses, sumLat, sumDep, perimeter, linearMisclosure, precisionDenominator,
+            passThreshold: thr, passes, misclosureBearing, verts, bowtie,
+            areaSqFt, areaAcres: areaSqFt / window.COGO.SQFT_PER_ACRE
+        };
     }
 
     function handleTraverseCalculation() {
@@ -83,77 +104,23 @@
             return;
         }
 
-        const lines = input.split("\n").filter(l => l.trim().length > 0);
-        const courses = [];
-
-        lines.forEach((line, idx) => {
-            const match = line.match(/([NSns])\s*(\d+)[\s°\-\.]+(\d+)?[\s'\-\.]*(\d+(?:\.\d+)?)?\s*([EWew])\s+(\d+\.?\d*)/);
-            if (match) {
-                const quad = `${match[1].toUpperCase()}${match[5].toUpperCase()}`;
-                const deg  = parseInt(match[2], 10);
-                const min  = parseInt(match[3] || 0, 10);
-                const sec  = parseFloat(match[4] || 0);
-                const dist = parseFloat(match[6]);
-                const azRad = quadrantToAzimuthRad(quad, deg, min, sec);
-                courses.push({
-                    idx: idx + 1, quad, deg, min, sec, dist, azRad,
-                    latitude: dist * Math.cos(azRad),   // +N / -S
-                    departure: dist * Math.sin(azRad)    // +E / -W
-                });
-            }
-        });
+        const { courses, skipped } = parseCourses(input);
 
         if (courses.length < 3) {
             window.setSafeHTML(resultsBox, `
                 <div style="color:var(--warning);">
                     <strong><i class="fa-solid fa-triangle-exclamation"></i> Need at least 3 parsable bearing/distance calls to close a polygon.</strong>
                     <p>Format example: <code>N 45-12-30 E 150.00</code></p>
+                    ${skipped.length ? `<p style="font-size:0.8rem;">Skipped ${skipped.length} unparsed line(s): ${skipped.map(s => "L" + s.line).join(", ")}</p>` : ""}
                 </div>`);
             return;
         }
 
-        // Real closure: sum latitudes and departures; the misclosure is the vector back to POB.
-        const sumLat = courses.reduce((s, c) => s + c.latitude, 0);
-        const sumDep = courses.reduce((s, c) => s + c.departure, 0);
-        const perimeter = courses.reduce((s, c) => s + c.dist, 0);
-        const linearMisclosure = Math.hypot(sumLat, sumDep);
-
-        const precisionDenominator = linearMisclosure > 1e-9
-            ? perimeter / linearMisclosure
-            : Infinity;
         const passThreshold = precisionPass();
-        const passes = precisionDenominator >= passThreshold;
-
-        // Bearing of the misclosure course (direction from the computed end back to the POB).
-        let misclosureBearing = "—";
-        if (linearMisclosure > 1e-9) {
-            const ns = -sumLat >= 0 ? "N" : "S";
-            const ew = -sumDep >= 0 ? "E" : "W";
-            const a = Math.abs(Math.atan2(-sumDep, -sumLat) * 180 / Math.PI);
-            const d = Math.floor(a);
-            const m = Math.floor((a - d) * 60);
-            const s = Math.round(((a - d) * 60 - m) * 60);
-            misclosureBearing = `${ns} ${d}°${String(m).padStart(2, "0")}'${String(s).padStart(2, "0")}" ${ew}`;
-        }
-
-        // Walk the courses from an arbitrary origin to build polygon vertices, then test for a bow-tie.
-        const verts = [{ x: 0, y: 0 }];
-        courses.forEach(c => {
-            const prev = verts[verts.length - 1];
-            verts.push({ x: prev.x + c.departure, y: prev.y + c.latitude });
-        });
-        verts.pop(); // last computed point ≈ POB (within misclosure); polygon closes back to verts[0]
-        const bowtie = polygonSelfIntersects(verts);
-
-        // Shoelace area of the plotted polygon (informational — assumes the boundary closes).
-        let areaSqFt = 0;
-        for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-            areaSqFt += (verts[j].x + verts[i].x) * (verts[j].y - verts[i].y);
-        }
-        areaSqFt = Math.abs(areaSqFt / 2);
-        const areaAcres = areaSqFt / 43560;
-
-        _lastTraverse = { courses, sumLat, sumDep, perimeter, linearMisclosure, precisionDenominator, passes, misclosureBearing, verts, bowtie, areaSqFt, areaAcres };
+        const cl = computeClosure(courses, passThreshold);
+        const { sumLat, sumDep, perimeter, linearMisclosure, precisionDenominator, passes,
+            misclosureBearing, bowtie, areaSqFt, areaAcres } = cl;
+        _lastTraverse = cl;
 
         const ratioText = precisionDenominator === Infinity
             ? "exact (0.000 ft misclosure)"
@@ -165,6 +132,7 @@
                     <i class="fa-solid fa-square-check" style="color:var(--success);"></i> Polygon &amp; Traversal Verification Results
                 </h4>
                 <p style="font-size:0.85rem; color:var(--text-secondary);">Parsed ${courses.length} courses | Perimeter: <strong>${perimeter.toFixed(2)} ft</strong> | Shoelace area: <strong>${areaAcres.toFixed(3)} ac</strong> (${areaSqFt.toFixed(0)} sf)</p>
+                ${skipped.length ? `<p style="font-size:0.78rem; color:var(--warning);"><i class="fa-solid fa-triangle-exclamation"></i> Skipped ${skipped.length} unparsed line(s): ${skipped.map(s => "L" + s.line + ' "' + s.text.slice(0, 30) + '"').join("; ")}</p>` : ""}
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.5rem;">
                     <div style="background:var(--bg-surface); padding:0.75rem; border-radius:var(--radius-sm);">
                         <small style="color:var(--text-muted);">Linear Misclosure</small>
@@ -248,7 +216,7 @@
                 L.push("");
                 L.push("[Coordinate File — P,N,E,Z,D]");
                 if (window.COGO) {
-                    L.push(window.COGO.pnezd(t.verts.map(v => ({ e: v.x, n: v.y }))));
+                    L.push(window.COGO.pnezd(t.verts));   // verts are already {e, n}
                 }
                 const report = L.join("\r\n");
                 if (window.COGO) window.COGO.downloadText("traverse_mapcheck.log", report);
@@ -258,4 +226,7 @@
     };
 
     window.PluginRegistry.register(MANIFEST, Plugin);
+
+    // Exposed for console debugging / tests.
+    window.TraverseCogo = { parseCourses, computeClosure };
 })();

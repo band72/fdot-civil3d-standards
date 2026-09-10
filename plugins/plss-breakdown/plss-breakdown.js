@@ -28,9 +28,6 @@
     const SQFT_PER_ACRE = 43560;
     let _last = null;
 
-    // Ideal aliquot acreage by subdivision depth (rule table).
-    const IDEAL_ACRES = { 0: 640, 1: 160, 2: 40, 3: 10, 4: 2.5 };
-
     // ── Parsing ──────────────────────────────────────────────────────────────
 
     function parseHeader(text) {

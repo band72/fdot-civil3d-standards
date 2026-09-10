@@ -127,10 +127,19 @@ document.addEventListener("DOMContentLoaded", () => {
             document.body.appendChild(overlay);
             overlay.querySelector("#_confirm_modal_msg").textContent = message;
 
-            const finish = (val) => { overlay.remove(); resolve(val); };
+            // Escape closes the modal. The overlay isn't focusable, so listen on the
+            // document and detach the handler when the modal goes away.
+            const onKey = (e) => { if (e.key === "Escape") finish(false); };
+            const finish = (val) => {
+                document.removeEventListener("keydown", onKey);
+                overlay.remove();
+                resolve(val);
+            };
+            document.addEventListener("keydown", onKey);
             overlay.querySelector("#_confirm_modal_ok").addEventListener("click", () => finish(true));
             overlay.querySelector("#_confirm_modal_cancel").addEventListener("click", () => finish(false));
-            overlay.addEventListener("keydown", e => { if (e.key === "Escape") finish(false); });
+            overlay.addEventListener("click", e => { if (e.target === overlay) finish(false); });  // click backdrop = cancel
+            overlay.querySelector("#_confirm_modal_cancel").focus();
         });
     }
 
@@ -155,10 +164,16 @@ document.addEventListener("DOMContentLoaded", () => {
         overlay.querySelector("#_copy_modal_title").textContent = title;
         overlay.querySelector("#_copy_modal_value").value = value;
 
+        const onKey = (e) => { if (e.key === "Escape") close(); };
+        const close = () => { document.removeEventListener("keydown", onKey); overlay.remove(); };
+        document.addEventListener("keydown", onKey);
+
         overlay.querySelector("#_copy_modal_copy").addEventListener("click", () => {
             navigator.clipboard.writeText(value).then(() => showToast("Copied to clipboard!")).catch(() => {});
         });
-        overlay.querySelector("#_copy_modal_close").addEventListener("click", () => overlay.remove());
+        overlay.querySelector("#_copy_modal_close").addEventListener("click", close);
+        overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+        overlay.querySelector("#_copy_modal_close").focus();
     }
 
     // ── Core Standard Kit Catalog Renderers ───────────────────────────────────
