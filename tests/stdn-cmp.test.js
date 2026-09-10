@@ -50,6 +50,21 @@ module.exports = function (t, env) {
     const refChk = E.checkStandards(refModel, standard);
     t.notOk(refChk.violations.find(v => v.code === "LAYER_COLOR_MISMATCH" && v.layer === "WALLS"), "clean reference conforms on WALLS colour");
 
+    // fdot-2026 built-in (derived from window.FDOT_DATA) — reproduces the retired
+    // Template Compare tab's FDOT layer-table diff
+    const fdotStd = E.defaultResolveBuiltInStandard("fdot-2026");
+    t.gt(fdotStd.layers.length, 30, "fdot-2026 standard carries the full FDOT layer set");
+    t.ok(fdotStd.layers.every(l => l.required), "…every FDOT layer is required");
+    t.eq(fdotStd.colorPolicy, "byLayer", "…ByLayer colour policy");
+    const fdotDrawing = E.parseDxf(
+        "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n" +
+        "0\nLAYER\n2\nROAD_EOP_PR\n62\n3\n6\nCONTINUOUS\n" +   // present but wrong colour (std says 7)
+        "0\nLAYER\n2\nmy_scratch\n62\n1\n6\nCONTINUOUS\n" +      // not an FDOT layer
+        "0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF");
+    const fdotV = E.checkStandards(fdotDrawing, fdotStd).violations.map(v => v.code);
+    t.ok(fdotV.includes("MISSING_REQUIRED_LAYER"), "fdot-2026: flags FDOT layers the drawing lacks");
+    t.ok(fdotV.includes("LAYER_COLOR_MISMATCH"), "fdot-2026: flags a wrong ACI on ROAD_EOP_PR");
+
     // a rule with both `lineweight` (exact) and `lineweightMax` (ceiling) must
     // not double-report one bad value — the exact rule wins, the ceiling is skipped
     const lwStd = { layers: [{ name: "X", lineweight: 25, lineweightMax: 10 }] };
@@ -306,10 +321,12 @@ module.exports = function (t, env) {
         const controls = H("stdn-controls");
         t.match(controls, /Run comparison/, "renderControls: Check-mode run button");
         t.match(controls, /Drawing to check/, "renderControls: target file slot");
-        t.match(controls, /Example Company Drafting Standard/, "renderControls: built-in standard option");
+        t.match(controls, /FDOT 2026 Layer Standard/, "renderControls: FDOT 2026 built-in option");
+        t.match(controls, /Example Company Drafting Standard/, "renderControls: example built-in option");
 
-        // Check run
+        // Check run — the bundled samples are architectural, so pin the example standard
         SC.state.mode = "check";
+        SC.state.standardId = "example-standard";
         SC.state.files = {
             target: { name: "target.dxf", text: S.target },
             reference: { name: "reference.dxf", text: S.reference },

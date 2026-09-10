@@ -57,24 +57,20 @@
                 </table>`
         },
         {
-            id: "template-cmp",
-            title: "3.1  Start page — Template Compare",
+            id: "stdn-compare",
+            title: "3.1  Start page — Standards Compare + Heal",
             html: `
-                <p><em>Purpose:</em> compare a drawing against a <strong>standards template</strong> — a DXF whose LAYER table <em>is</em> the standard. Unlike the DXF Project Auditor (which checks against the built-in FDOT 2026 rules), this checks against whatever template you pick, so a firm can enforce its own layer standard.</p>
-                <h4>Pick a template</h4>
+                <p><em>Purpose:</em> check a drawing against a drafting standard, diff its geometry against a reference drawing, and auto-correct the deficiencies that are safe to fix. Runs entirely in the browser — nothing is uploaded. (This replaces the older layer-table-only "Template Compare".)</p>
+                <h4>Check mode</h4>
+                <p>Drop the <strong>drawing to check</strong>, then supply one or more of:</p>
                 <ul>
-                    <li><strong>Upload a template</strong> — an ASCII DXF (a company <code>.dwt</code> saved as DXF works well). Its layer table is parsed and saved in the browser; templates over 4 MB are rejected (trim to the layer table).</li>
-                    <li><strong>Select a template</strong> — the dropdown lists <em>FDOT 2026 Standard (built-in)</em> plus every template you've uploaded. The chosen one is the active standard until you change it.</li>
+                    <li><strong>A standard</strong> — the built-in <em>FDOT 2026 Layer Standard</em>, another built-in, or your own uploaded <code>.json</code> spec (layers, colours, linetypes, naming regex, required/prohibited layers, text-style whitelist, units, ByLayer policy). Pick <em>(none)</em> for a geometry-only diff.</li>
+                    <li><strong>A master template DXF</strong> — its LAYER / LTYPE / STYLE tables and BLOCKS <em>become</em> the rules; merged on top of the JSON standard if you supply both.</li>
+                    <li><strong>A reference drawing DXF</strong> — a drawing with real design content to tolerance-diff the geometry against (added / removed / modified entities, with a pan/zoom SVG overlay: gray = unchanged, blue = added, red = removed, orange = modified).</li>
                 </ul>
-                <h4>Compare a drawing</h4>
-                <p>Drop a project DXF (or use a bundled sample). The report shows, against the active template:</p>
-                <ul>
-                    <li><strong>Missing</strong> — layers in the standard the drawing doesn't have.</li>
-                    <li><strong>Not in the standard</strong> — layers the drawing has that the template doesn't.</li>
-                    <li><strong>Property mismatches</strong> — layers in both whose colour (ACI), linetype, or lineweight differ. Tick <em>also compare Plot flag</em> to include plot/no-plot.</li>
-                    <li><strong>Entity placement</strong> — entities on Layer 0, DEFPOINTS, or any layer not in the standard.</li>
-                    <li>A <strong>score</strong> (100 minus weighted deductions) and two exports: a text <strong>diff report</strong>, and a <strong>conform <code>.scr</code></strong> that creates the missing layers and recolours the mismatched ones to the standard (non-standard layers are listed, not auto-deleted — review it first).</li>
-                </ul>`
+                <p>The result shows a pass/fail verdict, a severity-filtered <strong>violations</strong> table, a geometry <strong>diff</strong> breakdown, and a downloadable <strong>HTML</strong> or <strong>Markdown</strong> report.</p>
+                <h4>Self-heal mode</h4>
+                <p>Give a <strong>target</strong> + a <strong>master template</strong>. The tool auto-fixes what's safe — wrong layer colours / linetypes / lineweights, missing layers / linetypes / styles copied from the master, stray entity colour overrides reverted to ByLayer — and hands back a corrected <code>.dxf</code>. Renames, prohibited-layer removal, unit changes and (opt-in) missing blocks are listed for manual review, never guessed. ByBlock colour (code 0) is left untouched — it's a legitimate mode, not an error.</p>`
         },
         {
             id: "dxf-auditor",

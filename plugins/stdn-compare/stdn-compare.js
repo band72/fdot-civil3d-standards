@@ -50,7 +50,7 @@
     const state = {
         mode: "check",              // "check" | "heal"
         files: { target: null, reference: null, master: null, standard: null }, // { name, text }
-        standardId: "example-standard",
+        standardId: "fdot-2026",       // this is the FDOT app's landing tab — default to the FDOT layer standard
         useCustomStandard: false,
         healBlocks: false,
         lastReport: null,           // { source:"compare", data }
@@ -446,6 +446,7 @@
                     state.files.reference = { name: "reference.dxf", text: SAMPLES.reference };
                     state.files.master = { name: "master.dxf", text: SAMPLES.master };
                     state.files.standard = null; state.useCustomStandard = false;
+                    state.standardId = "example-standard";   // the samples are architectural (WALLS/DIMS), not FDOT layers
                     renderControls(); ctx.showToast("Loaded the check sample (target + reference + master).");
                     return;
                 }

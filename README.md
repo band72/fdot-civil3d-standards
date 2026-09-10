@@ -68,9 +68,8 @@ and exposes the site globals; `tests/README.md` maps each suite.
 
 | Plugin | Tab | Does |
 |---|---|---|
-| `template-cmp` | Start · Template Compare | Diff a drawing's layer table against a standards-template DXF (missing / non-standard / mismatched layers) + conform `.scr`. |
+| `stdn-compare` | **Start** · Standards Compare + Heal | The landing tab. Check a DXF against the built-in **FDOT 2026 layer standard**, an uploaded JSON standard, and/or a master-template DXF (its LAYER/LTYPE/STYLE tables + BLOCKS); tolerance geometry diff vs. a reference drawing with a pan/zoom SVG overlay; safe **self-healing** to a corrected `.dxf`; HTML / Markdown reports. Ported from the `standardcompare-plugin` project (server half dropped). Supersedes the old layer-table-only "Template Compare". |
 | `dxf-auditor` | DXF Project Auditor | Parse an FDOT DXF, score CADD-standards compliance, flag geometry errors (bow-tie, zero-length, out-of-envelope), export an auto-fix `.scr`; canvas renderer + spatial-index telemetry. |
-| `stdn-compare` | Standards Compare + Heal | Refined DXF comparer ported from the `standardcompare-plugin` project: JSON-standard + master-template checks, tolerance geometry diff with an SVG overlay, and safe **self-healing** to a corrected `.dxf`. |
 | `layer-stds` | Layer Standards / Pay Items / Survey Keys | Filterable reference tables. |
 | `sign-qto` | Sign Assemblies & QTO | Sign catalog + MUTCD surface-area → pay-item solver. |
 | `ssa-hydro` | SSA Hydrology & IDF | Rational Method `Q = CiA` from the 11 IDF zones + exfiltration-trench sizer. |

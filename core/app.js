@@ -10,7 +10,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     // ── Application State ─────────────────────────────────────────────────────
     const state = {
-        activeTab: "tab-start",
+        activeTab: "tab-stdn-compare",
         selectedDiscipline: "ALL",
         plotFilter: "ALL",
         searchQuery: "",
@@ -21,9 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Per-tab header text. [title, subtitle]
     const PAGE_TITLES = {
-        "tab-start":          ["Start — Template Compare", "Pick or upload a standards-template DXF, then drop a drawing to diff its layer table against the template (missing / non-standard / mismatched layers)."],
         "tab-dxf-inspector":  ["DXF Project Auditor", "Upload an FDOT project DXF to score CADD-standards compliance, flag geometry errors, and export an auto-fix script."],
-        "tab-stdn-compare":   ["Standards Compare + Heal", "Check a DXF against a JSON standard and/or a master-template DXF, tolerance-diff its geometry against a reference drawing, and self-heal the safe-to-fix deficiencies into a corrected .dxf. Ported from the standardcompare-plugin project; runs client-side."],
+        "tab-stdn-compare":   ["Start — Standards Compare + Heal", "Check a DXF against the built-in FDOT 2026 layer standard, an uploaded JSON standard, and/or a master-template DXF; tolerance-diff its geometry against a reference drawing; and self-heal the safe-to-fix deficiencies into a corrected .dxf. Runs entirely client-side."],
         "tab-layers":         ["FDOT 2026 Layer Standards", "Browse the discipline layer list with color, linetype, lineweight, and plot status. Filter by discipline or plot status; copy names."],
         "tab-signs":          ["Sign Assemblies & QTO", "FDOT sign assembly catalog and a MUTCD surface-area calculator that resolves the pay item from sign width x height."],
         "tab-ssa":            ["SSA Hydrology & IDF Zones", "Rational Method peak discharge (Q = CiA) from the 11 FDOT IDF zones, and a Drainage Manual Ch. 7 exfiltration trench sizer."],

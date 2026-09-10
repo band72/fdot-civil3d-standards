@@ -1423,8 +1423,32 @@
         });
     }
 
+    /**
+     * The FDOT 2026 layer standard, derived from window.FDOT_DATA — every layer
+     * name → colour (ACI) + linetype + exact lineweight (1/100 mm), all
+     * required, ByLayer colour policy. This is the built-in the retired
+     * "Template Compare" tab checked against; picking it here reproduces that
+     * layer-table diff (plus everything else this engine does).
+     */
+    function fdot2026Standard() {
+        const src = (typeof window !== "undefined" && window.FDOT_DATA && window.FDOT_DATA.layers) || [];
+        return {
+            name: "FDOT 2026 Layer Standard (built-in)",
+            source: "fdot-data",
+            layers: src.map(l => ({
+                name: l.name,
+                color: typeof l.color === "number" ? l.color : undefined,
+                linetype: l.linetype || undefined,
+                lineweight: Number.isFinite(parseFloat(l.lineweight)) ? Math.round(parseFloat(l.lineweight) * 100) : undefined,
+                required: true,
+            })),
+            colorPolicy: "byLayer",
+        };
+    }
+
     /** Built-in JSON standards (was a filesystem directory server-side). */
     const BUILTIN_STANDARDS = {
+        "fdot-2026": fdot2026Standard(),
         "example-standard": {
             name: "Example Company Drafting Standard",
             version: "1.0",
