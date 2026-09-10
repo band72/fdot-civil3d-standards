@@ -1,4 +1,12 @@
-/* FDOT Civil3D Standards Project Master Dataset (Expanded 10-Agent Consensus) */
+/* FDOT Civil3D Standards Project Master Dataset
+ *
+ * ⚠  ILLUSTRATIVE / UNVERIFIED reference data. Layer colours & linetypes, the
+ *    11 IDF-zone a/b/c coefficients, Manning's n values, pay-item mappings, and
+ *    sign→pay-item resolution below were hand/LLM-authored for the demo and have
+ *    NOT been checked against a current FDOT CADD Manual, Basis of Estimates, or
+ *    Drainage Manual. Do not use these numbers for production design — confirm
+ *    every value against the authoritative FDOT source first.
+ */
 
 const FDOT_DATA = {
     disciplines: [

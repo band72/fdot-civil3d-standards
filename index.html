@@ -337,6 +337,7 @@
                     <div class="glass-panel qc-calculator-card">
                         <h2><i class="fa-solid fa-calculator"></i> Sign Assembly Surface Area & Pay Item Solver</h2>
                         <p class="subtitle">Calculates cumulative SF area and resolves Single Post (0700-1-11..13) vs Multi-Post (0700-1-14..16) vs Overhead.</p>
+                        <p style="font-size:0.75rem; color:var(--warning); margin:0.4rem 0 0;"><i class="fa-solid fa-triangle-exclamation"></i> Reference values (pay-item mappings, size thresholds) are illustrative and unverified — confirm against the current FDOT Basis of Estimates before use.</p>
                         <div class="form-group">
                             <label>Sign Width (Inches):</label>
                             <input type="number" id="sign-width" value="36" style="padding:0.5rem; background:var(--bg-surface); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
@@ -355,6 +356,7 @@
                     <div class="glass-panel qc-checklist-card">
                         <h2><i class="fa-solid fa-cloud-showers-heavy"></i> FDOT 11 IDF Zones Hydrology Solver</h2>
                         <p class="subtitle">Rational Method Peak Flow Q=C*I*A for Florida FDOT Zones 1 through 11.</p>
+                        <p style="font-size:0.75rem; color:var(--warning); margin:0.4rem 0 0;"><i class="fa-solid fa-triangle-exclamation"></i> The IDF-curve coefficients (a / b / c per zone) and runoff-coefficient defaults are illustrative and unverified — use the current FDOT Drainage Manual / IDF data for design.</p>
                         <div class="form-group">
                             <label>Select FDOT Rainfall Zone (1-11):</label>
                             <select id="select-idf-zone" class="custom-select" style="width:100%;">

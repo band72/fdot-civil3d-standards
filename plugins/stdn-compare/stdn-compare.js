@@ -268,11 +268,52 @@
         try {
             const doc = new DOMParser().parseFromString(svgString, "image/svg+xml");
             const svg = doc.documentElement;
-            if (svg && svg.nodeName.toLowerCase() === "svg") {
-                svg.setAttribute("style", "width:100%; height:auto; max-height:440px; display:block;");
-                container.replaceChildren(svg);
-            }
+            if (!svg || svg.nodeName.toLowerCase() !== "svg") return;
+            svg.setAttribute("style", "width:100%; height:auto; max-height:440px; display:block; cursor:grab; touch-action:none;");
+            container.replaceChildren(svg);
+            wireOverlayPanZoom(svg, container);
         } catch (e) { /* overlay is optional */ }
+    }
+
+    /** Wheel-zoom (about the cursor), drag-pan, double-click-to-reset on the diff SVG. */
+    function wireOverlayPanZoom(svg, container) {
+        const parts = (svg.getAttribute("viewBox") || "0 0 100 100").trim().split(/[\s,]+/).map(Number);
+        if (parts.length !== 4 || parts.some(n => !Number.isFinite(n))) return;
+        const home = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+        const vb = { ...home };
+        const apply = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
+        svg.addEventListener("wheel", e => {
+            e.preventDefault();
+            const r = svg.getBoundingClientRect();
+            const fx = (e.clientX - r.left) / (r.width || 1);
+            const fy = (e.clientY - r.top) / (r.height || 1);
+            const k = e.deltaY < 0 ? 0.85 : 1.18;                    // in / out
+            const nw = Math.min(home.w * 40, Math.max(home.w / 200, vb.w * k));
+            const nh = nw * (vb.h / vb.w);
+            vb.x += (vb.w - nw) * fx;
+            vb.y += (vb.h - nh) * fy;
+            vb.w = nw; vb.h = nh;
+            apply();
+        }, { passive: false });
+
+        let drag = null;
+        svg.addEventListener("pointerdown", e => {
+            drag = { cx: e.clientX, cy: e.clientY, x: vb.x, y: vb.y };
+            svg.style.cursor = "grabbing";
+            try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+        });
+        svg.addEventListener("pointermove", e => {
+            if (!drag) return;
+            const r = svg.getBoundingClientRect();
+            vb.x = drag.x - (e.clientX - drag.cx) * (vb.w / (r.width || 1));
+            vb.y = drag.y - (e.clientY - drag.cy) * (vb.h / (r.height || 1));
+            apply();
+        });
+        const end = e => { drag = null; svg.style.cursor = "grab"; try { svg.releasePointerCapture(e.pointerId); } catch (x) {} };
+        svg.addEventListener("pointerup", end);
+        svg.addEventListener("pointercancel", end);
+        svg.addEventListener("dblclick", e => { e.preventDefault(); Object.assign(vb, home); apply(); });
     }
 
     function renderResults(ctx) {
@@ -290,6 +331,7 @@
                 <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2E7BE0;"></span> added</span>
                 <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#D0342C;"></span> removed</span>
                 <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#E08A00;"></span> modified</span>
+                <span style="margin-left:auto; opacity:0.8;">scroll to zoom · drag to pan · double-click to reset</span>
               </div>`;
 
             window.setSafeHTML(box, `
