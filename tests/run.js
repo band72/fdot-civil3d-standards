@@ -16,7 +16,7 @@ const SUITES = ["cogo", "data", "dxf", "linework", "stdn-cmp", "auth", "geo"];
     t.group("env/load");
     t.eq(loadRes.errors.length, 0, "all source files eval without error" +
         (loadRes.errors.length ? " — " + loadRes.errors.join("; ") : ""));
-    t.eq(loadRes.loaded.length, 20, "20 source files loaded");
+    t.eq(loadRes.loaded.length, 21, "21 source files loaded");
     ["COGO", "FDOT_DATA", "FDOTDXFInspector", "PluginRegistry", "BoundaryQCSecurity",
         "BoundaryQCBilling", "BoundaryQCCMS", "Linework", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows"]
         .forEach(g => t.ok(typeof loadRes.win[g] !== "undefined", "global " + g + " present"));

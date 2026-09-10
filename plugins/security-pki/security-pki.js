@@ -64,20 +64,20 @@ class BoundaryQCSecurityEngine {
         const msgLen = data.length;
         const bitLen = msgLen * 8;
 
-        // Pad the message
-        const padded = [];
-        for (let i = 0; i < msgLen; i++) padded.push(data[i]);
-        padded.push(0x80);
-        while ((padded.length % 64) !== 56) padded.push(0x00);
+        // Total length must be a multiple of 64 bytes (512 bits) with room for 1 byte (0x80) + 8 bytes (bit length)
+        const totalLen = Math.ceil((msgLen + 9) / 64) * 64;
+        const padded = new Uint8Array(totalLen);
+        padded.set(data);
+        padded[msgLen] = 0x80;
 
         // Append original length as 64-bit big-endian
         for (let i = 7; i >= 0; i--) {
-            padded.push((bitLen / Math.pow(2, i * 8)) & 0xff);
+            padded[totalLen - 1 - i] = (bitLen / Math.pow(2, i * 8)) & 0xff;
         }
 
         // Process each 512-bit (64-byte) chunk
-        for (let chunkStart = 0; chunkStart < padded.length; chunkStart += 64) {
-            const w = new Array(64);
+        for (let chunkStart = 0; chunkStart < totalLen; chunkStart += 64) {
+            const w = new Uint32Array(64);
             for (let i = 0; i < 16; i++) {
                 w[i] = ((padded[chunkStart + i * 4] << 24) |
                          (padded[chunkStart + i * 4 + 1] << 16) |

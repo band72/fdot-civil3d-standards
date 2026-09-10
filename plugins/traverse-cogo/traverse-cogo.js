@@ -76,19 +76,23 @@
                 window.COGO.azimuthDegBetween({ e: 0, n: 0 }, { e: -sumDep, n: -sumLat }))
             : "—";
 
-        // Walk the courses from an arbitrary origin; the polygon closes back to verts[0].
-        const verts = [{ e: 0, n: 0 }];
+        // Walk the courses from an arbitrary origin
+        const trace = [{ e: 0, n: 0 }];
         courses.forEach(c => {
-            const prev = verts[verts.length - 1];
-            verts.push({ e: prev.e + c.departure, n: prev.n + c.latitude });
+            const prev = trace[trace.length - 1];
+            trace.push({ e: prev.e + c.departure, n: prev.n + c.latitude });
         });
-        verts.pop();
+        // If the traverse closes back to the start, the last trace point duplicates the origin;
+        // polygon corners (and PNEZD export) omit that duplicate closing copy.
+        // For an open traverse that does not return to origin, retain all stations.
+        const closes = courses.length >= 3 && (linearMisclosure <= 1e-4 || (linearMisclosure / (perimeter || 1)) < 0.05);
+        const verts = closes ? trace.slice(0, -1) : trace;
         const bowtie = verts.length >= 3 ? window.COGO.selfIntersects(verts) : null;
-        const areaSqFt = window.COGO.shoelaceArea(verts);
+        const areaSqFt = closes && verts.length >= 3 ? window.COGO.shoelaceArea(verts) : 0;
 
         return {
             courses, sumLat, sumDep, perimeter, linearMisclosure, precisionDenominator,
-            passThreshold: thr, passes, misclosureBearing, verts, bowtie,
+            passThreshold: thr, passes, misclosureBearing, verts, bowtie, closes,
             areaSqFt, areaAcres: areaSqFt / window.COGO.SQFT_PER_ACRE
         };
     }

@@ -116,6 +116,19 @@ module.exports = function (t, env) {
     t.eq(gres.summary.unchanged, 2985, "the rest unchanged");
     t.eq(gres.summary.added + gres.summary.removed, 0, "nothing added/removed");
 
+    // POLYLINE entity diff
+    const polyRef = {
+        entities: [{ type: "POLYLINE", layer: "WALLS", vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], closed: false, handle: "p1" }],
+        entityCounts: { POLYLINE: 1 }, layers: {}, linetypes: {}, styles: {}, blocks: {}, units: "mm", header: {}
+    };
+    const polyTgt = {
+        entities: [{ type: "POLYLINE", layer: "WALLS", vertices: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 15 }], closed: false, handle: "p1" }],
+        entityCounts: { POLYLINE: 1 }, layers: {}, linetypes: {}, styles: {}, blocks: {}, units: "mm", header: {}
+    };
+    const polyDiff = E.diffGeometry(polyRef, polyTgt);
+    t.eq(polyDiff.summary.modified, 1, "POLYLINE vertex change detected as modified");
+    t.eq(polyDiff.modified[0].changes[0].field, "points[2].y", "detected changed vertex coordinate");
+
     // ── svgOverlay ──────────────────────────────────────────────
     t.group("stdn/svgOverlay");
     const svg = E.buildSvgOverlay(refModel, tgtModel, diff);
@@ -132,6 +145,9 @@ module.exports = function (t, env) {
     const vb = arcSvg.match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/);
     t.lt(parseFloat(vb[3]), 14, "ARC viewBox width ≈ tight arc extent (10 + pad), not the ~22 full-circle bbox");
     t.lt(parseFloat(vb[4]), 14, "ARC viewBox height ≈ tight arc extent");
+    // POLYLINE renders into SVG overlay
+    const polySvg = E.buildSvgOverlay(polyRef, polyTgt, polyDiff);
+    t.match(polySvg, /<polyline class="modified" points="0,0 10,0 10,-15"/, "POLYLINE renders points into svg overlay");
 
     // ── standardFromDxf + dxfMender (self-heal) ─────────────────
     t.group("stdn/self-heal");

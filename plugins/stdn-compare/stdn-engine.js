@@ -559,12 +559,15 @@
             case "MTEXT":
             case "INSERT": return { x: e.x, y: e.y };
             case "LWPOLYLINE":
-                if (e.points && e.points.length > 0) {
-                    const sx = e.points.reduce((s, p) => s + p.x, 0) / e.points.length;
-                    const sy = e.points.reduce((s, p) => s + p.y, 0) / e.points.length;
+            case "POLYLINE": {
+                const pts = e.points || e.vertices || [];
+                if (pts.length > 0) {
+                    const sx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+                    const sy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
                     return { x: sx, y: sy };
                 }
                 return { x: 0, y: 0 };
+            }
             default: return { x: 0, y: 0 };
         }
     }
@@ -605,14 +608,17 @@
                 checkNum("height", a.height, b.height, t.textHeight, "Text Height");
                 if ((a.text || "") !== (b.text || "")) diffs.push({ field: "text", label: "Text", from: a.text, to: b.text });
                 break;
-            case "LWPOLYLINE": {
-                const na = (a.points || []).length, nb = (b.points || []).length;
+            case "LWPOLYLINE":
+            case "POLYLINE": {
+                const pa = a.points || a.vertices || [];
+                const pb = b.points || b.vertices || [];
+                const na = pa.length, nb = pb.length;
                 if (na !== nb) {
                     diffs.push({ field: "vertexCount", label: "Vertex Count", from: na, to: nb });
                 } else {
                     for (let i = 0; i < na; i++) {
-                        checkNum(`points[${i}].x`, a.points[i].x, b.points[i].x, t.position, `Vertex ${i + 1} X`);
-                        checkNum(`points[${i}].y`, a.points[i].y, b.points[i].y, t.position, `Vertex ${i + 1} Y`);
+                        checkNum(`points[${i}].x`, pa[i].x, pb[i].x, t.position, `Vertex ${i + 1} X`);
+                        checkNum(`points[${i}].y`, pa[i].y, pb[i].y, t.position, `Vertex ${i + 1} Y`);
                     }
                 }
                 if (!!a.closed !== !!b.closed) diffs.push({ field: "closed", label: "Closed", from: !!a.closed, to: !!b.closed });
@@ -1242,7 +1248,10 @@
                 }
                 break;
             }
-            case "LWPOLYLINE": for (const p of entity.points || []) pts.push([p.x, p.y]); break;
+            case "LWPOLYLINE":
+            case "POLYLINE":
+                for (const p of entity.points || entity.vertices || []) pts.push([p.x, p.y]);
+                break;
             case "TEXT":
             case "MTEXT":
             case "INSERT": pts.push([entity.x, entity.y]); break;
@@ -1288,8 +1297,10 @@
                 const largeArc = sweepDeg > 180 ? 1 : 0;
                 return `<path class="${cls}" d="M ${sx} ${-sy} A ${r} ${r} 0 ${largeArc} 0 ${ex} ${-ey}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"${dash} />`;
             }
-            case "LWPOLYLINE": {
-                const pts = (entity.points || []).map(p => `${p.x},${-p.y}`).join(" ");
+            case "LWPOLYLINE":
+            case "POLYLINE": {
+                const raw = entity.points || entity.vertices || [];
+                const pts = raw.map(p => `${p.x},${-p.y}`).join(" ");
                 const tag = entity.closed ? "polygon" : "polyline";
                 return `<${tag} class="${cls}" points="${pts}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"${dash} />`;
             }

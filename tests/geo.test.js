@@ -65,6 +65,7 @@ module.exports = async function (t, env) {
     const PR = W.PluginRegistry;
     t.ok(PR.getAll().length >= 12, "site registered its plugins");
     t.ok(PR.get("linework"), "linework plugin registered");
+    t.ok(PR.get("help"), "help plugin registered");
     t.notOk(PR.register({ name: "waaaaaaaaaaaaaaaaay-too-long", version: "1" }, {}), "name > 15 chars rejected");
     t.notOk(PR.register({ name: "cms-engine", version: "1" }, {}), "duplicate name rejected");
     // synthetic dependency ordering
@@ -194,4 +195,6 @@ module.exports = async function (t, env) {
     t.close(openC.linearMisclosure, Math.hypot(100, 100), 1e-6, "open traverse misclosure = gap to POB");
     t.notOk(openC.passes, "open traverse fails the closure gate");
     t.eq(TCG.computeClosure(openTrav.courses, 1).passes, true, "a looser threshold lets it pass");
+    t.eq(openC.verts.length, 3, "open traverse retains all 3 stations without truncation");
+    t.eq(openC.areaSqFt, 0, "open traverse area is 0 (not a closed polygon)");
 };

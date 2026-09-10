@@ -48,7 +48,7 @@ namespace BoundaryQC.Civil3DPlugin
 #if !STANDALONE_UNIT_TEST
             var doc = Application.DocumentManager.MdiActiveDocument;
             doc?.Editor.WriteMessage("\n=======================================================");
-            doc?.Editor.WriteMessage("\n[BoundaryQC] Initializing Enterprise Civil 3D Plugin v2.5.0");
+            doc?.Editor.WriteMessage("\n[BoundaryQC] Initializing Enterprise Civil 3D Plugin v2.6.0");
             doc?.Editor.WriteMessage($"\n[BoundaryQC] Runtime: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
             doc?.Editor.WriteMessage("\n[BoundaryQC] Standards: FDOT CADD Manual Topic No. 625-050-001");
             doc?.Editor.WriteMessage("\n=======================================================\n");

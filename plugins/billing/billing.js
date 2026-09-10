@@ -250,6 +250,11 @@ if (window.PluginRegistry) {
                 ctx.showToast("🎉 14-Day Free Trial Activated! Thank you for subscribing to BoundaryQC Commercial Suite.");
             };
 
+            document.getElementById("form-stripe-demo")?.addEventListener("submit", (e) => {
+                e.preventDefault();
+                window.simCheckout();
+            });
+
             // Mint Civil 3D License Token using real async ECDSA JWT
             document.getElementById("btn-mint-c3d-jwt")?.addEventListener("click", async () => {
                 const user = window.BoundaryQCCMS ? window.BoundaryQCCMS.getCurrentUser() : null;
