@@ -401,6 +401,9 @@ class FDOTDXFInspector {
     }
 
     linesIntersect(p1, p2, p3, p4) {
+        // Orientation-sign epsilon. Kept in step with core/cogo.js's selfIntersects
+        // so the DXF auditor and the COGO tools agree on what counts as a crossing.
+        const EPS = 1e-9;
         function crossProduct(A, B, C) {
             return (C.y - A.y) * (B.x - A.x) - (B.y - A.y) * (C.x - A.x);
         }
@@ -409,8 +412,8 @@ class FDOTDXFInspector {
         const cp3 = crossProduct(p3, p4, p1);
         const cp4 = crossProduct(p3, p4, p2);
 
-        if (((cp1 > 1e-7 && cp2 < -1e-7) || (cp1 < -1e-7 && cp2 > 1e-7)) &&
-            ((cp3 > 1e-7 && cp4 < -1e-7) || (cp3 < -1e-7 && cp4 > 1e-7))) {
+        if (((cp1 > EPS && cp2 < -EPS) || (cp1 < -EPS && cp2 > EPS)) &&
+            ((cp3 > EPS && cp4 < -EPS) || (cp3 < -EPS && cp4 > EPS))) {
             return true;
         }
         return false;

@@ -816,21 +816,38 @@
     function splitLines(text) { return text.split(/\r\n|\r|\n/); }
 
     /**
-     * The line-indexed editor assumes strictly alternating group-code / value
-     * lines with no blank lines (true for anything exported by AutoCAD,
-     * BricsCAD, ODA, ezdxf, …). On looser input the `+= 2` walk desyncs and a
-     * "surgical" edit silently corrupts the file — so reject it up front with a
-     * clear message instead. (The read-only Check path uses the resilient
-     * `parseDxf` tokenizer and tolerates far more.)
+     * Drop stray blank lines so the line-indexed editor's `+= 2` walk stays in
+     * phase. A blank line where a group *code* is expected is stray formatting
+     * (hand-edited / concatenated DXF) and is removed; a blank where a *value*
+     * is expected is a legitimate empty value (an empty TEXT string, etc.) and
+     * is kept. DXF blank lines carry no meaning, so the result is byte-identical
+     * for a clean export and semantically identical for a messy one.
+     * @returns {string[]} the compacted, strictly-alternating line array
+     */
+    function normalizeDxfLines(rawLines) {
+        const out = [];
+        let expectCode = true;
+        for (const ln of rawLines) {
+            if (expectCode && ln.trim() === "") continue;   // stray blank before a code
+            out.push(ln);
+            expectCode = !expectCode;
+        }
+        return out;
+    }
+
+    /**
+     * After blank-line normalisation, every even index must be a group-code
+     * line. If it isn't, the file is genuinely malformed (not just messy) and a
+     * "surgical" edit would corrupt it — so fail loudly instead. (The read-only
+     * Check path uses the resilient `parseDxf` tokenizer and tolerates more.)
      */
     function assertStrictDxf(lines) {
-        // A single trailing blank line (from a file-final newline) is fine.
         const n = (lines.length > 0 && lines[lines.length - 1].trim() === "") ? lines.length - 1 : lines.length;
         for (let i = 0; i < n; i += 2) {
             const codeTok = lines[i] === undefined ? "" : lines[i].trim();
             if (!/^-?\d{1,4}$/.test(codeTok)) {
                 throw new CompareError(400,
-                    `Self-heal needs a well-formed ASCII DXF — strictly alternating group-code / value lines, no blank lines. ` +
+                    `Self-heal needs a well-formed ASCII DXF — alternating group-code / value lines. ` +
                     `Line ${i + 1} reads "${codeTok.slice(0, 40)}", which is not a group code. Re-export the drawing from your CAD application and try again.`);
             }
         }
@@ -942,7 +959,7 @@
 
     class DxfDocument {
         constructor(text) {
-            this.lines = splitLines(text);
+            this.lines = normalizeDxfLines(splitLines(text));
             assertStrictDxf(this.lines);
             this.index = indexDocument(this.lines);
         }
@@ -1206,10 +1223,25 @@
         switch (entity.type) {
             case "LINE": pts.push([entity.x1, entity.y1], [entity.x2, entity.y2]); break;
             case "CIRCLE":
-            case "ARC":
                 pts.push([entity.cx - entity.radius, entity.cy - entity.radius]);
                 pts.push([entity.cx + entity.radius, entity.cy + entity.radius]);
                 break;
+            case "ARC": {
+                // Tight extent: the two endpoints plus whichever cardinal
+                // directions (0/90/180/270°) the sweep actually passes through —
+                // not the full cx±r circle bbox.
+                const r = entity.radius || 0;
+                const s = entity.startAngle || 0;
+                const e = entity.endAngle || 0;
+                let sweep = ((e - s) % 360 + 360) % 360;
+                if (sweep === 0) sweep = 360;
+                const at = (deg) => { const a = deg * Math.PI / 180; return [entity.cx + r * Math.cos(a), entity.cy + r * Math.sin(a)]; };
+                pts.push(at(s), at(e));
+                for (const card of [0, 90, 180, 270]) {
+                    if (((card - s) % 360 + 360) % 360 <= sweep + 1e-9) pts.push(at(card));
+                }
+                break;
+            }
             case "LWPOLYLINE": for (const p of entity.points || []) pts.push([p.x, p.y]); break;
             case "TEXT":
             case "MTEXT":
@@ -1666,7 +1698,7 @@
         // regexSafety
         checkPatternSafety, assertStandardPatternsAreSafe, MAX_PATTERN_LENGTH,
         // dxfDocument
-        DxfDocument, indexDocument, splitLines,
+        DxfDocument, indexDocument, splitLines, normalizeDxfLines,
         // dxfMender
         healDxf, HEAL_DEFAULT_OPTIONS,
         // svgOverlay

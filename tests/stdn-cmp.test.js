@@ -113,6 +113,10 @@ module.exports = function (t, env) {
     const arcSvg = E.buildSvgOverlay(arcRef, arcTgt, E.diffGeometry(arcRef, arcTgt));
     t.match(arcSvg, /<path class="added" d="M [\d.eE+-]+ [\d.eE+-]+ A 10 10 0 [01] 0 /, "ARC drawn as a real sweep path");
     t.notOk(/<circle[^>]*stroke-dasharray="1,1"/.test(arcSvg), "no dashed full-circle ARC fallback");
+    // a 0°→90° arc at (5,5) r10 spans x∈[5,15], y∈[5,15] — not the full cx±r circle bbox
+    const vb = arcSvg.match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/);
+    t.lt(parseFloat(vb[3]), 14, "ARC viewBox width ≈ tight arc extent (10 + pad), not the ~22 full-circle bbox");
+    t.lt(parseFloat(vb[4]), 14, "ARC viewBox height ≈ tight arc extent");
 
     // ── standardFromDxf + dxfMender (self-heal) ─────────────────
     t.group("stdn/self-heal");
@@ -161,7 +165,7 @@ module.exports = function (t, env) {
 
     const noop = E.healDxf(S.master, S.master);
     t.eq(noop.actions.length, 0, "master vs itself → zero actions");
-    t.eq(noop.healedDxf, S.master.split(/\r\n|\r|\n/).join("\n"), "master vs itself → text unchanged (bar newline normalisation)");
+    t.eq(noop.healedDxf, E.normalizeDxfLines(S.master.split(/\r\n|\r|\n/)).join("\n"), "master vs itself → text unchanged (bar newline/blank-line normalisation)");
 
     const messyByBlock = S.messy.replace("62\n2\n", "62\n0\n");   // WALLS line override → ByBlock
     const healByBlock = E.healDxf(S.master, messyByBlock, { healBlocks: true });
@@ -235,15 +239,24 @@ module.exports = function (t, env) {
     t.eq(sdoc.setTableEntryField("STYLE", "STANDARD", 3, "arial.ttf"), false, "edit on a missing table → false, not a throw");
     t.eq(sdoc.getTableEntryLines("LAYER", "NOPE"), null, "unknown entry → null");
 
-    // the raw-text editor rejects non-strict input up front instead of silently corrupting it
+    // the raw-text editor tolerates stray blank lines but rejects genuine garbage
     const guardThrows = (txt) => { try { new E.DxfDocument(txt); return false; } catch (e) { return e instanceof E.CompareError && e.statusCode === 400; } };
-    t.ok(guardThrows("hello\nworld\nnot a dxf"), "garbage input → CompareError 400");
-    t.ok(guardThrows("0\nSECTION\n\n2\nHEADER\n0\nENDSEC\n0\nEOF"), "a stray blank line → CompareError 400");
+    t.ok(guardThrows("hello\nworld\nnot a dxf"), "genuine garbage → CompareError 400");
     t.notOk(guardThrows(S.reference), "a well-formed DXF passes the guard");
     t.notOk(guardThrows(S.master.replace(/\n$/, "")), "…with or without a file-final newline");
     let healGuard = false;
     try { E.healDxf(S.master, "not\na\nvalid\ndxf\nfile"); } catch (e) { healGuard = e instanceof E.CompareError; }
     t.ok(healGuard, "healDxf surfaces the guard error for a malformed target");
+
+    // stray blank lines (in group-code position) are normalised away — a
+    // hand-edited / concatenated DXF still heals
+    const blanked = S.messy.replace("0\nSECTION\n2\nENTITIES", "\n\n0\nSECTION\n\n2\nENTITIES\n");
+    const healBlanked = E.healDxf(S.master, blanked);
+    t.gt(healBlanked.actions.length, 0, "self-heal runs on a blank-line-riddled target");
+    t.ok(E.parseDxf(healBlanked.healedDxf).layers.WALLS.color === 1, "…and still corrects the WALLS colour");
+    // an empty group-1 value (empty TEXT string) is a value, not a stray blank — kept
+    const emptyText = "0\nSECTION\n2\nENTITIES\n0\nTEXT\n8\nDIMS\n1\n\n10\n5\n20\n6\n0\nENDSEC\n0\nEOF";
+    t.eq(E.normalizeDxfLines(emptyText.split("\n")).join("\n"), emptyText, "empty TEXT value is preserved by normalisation");
 
     // ── reportRenderer ─────────────────────────────────────────
     t.group("stdn/reportRenderer");
@@ -267,4 +280,72 @@ module.exports = function (t, env) {
     t.eq(cleanHeal.overallPassed, true, "master-vs-self heal model → passed");
     t.eq(cleanHeal.statusLabel, "Fully healed", "…labelled Fully healed");
     t.match(E.renderHtml(cleanHeal), /status-pass/, "…renders the pass banner");
+
+    // ── stdn-compare UI render path (self-contained DOM shim) ───
+    t.group("stdn/render (UI)");
+    const SC = env.win.StdnCompare;
+    const P = env.win.PluginRegistry.get("stdn-compare");
+    t.ok(P && P.module && typeof P.module.init === "function", "plugin registered with an init()");
+
+    // Swap in a Map-backed getElementById + a pass-through DOMPurify so the
+    // render functions (which read/write real elements via setSafeHTML) can be
+    // observed. Restored at the end of the group — zero effect on other suites.
+    const realGEBI = env.win.document.getElementById;
+    const realPurify = env.win.DOMPurify;
+    const reg = new Map();
+    env.win.document.getElementById = (id) => {
+        if (!reg.has(id)) { const el = env.fakeEl(); el.id = id; reg.set(id, el); }
+        return reg.get(id);
+    };
+    env.win.DOMPurify = { sanitize: (s) => String(s) };   // pass-through: setSafeHTML writes verbatim
+    const H = (id) => reg.get(id) ? reg.get(id).innerHTML : "";
+    const noToast = { showToast() {} };
+
+    try {
+        P.module.init(noToast);
+        const controls = H("stdn-controls");
+        t.match(controls, /Run comparison/, "renderControls: Check-mode run button");
+        t.match(controls, /Drawing to check/, "renderControls: target file slot");
+        t.match(controls, /Example Company Drafting Standard/, "renderControls: built-in standard option");
+
+        // Check run
+        SC.state.mode = "check";
+        SC.state.files = {
+            target: { name: "target.dxf", text: S.target },
+            reference: { name: "reference.dxf", text: S.reference },
+            master: { name: "master.dxf", text: S.master },
+            standard: null,
+        };
+        SC.runCheck(noToast);
+        const res = H("stdn-results");
+        t.match(res, /Needs attention/, "runCheck → verdict banner");
+        t.match(res, /Standards violations \(\d+\)/, "runCheck → violations section");
+        t.match(res, /LAYER_COLOR_MISMATCH/, "runCheck → the WALLS colour violation");
+        t.match(res, /MISSING_REQUIRED_LAYER/, "runCheck → master-derived DOORS requirement (field-merge fix)");
+        t.match(res, /Geometry differences/, "runCheck → geometry section");
+        t.match(res, /id="stdn-overlay"/, "runCheck → overlay mount point");
+        t.match(res, /Export HTML report/, "runCheck → report export buttons");
+        t.ok(SC.state.lastReport && SC.state.lastReport.source === "compare", "runCheck stashes the report for export");
+
+        // Heal run
+        SC.state.mode = "heal";
+        SC.state.files = { target: { name: "messy.dxf", text: S.messy }, master: { name: "master.dxf", text: S.master }, reference: null, standard: null };
+        SC.state.healBlocks = true;
+        SC.runHeal(noToast);
+        const hres = H("stdn-results");
+        t.match(hres, /Partially healed/, "runHeal → verdict");
+        t.match(hres, /Applied automatically \(\d+\)/, "runHeal → actions section");
+        t.match(hres, /Download corrected DXF/, "runHeal → download button");
+        t.match(hres, /MISSING_REQUIRED_STYLE/, "runHeal → the item left for manual review");
+        t.ok(SC.state.lastHeal && SC.state.lastHeal.source === "heal", "runHeal stashes the result for export");
+
+        // guardrails
+        SC.state.files = { target: null, reference: null, master: null, standard: null };
+        let toasted = "";
+        SC.runCheck({ showToast: (m) => { toasted = m; } });
+        t.match(toasted, /Add a drawing/, "runCheck with no target → friendly toast, no throw");
+    } finally {
+        env.win.document.getElementById = realGEBI;
+        env.win.DOMPurify = realPurify;
+    }
 };
