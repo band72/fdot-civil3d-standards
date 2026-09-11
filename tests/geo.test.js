@@ -117,6 +117,96 @@ module.exports = async function (t, env) {
         W.COGO.parseBearing("North 12 degrees 34 minutes 56 seconds East").azimuthDeg,
         W.COGO.parseBearing("N 12-34-56 E").azimuthDeg, 1e-6, "spelled-out == compact bearing");
 
+    t.group("legal-desc/buildSurveyScript — Civil 3D batch & FBK script export");
+    t.ok(typeof LD.buildSurveyScript === "function", "buildSurveyScript function exposed");
+    const scriptText = LD.buildSurveyScript(clean, tr);
+    t.match(scriptText, /^START_BATCH/m, "contains START_BATCH directive");
+    t.match(scriptText, /^UNIT FOOT DMS/m, "contains UNIT FOOT DMS directive");
+    t.match(scriptText, /^NEZ 1000 /m, "contains NEZ line for POB coordinate");
+    t.match(scriptText, /^FIG BEGIN LEGAL_BOUNDARY/m, "contains FIG BEGIN");
+    t.match(scriptText, /^FIG CLOSE/m, "contains FIG CLOSE");
+    t.match(scriptText, /^FIG END/m, "contains FIG END");
+    t.match(scriptText, /^STN 1000 /m, "contains STN setup for observation traverse");
+    t.match(scriptText, /^BD 1001 1 45\.0000 100\.00/m, "contains BD course 1");
+    t.match(scriptText, /^END_BATCH/m, "contains END_BATCH directive");
+    t.eq((scriptText.match(/^NEZ /gm) || []).length, 4, "closed 4-corner square plants all 4 real corners");
+    t.eq((scriptText.match(/^FIG PT /gm) || []).length, 4, "…and references all 4 in FIG PT");
+
+    // REGRESSION: an open (non-closing) description must keep its real final
+    // corner (not drop it as a duplicate of the POB) and must NOT emit
+    // FIG CLOSE — COGO.runTraverse always returns a final vertex, and
+    // buildSurveyScript used to assume it was always a duplicate of the POB.
+    const openDesc = LD.parse(
+        "BEGINNING; thence North 45 degrees 00 minutes 00 seconds East, a distance of 100.00 feet; " +
+        "thence South 45 degrees 00 minutes 00 seconds East, a distance of 100.00 feet; " +
+        "thence South 45 degrees 00 minutes 00 seconds West, a distance of 50.00 feet;");
+    const openLegs = openDesc.calls.map(c => ({ kind: "line", azimuthDeg: c.azimuthDeg, distance: c.distance }));
+    const openTr = W.COGO.runTraverse(openLegs);
+    t.notOk(openTr.closes, "sanity: this description genuinely does not close");
+    const openScript = LD.buildSurveyScript(openDesc, openTr);
+    t.eq((openScript.match(/^NEZ /gm) || []).length, 4, "open description: all 4 real stations planted (POB + 3 courses), none dropped");
+    t.eq((openScript.match(/^FIG PT /gm) || []).length, 4, "…and all 4 referenced in FIG PT");
+    t.notOk(/^FIG CLOSE/m.test(openScript), "open description does NOT emit FIG CLOSE");
+    t.match(openScript, /^FIG END/m, "…but still emits FIG END");
+
+    // REGRESSION: a bearing whose seconds round to 60 must carry into
+    // minutes in the generated DD.MMSS code, never print as an invalid ":60".
+    const rolloverDesc = LD.parse(
+        "thence North 45 degrees 12 minutes 59.6 seconds East, a distance of 150.00 feet; " +
+        "thence South 44 degrees 47 minutes 30 seconds East, a distance of 200.00 feet; " +
+        "thence South 45 degrees 12 minutes 30 seconds West, a distance of 150.00 feet; " +
+        "thence North 44 degrees 47 minutes 30 seconds West, a distance of 200.00 feet;");
+    const rolloverScript = LD.buildSurveyScript(rolloverDesc, null);
+    t.notOk(/\.\d{2}60\b/.test(rolloverScript), "no invalid :60 seconds in the DD.MMSS code");
+    t.match(rolloverScript, /BD 1001 1 45\.1300 150\.00/m, "59.6\" correctly carries to 13 minutes, 0 seconds");
+
+    t.group("traverse-cogo/buildTraverseScript — Civil 3D batch & FBK script export");
+    const TC = W.TraverseCogo;
+    t.ok(TC && typeof TC.buildTraverseScript === "function", "TraverseCogo.buildTraverseScript exposed");
+    const travInput = "N 45-00-00 E 100.00\nS 45-00-00 E 100.00\nS 45-00-00 W 100.00\nN 45-00-00 W 100.00";
+    const travParsed = TC.parseCourses(travInput);
+    const travClosure = TC.computeClosure(travParsed.courses, 10000);
+    const travScript = TC.buildTraverseScript(travClosure);
+    t.match(travScript, /^START_BATCH/m, "traverse script has START_BATCH");
+    t.match(travScript, /^NEZ 500 /m, "traverse script has NEZ 500 POB");
+    t.match(travScript, /^FIG BEGIN TRAVERSE_BOUNDARY/m, "traverse script has FIG BEGIN");
+    t.match(travScript, /^BD 501 1 45\.0000 100\.00/m, "traverse script has BD course 1");
+    // REGRESSION: INV must reference the point reached AFTER the last course
+    // (500 + courses.length = 504 for 4 courses) — 503 is the second-to-last
+    // corner, which isn't near the POB even for a perfectly closing square,
+    // so "INV 500 503" would misreport an ordinary course length as the
+    // misclosure. Also verify the actual closed square exports its true
+    // 4-corner vertex list, not 3 (a duplicate-trim bug — computeClosure
+    // already trims the duplicate-of-POB point; the script builder was
+    // trimming it a second time and dropping a real corner).
+    t.match(travScript, /^INV 500 504/m, "traverse script's INV line references the point AFTER all 4 courses, not the 3rd corner");
+    t.eq((travScript.match(/^NEZ /gm) || []).length, 4, "closed 4-corner square plants all 4 real corners (not 3)");
+    t.eq((travScript.match(/^FIG PT /gm) || []).length, 4, "…and references all 4 in FIG PT, not 3");
+    t.match(travScript, /^FIG CLOSE/m, "…closed traverse still emits FIG CLOSE");
+    t.match(travScript, /^END_BATCH/m, "traverse script has END_BATCH");
+
+    // REGRESSION: an OPEN (non-closing) traverse must keep its real final
+    // station (not drop it as if it were a duplicate of the POB) and must
+    // NOT emit FIG CLOSE (that would draw a segment back to the POB that
+    // was never actually surveyed).
+    const openTravInput = "N 45-00-00 E 100.00\nS 45-00-00 E 100.00\nS 45-00-00 W 50.00";
+    const openTravParsed = TC.parseCourses(openTravInput);
+    const openTravClosure = TC.computeClosure(openTravParsed.courses, 10000);
+    t.notOk(openTravClosure.closes, "sanity: this traverse genuinely does not close");
+    const openTravScript = TC.buildTraverseScript(openTravClosure);
+    t.eq((openTravScript.match(/^NEZ /gm) || []).length, 4, "open traverse: all 4 real stations planted (POB + 3 courses), none dropped");
+    t.eq((openTravScript.match(/^FIG PT /gm) || []).length, 4, "…and all 4 referenced in FIG PT");
+    t.notOk(/^FIG CLOSE/m.test(openTravScript), "open traverse does NOT emit FIG CLOSE");
+    t.match(openTravScript, /^INV 500 503/m, "open traverse's INV still points at the true final station (500 + 3 courses)");
+
+    // REGRESSION: same :60 rollover check, via a course whose seconds round to 60.
+    const rolloverTravInput = "N 45-12-59.6 E 100.00\nS 45-00-00 E 100.00\nS 45-00-00 W 100.00\nN 45-00-00 W 100.00";
+    const rolloverTravParsed = TC.parseCourses(rolloverTravInput);
+    const rolloverTravClosure = TC.computeClosure(rolloverTravParsed.courses, 10000);
+    const rolloverTravScript = TC.buildTraverseScript(rolloverTravClosure);
+    t.notOk(/\.\d{2}60\b/.test(rolloverTravScript), "traverse script: no invalid :60 seconds in the DD.MMSS code");
+    t.match(rolloverTravScript, /BD 501 1 45\.1300 100\.00/m, "…59.6\" correctly carries to 13 minutes, 0 seconds");
+
     // ── plss-breakdown ─────────────────────────────────────────
     t.group("plss-breakdown/aliquot table");
     const PB = W.PlssBreakdown;

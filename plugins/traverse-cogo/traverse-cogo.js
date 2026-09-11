@@ -190,6 +190,68 @@
         });
     }
 
+    /**
+     * Generate Civil 3D Survey Command Language script from computed traverse courses.
+     */
+    function buildTraverseScript(traverse) {
+        if (!traverse || !traverse.courses || !traverse.courses.length) return "";
+        const lines = [];
+        lines.push("// Civil 3D Survey Command Script — Generated from BoundaryQC Traverse");
+        lines.push(`// Generated: ${new Date().toISOString()}`);
+        lines.push(`// Linear Misclosure: ${traverse.linearMisclosure.toFixed(4)} ft | Precision: ${traverse.precisionDenominator === Infinity ? "exact" : "1:" + Math.round(traverse.precisionDenominator).toLocaleString()}`);
+        lines.push("// Compatible with Civil 3D Survey Command Window (Batch) & Field Book (.FBK)");
+        lines.push("");
+        lines.push("START_BATCH");
+        lines.push("UNIT FOOT DMS");
+        lines.push("");
+
+        // traverse.verts (from computeClosure) is ALREADY the correct vertex
+        // list — trimmed of the duplicate-of-POB closing point when the
+        // traverse actually closes, left intact (every real station kept)
+        // when it doesn't. Slicing it again here was dropping a genuine
+        // corner even in the ordinary closed case (a 4-corner closed square
+        // exported only 3 FIG PT / NEZ lines).
+        const verts = traverse.verts || [];
+        if (verts.length >= 2) {
+            lines.push("// Plant Computed Coordinate Points (PNEZD)");
+            verts.forEach((v, idx) => {
+                const ptNum = 500 + idx;
+                const desc = idx === 0 ? "TRAV_POB" : `TRAV_PT_${idx}`;
+                lines.push(`NEZ ${ptNum} ${v.n.toFixed(4)} ${v.e.toFixed(4)} 0.0000 "${desc}"`);
+            });
+            lines.push("");
+            lines.push("// Define Survey Traverse Boundary Figure");
+            lines.push("FIG BEGIN TRAVERSE_BOUNDARY");
+            verts.forEach((v, idx) => {
+                const ptNum = 500 + idx;
+                lines.push(`FIG PT ${ptNum}`);
+            });
+            if (traverse.closes) lines.push("FIG CLOSE");
+            lines.push("FIG END");
+            lines.push("");
+        }
+
+        lines.push("// Traverse Observation Courses (Bearing / Distance)");
+        lines.push("STN 500 0.00 \"TRAV_POB\"");
+        traverse.courses.forEach((c, idx) => {
+            const destPt = 501 + idx;
+            const quadNum = c.quad === "NE" ? 1 : (c.quad === "SE" ? 2 : (c.quad === "SW" ? 3 : 4));
+            const d = window.COGO.normalizeDMS(c.deg, c.min, c.sec);
+            const dms = `${d.deg}.${String(d.min).padStart(2, "0")}${String(d.sec).padStart(2, "0")}`;
+            lines.push(`BD ${destPt} ${quadNum} ${dms} ${c.dist.toFixed(2)} "COURSE_${c.idx}"`);
+        });
+        lines.push("");
+        // The point AFTER the last course (500 + courses.length, i.e. the
+        // final BD command's destination) — not "- 1" (the second-to-last
+        // corner) — is the one that actually shows the real misclosure back
+        // to 500; comparing against the second-to-last corner instead just
+        // measures an ordinary course length and reports it as "misclosure".
+        lines.push("// Compute Misclosure & Inverse Analysis");
+        lines.push(`INV 500 ${500 + traverse.courses.length}`);
+        lines.push("END_BATCH");
+        return lines.join("\r\n") + "\r\n";
+    }
+
     const Plugin = {
         init() {
             renderQcChecklist();
@@ -207,7 +269,7 @@
                 L.push(`Generated: ${new Date().toISOString()}`);
                 L.push("");
                 L.push("[QA: Courses]");
-                t.courses.forEach(c => L.push(`  ${c.idx}  ${c.quad} ${c.deg}°${String(c.min).padStart(2,"0")}'${String(Math.round(c.sec)).padStart(2,"0")}"  ${c.dist.toFixed(2)} ft`));
+                t.courses.forEach(c => { const d = window.COGO.normalizeDMS(c.deg, c.min, c.sec); L.push(`  ${c.idx}  ${c.quad} ${d.deg}°${String(d.min).padStart(2,"0")}'${String(d.sec).padStart(2,"0")}"  ${c.dist.toFixed(2)} ft`); });
                 L.push("");
                 L.push("[QA: Mathematical Closure & Area]");
                 L.push(`  Linear misclosure: ${t.linearMisclosure.toFixed(3)} ft  (ΔLat ${t.sumLat.toFixed(3)}, ΔDep ${t.sumDep.toFixed(3)})`);
@@ -226,11 +288,17 @@
                 if (window.COGO) window.COGO.downloadText("traverse_mapcheck.log", report);
                 showToast("Map Check Report exported.");
             });
+            document.getElementById("btn-calc-traverse-script")?.addEventListener("click", () => {
+                if (!_lastTraverse) { showToast("Run the traverse calculation first.", true); return; }
+                const script = buildTraverseScript(_lastTraverse);
+                if (window.COGO) window.COGO.downloadText("traverse_survey.fbk", script, "text/plain");
+                showToast("Exported Civil 3D Survey Script (.fbk).");
+            });
         }
     };
 
     window.PluginRegistry.register(MANIFEST, Plugin);
 
     // Exposed for console debugging / tests.
-    window.TraverseCogo = { parseCourses, computeClosure };
+    window.TraverseCogo = { parseCourses, computeClosure, buildTraverseScript };
 })();

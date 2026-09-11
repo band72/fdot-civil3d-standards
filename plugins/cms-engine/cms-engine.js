@@ -922,42 +922,70 @@ class BoundaryQCCMSEngine {
      * verified — there is no webhook secret and no server. A real integration must verify the
      * Stripe-Signature header on the server before trusting the event.
      *
-     * @param {Object} event { plan: 'enterprise'|'firm'|'pro', amount?: number }
+     * @param {Object} event { plan: 'enterprise'|'firm'|'pro'|'free', amount?: number } or full Stripe event payload
      * @param {string} signature Stripe-Signature header (ignored in this demo)
      * @param {string} idempotencyKey Unique idempotency key
      */
-    processStripeWebhook(event, signature = "whsec_mock_sig", idempotencyKey = "idemp_" + Date.now()) {
+    processStripeWebhook(event, signature = "whsec_mock_sig", idempotencyKey = null) {
         void signature; // not verifiable client-side — see method doc
+        event = event || {};
+        const key = idempotencyKey || event.id || ("idemp_" + Date.now());
         const keys = this._readJSON(this.STORAGE_KEYS.WEBHOOK_IDEMPOTENCY, []);
-        if (keys.includes(idempotencyKey)) {
+        if (keys.includes(key)) {
             return { success: false, reason: "IDEMPOTENT_REQUEST_ALREADY_PROCESSED" };
         }
-        keys.push(idempotencyKey);
+        keys.push(key);
         this._writeJSON(this.STORAGE_KEYS.WEBHOOK_IDEMPOTENCY, keys);
 
         const user = this.getCurrentUser();
-        const plan = event.plan || "pro";
-        const amount = event.amount || (plan === "enterprise" ? 499.00 : (plan === "firm" ? 199.00 : 49.00));
-        const desc = `Stripe Webhook: Activated ${plan.toUpperCase()} Tier ($${amount}/mo)`;
+        const isStandardStripe = !!event.type;
+        const eventType = isStandardStripe ? event.type : "checkout.session.completed";
+        const eventObj = isStandardStripe ? (event.data && event.data.object ? event.data.object : {}) : event;
 
-        this.recordTransaction(amount, desc);
+        let plan = event.plan;
+        if (!plan && eventObj.metadata && eventObj.metadata.plan) plan = eventObj.metadata.plan;
+        if (!plan && eventObj.lines && eventObj.lines.data && eventObj.lines.data[0]?.price?.metadata?.plan) {
+            plan = eventObj.lines.data[0].price.metadata.plan;
+        }
+        plan = (plan || "pro").toLowerCase();
+
+        // Handle cancellations / downgrades
+        if (eventType === "customer.subscription.deleted") {
+            plan = "free";
+        }
+
+        let amount = typeof event.amount === "number" ? event.amount : (typeof eventObj.amount_total === "number" ? eventObj.amount_total / 100 : null);
+        if (amount == null) {
+            amount = plan === "enterprise" ? 499.00 : (plan === "firm" ? 199.00 : (plan === "pro" ? 49.00 : 0.00));
+        }
+
+        if (amount > 0) {
+            const desc = `Stripe Webhook: Activated ${plan.toUpperCase()} Tier ($${amount}/mo)`;
+            this.recordTransaction(amount, desc);
+        }
 
         // Update the seats on the CURRENT user's organization (not a hardcoded orgs[0]).
         const orgs = this.getOrganizations();
         const targetOrg = (user && orgs.find(o => o.id === user.orgId)) || orgs[0];
         if (targetOrg) {
             targetOrg.plan = plan;
-            targetOrg.purchasedSeats = plan === "enterprise" ? 50 : (plan === "firm" ? 25 : 5);
+            targetOrg.purchasedSeats = plan === "enterprise" ? 50 : (plan === "firm" ? 25 : (plan === "pro" ? 5 : 1));
             this._writeJSON(this.STORAGE_KEYS.ORGS, orgs);
         }
 
-        this.addAuditLog(user ? user.fullName : "Stripe Webhook Gateway", "SUBSCRIPTION_UPGRADED", `Organization upgraded to ${plan} tier.`);
+        const action = eventType === "customer.subscription.deleted" ? "SUBSCRIPTION_CANCELLED" : "SUBSCRIPTION_UPGRADED";
+        const logMsg = eventType === "customer.subscription.deleted"
+            ? `Organization subscription cancelled (reverted to free plan).`
+            : `Organization upgraded to ${plan} tier ($${amount}/mo).`;
+
+        this.addAuditLog(user ? user.fullName : "Stripe Webhook Gateway", action, logMsg);
 
         return {
             success: true,
+            eventType: eventType,
             plan: plan,
             amount: amount,
-            idempotencyKey: idempotencyKey,
+            idempotencyKey: key,
             processedAt: new Date().toISOString()
         };
     }

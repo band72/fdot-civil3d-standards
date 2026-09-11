@@ -268,6 +268,77 @@
         if (ctx) ctx.showToast(`Legal description: ${parsed.calls.length} calls, ${errN} error(s).`, errN > 0);
     }
 
+    /**
+     * Generate Civil 3D Survey Command Language script from legal description calls.
+     */
+    function buildSurveyScript(parsed, traverse) {
+        if (!parsed || !parsed.calls || !parsed.calls.length) return "";
+        const lines = [];
+        lines.push("// Civil 3D Survey Command Script — Generated from Metes & Bounds Legal Description");
+        lines.push(`// Generated: ${new Date().toISOString()}`);
+        lines.push("// Compatible with Civil 3D Survey Command Window (Batch) & Field Book (.FBK)");
+        lines.push("");
+        lines.push("START_BATCH");
+        lines.push("UNIT FOOT DMS");
+        lines.push("");
+
+        // traverse.vertices always includes a final vertex even when the
+        // description doesn't actually return to the POB (COGO.runTraverse
+        // just walks the calls) — only drop it as a duplicate-of-POB when
+        // traverse.closes says it genuinely is one; otherwise it's a real,
+        // distinct endpoint and FIG CLOSE would draw a segment that was
+        // never called for.
+        const verts = traverse ? traverse.vertices : [];
+        const closes = !!(traverse && traverse.closes);
+        const planted = closes ? verts.slice(0, -1) : verts;
+        if (verts.length >= 2) {
+            lines.push("// Plant computed coordinate geometry (POB + course vertices)");
+            planted.forEach((v, idx) => {
+                const ptNum = 1000 + idx;
+                const desc = idx === 0 ? "POB" : `CORNER_${idx}`;
+                lines.push(`NEZ ${ptNum} ${v.n.toFixed(4)} ${v.e.toFixed(4)} 0.0000 "${desc}"`);
+            });
+            lines.push("");
+            lines.push("// Define Legal Description Boundary Figure");
+            lines.push("FIG BEGIN LEGAL_BOUNDARY");
+            planted.forEach((v, idx) => {
+                const ptNum = 1000 + idx;
+                lines.push(`FIG PT ${ptNum}`);
+            });
+            if (closes) lines.push("FIG CLOSE");
+            lines.push("FIG END");
+            lines.push("");
+        }
+
+        lines.push("// Traversal Courses (Bearing/Distance)");
+        // DD.MMSS for a BD command — rounded via COGO.normalizeDMS so a
+        // seconds value that rounds to 60 carries into minutes (never ":60").
+        const dmsCode = brg => {
+            const d = window.COGO.normalizeDMS(brg.deg, brg.min, brg.sec);
+            return `${d.deg}.${String(d.min).padStart(2, "0")}${String(d.sec).padStart(2, "0")}`;
+        };
+        lines.push("STN 1000 0.00 \"POB\"");
+        parsed.calls.forEach((c, idx) => {
+            const destPt = 1001 + idx;
+            if (c.kind === "line" && c.azimuthDeg != null) {
+                const brg = c.bearing || window.COGO.parseBearing(c.bearingText || c.raw);
+                if (brg) {
+                    const quadNum = brg.quad === "NE" ? 1 : (brg.quad === "SE" ? 2 : (brg.quad === "SW" ? 3 : 4));
+                    lines.push(`BD ${destPt} ${quadNum} ${dmsCode(brg)} ${c.distance.toFixed(2)} "${c.label}"`);
+                }
+            } else if (c.kind === "curve" && c.chordAzimuthDeg != null) {
+                const brg = window.COGO.parseBearing(c.chordBearingText || c.raw);
+                if (brg) {
+                    const quadNum = brg.quad === "NE" ? 1 : (brg.quad === "SE" ? 2 : (brg.quad === "SW" ? 3 : 4));
+                    lines.push(`CRV RADIUS ${c.radius.toFixed(2)}`);
+                    lines.push(`BD ${destPt} ${quadNum} ${dmsCode(brg)} ${c.chordDist.toFixed(2)} "${c.label} CHORD"`);
+                }
+            }
+        });
+        lines.push("END_BATCH");
+        return lines.join("\r\n") + "\r\n";
+    }
+
     const Plugin = {
         init() {
             const ta = document.getElementById("legal-desc-input");
@@ -291,6 +362,12 @@
                 window.COGO.downloadText("legal_description_mapcheck.log", mapCheckReport(_last.parsed, _last.traverse, _last.issues));
                 ctx.showToast("Exported Map Check Report.");
             });
+            document.getElementById("btn-legal-desc-script")?.addEventListener("click", () => {
+                if (!_last || !_last.parsed) { ctx.showToast("Run a parse first.", true); return; }
+                const script = buildSurveyScript(_last.parsed, _last.traverse);
+                window.COGO.downloadText("legal_description_survey.fbk", script, "text/plain");
+                ctx.showToast("Exported Civil 3D Survey Script (.fbk).");
+            });
         },
         onTabActivate(ctx) { if (_last) run(ctx); }
     };
@@ -298,5 +375,5 @@
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
 
     // Exposed for console debugging / tests.
-    window.LegalDesc = { parse, qc, mapCheckReport };
+    window.LegalDesc = { parse, qc, mapCheckReport, buildSurveyScript };
 })();

@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "tab-plat2dxf":       ["Parcel -> DXF / Points / COGO", "Turn a bearing/distance call list (or the bundled sample) into a valid ASCII DXF, a P,N,E,Z,D point file, and an AutoCAD COGO script."],
         "tab-qc":             ["QC Checklist & Traverse Auditor", "The 7-item Map Check QA checklist plus a traverse calculator: latitude/departure closure, precision ratio, Shoelace area, and self-intersection detection."],
         "tab-linework":       ["Linework Editor", "Import linework from a field point file (P,N,E,Z,D) or bearing/distance calls, run the field-data checks (zero-length, spike, bow-tie, non-closure, out-of-envelope), and edit vertices and courses interactively."],
+        "tab-efbk":           ["Electronic Field Book", "FDOT EFB point/reference naming, P/C curve geometry and the chain-list mini-language — builds figures for the Linework Editor, or exports DXF / a Civil 3D linework script directly."],
         "tab-legal-desc":     ["Legal Description QC", "Parse a narrative metes-and-bounds description into line and curve calls, run a chord-trace closure, and apply BoundaryQC QC rules."],
         "tab-plss":           ["PLSS Section Breakdown", "Subdivide an ideal government section from an aliquot description; report rectangle dimensions, computed vs ideal acreage, and cardinal courses."],
         "tab-inspector":      ["State Kit Inspector", "Reference view of the reverse-engineered FDOT Civil 3D State Kit folder structure."],
@@ -405,6 +406,10 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.addEventListener("click", () => {
                 const plan = btn.getAttribute("data-plan") || "Pro";
                 const price = btn.getAttribute("data-price") || "49";
+                if (modalCheckout) {
+                    modalCheckout.dataset.plan = plan;
+                    modalCheckout.dataset.price = price;
+                }
                 if (modalPlanTitle) {
                     window.setSafeHTML(modalPlanTitle, `<i class="fa-solid fa-credit-card" style="color:var(--primary);"></i> Activate ${plan} Tier ($${price}/mo)`);
                 }

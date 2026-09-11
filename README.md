@@ -75,6 +75,7 @@ and exposes the site globals; `tests/README.md` maps each suite.
 | `ssa-hydro` | SSA Hydrology & IDF | Rational Method `Q = CiA` from the 11 IDF zones + exfiltration-trench sizer. |
 | `traverse-cogo` | QC & Traverse Auditor | Lat/dep closure, precision ratio, Shoelace area, bow-tie detection, Map Check report. |
 | `linework` | Linework Editor | Import field data (PNEZD or bearing/distance), run field-data checks, edit vertices/courses on an SVG canvas, fit real curves from field codes. |
+| `efbk` | Electronic Field Book | FDOT EFB point/reference naming, P/C curve geometry (3-point arc, 4+-point smooth curve, tangent-solved single-C arc), and the chain-list mini-language — builds a figures model for DXF/script export or the Linework Editor. |
 | `legal-desc` | Legal Description QC | Parse metes-and-bounds, chord-trace closure, BoundaryQC QC rules, PNEZD + Map Check export. |
 | `plss-breakdown` | PLSS Section Breakdown | Subdivide an ideal government section from an aliquot description. |
 | `plat2dxf` | Parcel → DXF / Points / COGO | Bearing/distance call list → ASCII DXF, PNEZD, AutoCAD COGO script. |

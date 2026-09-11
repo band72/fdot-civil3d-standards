@@ -135,11 +135,73 @@
                     <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> undo / redo.</li>
                 </ul>
                 <h4>Export</h4>
-                <p><strong>DXF</strong> (closed/open polylines on the assigned layers), <strong>P,N,E,Z,D</strong> point file, <strong>Calls</strong> (bearing/distance per figure), and a <strong>Map Check</strong> report (perimeter, misclosure/precision for closed figures, area, self-intersection, and the full check list).</p>`
+                <p><strong>DXF</strong> (closed/open polylines on the assigned layers), <strong>P,N,E,Z,D</strong> point file, <strong>Linework Script (.fbk)</strong> (Civil 3D Survey Command Language batch script with <code>FIG BEGIN/PT/CLOSE/END</code> and <code>NEZ</code>), <strong>Calls</strong> (bearing/distance per figure), and a <strong>Map Check</strong> report (perimeter, misclosure/precision for closed figures, area, self-intersection, and the full check list).</p>`
+        },
+        {
+            id: "survey-cmd-lang",
+            title: "3.6  Civil 3D Survey Command Language & Field Book Reference",
+            html: `
+                <p><em>Purpose:</em> reference and export guide for the text-based command interpreter built into <strong>Autodesk Civil 3D</strong> (Survey Toolspace &gt; Survey Database &gt; Networks &gt; Survey Command Window) and Autodesk Field Book (<code>.fbk</code>) files.</p>
+                <h4>Core Syntax &amp; Bearings</h4>
+                <ul>
+                    <li><strong>Quadrant Bearings:</strong> <code>1 = NE</code>, <code>2 = SE</code>, <code>3 = SW</code>, <code>4 = NW</code>. Angles are entered in <code>DD.MMSS</code> notation (e.g. <code>1 45.3020</code> = N 45°30'20" E).</li>
+                    <li><strong>Point Creation (COGO):</strong>
+                        <code>NEZ [pt] [N] [E] [elev] (desc)</code> direct coordinate insertion;
+                        <code>BD [pt] [quad] [bearing] [dist] (desc)</code> bearing &amp; distance from station;
+                        <code>AD [pt] [angle] [dist]</code> angle &amp; distance;
+                        <code>AZ [pt] [azimuth] [dist]</code> azimuth &amp; distance.
+                    </li>
+                    <li><strong>Figures &amp; Linework:</strong>
+                        <code>FIG BEGIN [name]</code> starts a figure;
+                        <code>FIG PT [pt]</code> appends a vertex;
+                        <code>FIG CLOSE</code> closes back to POB;
+                        <code>FIG END</code> finishes the figure.
+                    </li>
+                    <li><strong>Field Book Observations (.FBK):</strong>
+                        <code>UNIT FOOT DMS</code> sets units;
+                        <code>STN [pt] [HI]</code> occupies instrument station;
+                        <code>BS [pt] [azimuth]</code> sets backsight reference;
+                        <code>FS [pt] [angle] [dist] [zenith] [rod]</code> foresight traverse shot;
+                        <code>SS [pt] [angle] [dist] [zenith] [rod]</code> sideshot topography.
+                    </li>
+                    <li><strong>Traverse &amp; Adjustments:</strong>
+                        <code>TRV OPEN [name]</code>, <code>TRV COMP [name]</code> (misclosure calculation), <code>COMPASS</code> (Bowditch balance per FL Rule 5J-17), <code>TRANSIT</code>, <code>CRANDALL</code>.
+                    </li>
+                </ul>
+                <p>The suite automatically generates production-ready <code>.fbk</code> scripts from the <strong>Linework Editor</strong>, <strong>Legal Description QC</strong>, and <strong>Traverse &amp; COGO Auditor</strong> tabs.</p>`
+        },
+        {
+            id: "efbk-doc",
+            title: "3.7  Electronic Field Book (EFB) & Chain Lists",
+            html: `
+                <p><em>Purpose:</em> models the planimetric surveying architecture specified in the <strong>FDOT EFB User’s Handbook</strong> and <strong>EFBP Processing Handbook</strong>. Bridges FDOT raw field data collector points and chain lists directly into Civil 3D figures.</p>
+                <h4>Point Format (9 Columns)</h4>
+                <p><code>NAME, N, E, Z, GEOM, ATTR, ZONE, REFNAME, FEATURE</code></p>
+                <ul>
+                    <li><strong>NAME:</strong> Prefix + trailing numeric suffix (e.g. <code>TAN19</code>, <code>A1</code>).</li>
+                    <li><strong>GEOM:</strong> Point geometry flag: <code>P</code> (Point / straight) or <code>C</code> (Curve).</li>
+                    <li><strong>ATTR:</strong> Optional attribute (per the EFB handbook): <code>G</code> (Ground — elevation is on the surface), <code>X</code> (Cross-section / HVD — station+offset to a baseline), <code>F</code> (Feature — planimetric only, elevation excluded from the TIN/surface model), <code>U</code> (User — not surface data, has a project-specific meaning e.g. utilities).</li>
+                    <li><strong>ZONE:</strong> Optional elevation zone (1–9).</li>
+                    <li><strong>REFNAME:</strong> Optional reference station name (leading period <code>.</code> marks a newly established control monument).</li>
+                    <li><strong>FEATURE:</strong> Code and optional description separated by a dash (e.g. <code>TREE-48" OAK</code>, or <code>99-TEXT ONLY</code>).</li>
+                </ul>
+                <h4>Chain-List Mini-Language</h4>
+                <ul>
+                    <li><code>LOT1, BND, A1-4, A1</code> connects points A1 through A4 in sequence, closing back to A1.</li>
+                    <li><code>-TAN</code> reverses the point numbering order.</li>
+                    <li>Empty tokens (<code>,,</code>) break chains into separate disconnected runs.</li>
+                </ul>
+                <h4>P/C Curve Rules</h4>
+                <ul>
+                    <li><strong>Isolated C point:</strong> Solves the unique circular arc tangent to the two exterior back/ahead lines defined by bounding P points.</li>
+                    <li><strong>3 C points:</strong> Standard circular arc (PC, POC, PT).</li>
+                    <li><strong>4+ C points:</strong> Smooth continuous spline, densified via Catmull-Rom interpolation for DXF/CAD compatibility.</li>
+                </ul>
+                <p>Outputs can be exported directly as DXF, Civil 3D survey batch scripts, or sent into the Linework Editor for interactive visual verification.</p>`
         },
         {
             id: "legal-desc",
-            title: "3.6  Legal Description QC",
+            title: "3.8  Legal Description QC",
             html: `
                 <p><em>Purpose:</em> parse a written metes-and-bounds legal description and check it, without hand-keying each call.</p>
                 <p><strong>Input:</strong> paste the narrative text. The parser splits on <code>THENCE</code> / <code>COMMENCE</code> / <code>BEGINNING</code> and recognizes:</p>
@@ -152,7 +214,7 @@
         },
         {
             id: "plss",
-            title: "3.7  PLSS Section Breakdown",
+            title: "3.9  PLSS Section Breakdown",
             html: `
                 <p><em>Purpose:</em> resolve an aliquot ("quarter-quarter") description into a rectangle, dimensions, and acreage.</p>
                 <p><strong>Input:</strong> an aliquot description, e.g. <code>S 1/2 of the SE 1/4 of the NE 1/4 of Section 8, Township 7 North, Range 7 East</code>. Put one parcel per line for a multi-parcel description. Spelled-out compass words ("Northeast 1/4") and abbreviations ("NE 1/4") both work.</p>
@@ -165,7 +227,7 @@
         },
         {
             id: "plat2dxf",
-            title: "3.8  Parcel → DXF / Points / COGO",
+            title: "3.10  Parcel → DXF / Points / COGO",
             html: `
                 <p><em>Purpose:</em> turn a bearing/distance call list into CAD-ready files. <strong>There is no image tracing in this build</strong> — the earlier "computer vision" wording was a mockup.</p>
                 <p><strong>Input:</strong> a call list (one <code>N 45-12-30 E 150.00</code> per line) in the box, or leave it empty to use the bundled sample parcel. Click <em>Build Parcel DXF / Points</em>.</p>
@@ -178,14 +240,14 @@
         },
         {
             id: "signs-ssa",
-            title: "3.9  Sign QTO & SSA Hydrology",
+            title: "3.11  Sign QTO & SSA Hydrology",
             html: `
                 <p><strong>Sign Assemblies &amp; QTO</strong> — the FDOT sign assembly catalog (code, size, block, target pay item). The calculator takes a sign width and height (inches), computes the panel area in square feet, and classifies the pay item: ≤ 12 SF → <code>0700-1-11</code>, 12–20 SF → <code>0700-1-12</code>, &gt; 20 SF → <code>0700-1-14</code>.</p>
                 <p><strong>SSA Hydrology &amp; IDF</strong> — pick one of the 11 FDOT IDF zones, enter drainage area (acres), runoff coefficient C, and time of concentration t<sub>c</sub> (minutes). It computes rainfall intensity i = a / (t<sub>c</sub> + b)<sup>c</sup> and peak discharge <strong>Q = C·i·A</strong> (cfs). The trench sizer estimates exfiltration trench length from treatment volume and the hydraulic conductivity k (FDOT Drainage Manual Ch. 7).</p>`
         },
         {
             id: "reference-tabs",
-            title: "3.10  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
+            title: "3.12  Block Libraries / Subassemblies / Sheet Standards / State Kit Inspector",
             html: `
                 <p>Static reference cards:</p>
                 <ul>
@@ -215,8 +277,15 @@
                     <li><strong>Activate</strong> — the <em>Active</em> dropdown at the top of the panel selects which template is current. The active client shows as a badge on your profile and drives defaults elsewhere: the SSA Hydrology tab pre-selects the template's IDF zone, and the Traverse Auditor / Legal Description QC use its closure pass ratio instead of the default 1:10,000.</li>
                     <li><strong>Edit / Delete</strong> — buttons on each row. Deleting the active template moves "active" to the next one.</li>
                 </ul>
-                <h4>License limit</h4>
-                <p>The <strong>Free</strong> and <strong>Pro</strong> plans allow <strong>5 templates per user</strong>. Creating a sixth is blocked with an upgrade prompt. <strong>Firm</strong> ($199/mo) raises the cap to 25; <strong>Enterprise</strong> ($499/mo) is unlimited. Change the plan from the Commercial SaaS Plans tab (demo checkout).</p>
+                <h4>License limit &amp; Stripe billing</h4>
+                <p>The <strong>Free</strong> and <strong>Pro</strong> plans allow <strong>5 templates per user</strong>. Creating a sixth is blocked with an upgrade prompt. <strong>Firm</strong> ($199/mo) raises the cap to 25; <strong>Enterprise</strong> ($499/mo) is unlimited.</p>
+                <h4>Stripe Billing &amp; Subscription Portal</h4>
+                <p>Manage subscriptions from the <strong>Commercial SaaS Plans</strong> tab:</p>
+                <ul>
+                    <li><strong>Live Stripe vs. Simulation:</strong> Configure your publishable key (<code>pk_test_...</code> / <code>pk_live_...</code>) or custom Stripe Payment Links per tier in the Stripe Gateway Configuration panel. In simulation mode, checkouts run instantly in-browser with ASC 606 revenue-recognition ledgering and signed tier tokens.</li>
+                    <li><strong>Modal Checkout:</strong> Click any plan CTA (<em>Upgrade to Pro</em>, <em>Upgrade to Firm</em>, <em>Contact / Upgrade Enterprise</em>) to open the Stripe checkout modal. Choose between direct card entry (Elements emulation) or external Stripe Payment Links.</li>
+                    <li><strong>Self-Serve Management &amp; Cancellation:</strong> The Active Subscription Portal displays current tier badges, next renewal date, billing email, and seat counts. Click <em>Cancel Subscription</em> at any time to downgrade immediately back to the Free plan with recorded <code>customer.subscription.deleted</code> webhook auditing.</li>
+                </ul>
                 <div class="help-note help-note--warn">
                     <strong>All of this runs in your browser.</strong> The password hashing, sessions, lockout, per-user isolation, and the template limit are real code, but there is no server — a determined user can edit <code>localStorage</code> from devtools and bypass any of it. Treat it as a UX model, not a security boundary.
                 </div>`
@@ -253,7 +322,8 @@
                         <tr><td><code>FDOT_EDG_Signed_Manifest.json</code></td><td>DXF Auditor</td><td>SHA-256 file digest manifest (demo signing)</td></tr>
                         <tr><td><code>*_mapcheck.log</code></td><td>Traverse, Legal Description</td><td>Courses, closure &amp; area, self-intersection, P,N,E,Z,D block</td></tr>
                         <tr><td><code>*_coordinates.txt</code></td><td>Traverse, Legal Description, PLSS, Parcel→DXF</td><td>P,N,E,Z,D point file — Point,Northing,Easting,Elev,Desc; points from 500; "COGO POB", "COGO P1", …</td></tr>
-                        <tr><td><code>parcel_boundary.dxf</code></td><td>Parcel → DXF</td><td>Closed LWPOLYLINE + labels on AI-PROP-BNDY / AI-NODE-TEXT</td></tr>
+                        <tr><td><code>*_survey.fbk / linework_script.fbk / efbk_script.fbk</code></td><td>Linework, Legal Description, Traverse, EFB</td><td>Civil 3D Survey Command Language batch script &amp; Field Book (<code>FIG BEGIN/PT/CLOSE/END</code>, <code>NEZ</code>, <code>BD</code>, <code>STN</code>)</td></tr>
+                        <tr><td><code>parcel_boundary.dxf / efbk.dxf</code></td><td>Parcel → DXF, EFB</td><td>Closed LWPOLYLINE + labels on AI-PROP-BNDY / AI-NODE-TEXT or EFB figure layers</td></tr>
                         <tr><td><code>parcel_cogo.scr</code></td><td>Parcel → DXF</td><td>AutoCAD PLINE script from the calls</td></tr>
                         <tr><td><code>plss_breakdown_report.log</code></td><td>PLSS</td><td>Per-parcel dimensions, acreage, courses, coordinates</td></tr>
                     </tbody>

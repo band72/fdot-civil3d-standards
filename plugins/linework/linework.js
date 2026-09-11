@@ -96,49 +96,179 @@
     }
 
     // Linework Code Set — matches the Civil 3D "Edit Linework Code Set" defaults.
-    // Editable at runtime via window.Linework.CODESET before importing.
+    // Editable at runtime via window.Linework.CODESET before importing. Token
+    // ORDER within a description is not significant — "EP B" and "B EP" both
+    // parse the same way: whichever token isn't a recognized keyword is the
+    // feature code. (Some offices' point-file exports put the control word
+    // first; Civil 3D's own default puts the code first.)
     const CODESET = {
         delimiter: " ",          // Feature/Code delimiter (<Space>)
-        escape: "/",             // Field code escape (also separates multi-figure membership)
+        escape: "/",             // Field code escape — ALSO marks multi-figure
+                                  // membership: a token "<code><escape><ctrl>"
+                                  // (e.g. "SD1/B" with escape "/", or "SD1XB"
+                                  // with escape "X") cross-references a SECOND
+                                  // figure from this same shot — see splitDesc.
         begin:    ["B", "BEG", "BEGIN", "START"],
         continue: ["C", "CONT"],                 // resume an interrupted figure of this code
         end:      ["E", "END"],                  // end the figure — NO closing segment
         close:    ["CLS", "CLO", "CLOSE", "CL", "Z"], // end AND draw the closing segment
         // Curve segment codes — resolved into real circular geometry (see resolveGeometry):
-        curveBegin: ["BC", "PC"],       // begin curve / point of curvature
-        curveEnd:   ["EC", "PT"],       // end curve / point of tangency
+        curveBegin: ["BC", "PC", "MCS"],   // begin curve / point of curvature / mid-curve start
+        curveEnd:   ["EC", "PT", "MCE"],   // end curve / point of tangency / mid-curve end
         curvePoint: ["OC", "POC"],      // on-curve shot (informational)
         circleWhole: ["CIR"],           // the whole figure is a circle
         // Line segment codes — RECT is built; the rest are recognized only:
         lineSeg:  ["RECT", "RT", "X", "RPN", "CPN"],
-        curveSeg: ["BC", "EC", "PC", "PT", "CIR", "OC", "POC"],
-        offset:   ["SO"]         // plus H<n> / V<n>, matched by regex
+        curveSeg: ["BC", "EC", "PC", "PT", "CIR", "OC", "POC", "MCS", "MCE"],
+        offset:   ["SO"],        // plus H<n> / V<n>, matched by regex
+        // Codes that never form a figure even when 2+ shots share the code with
+        // no B/C/E at all — the default "same bare code → auto-chain" behavior
+        // (below) is what Civil 3D itself does for a code configured as linear,
+        // but a point-only code (e.g. scattered grade shots, monuments) would
+        // otherwise get wrongly strung into one figure across the whole site.
+        // Empty by default — zero effect until a project opts a code in.
+        pointOnly: []
     };
+
+    // ── Named CODESET profiles — reusable starting points for a field crew's
+    // own point-file convention, refined over time as real projects surface
+    // more of it (each is a starting point, not a guarantee — a new project
+    // on a known profile may still need its own pointOnly additions; see
+    // applyCodesetProfile). Apply with window.Linework.applyCodesetProfile
+    // ("name") before importing; "default" restores the Civil 3D stock set.
+    const CODESET_PROFILES = {
+        "default": { escape: "/", pointOnly: [] },
+        // Control-word-first descriptions ("B TCL", not Civil 3D's stock
+        // "TCL B"), "X" as the multi-figure-membership escape character,
+        // MCS/MCE curve markers. Confirmed against a real project (a point
+        // file cross-checked point-for-point against its compiled Civil 3D
+        // field-book script). pointOnly lists standard point-feature codes —
+        // never linework in any normal survey convention — that this
+        // convention's exports leave with no B/C/E at all.
+        "control-first-x-escape": {
+            escape: "X",
+            pointOnly: ["G", "TV", "IPF", "TBM", "LP", "LPP", "WV", "FH", "CO", "JB", "LINE"],
+        },
+        // Official FDOT Civil 3D State Kit Survey Database convention:
+        // Delimiter: Space, Escape: "/", standard point codes (MONU*, BENCH*, TREE*, FH*, etc.)
+        // that never chain into figures unless explicitly coded with B/C.
+        "fdot-state-kit": {
+            escape: "/",
+            pointOnly: [
+                "MONU", "BENCH", "BM", "PRM", "PCP", "PK", "IP", "IR", "CONC", "CM",
+                "TREE", "PALM", "OAK", "PINE", "STUMP", "SOIL", "SPT", "TEST",
+                "FH", "WM", "WV", "GM", "GV", "EM", "PED", "JB", "POLE", "LP", "PPC",
+                "GUY", "TEL", "CATV", "SIGN", "MAIL", "WELL"
+            ]
+        },
+    };
+
+    /** Apply a window.Linework.CODESET_PROFILES preset onto the live CODESET
+     *  (the object splitDesc/buildFigures actually read) — in place, so it
+     *  takes effect immediately for the next import. A profile only needs to
+     *  list what differs from the stock defaults; every other CODESET field
+     *  (begin/continue/curveBegin/…) is left as it currently is. Add a new
+     *  named entry to CODESET_PROFILES as new conventions get confirmed —
+     *  that's the "train over time" part; nothing here is hardcoded to one
+     *  project. */
+    function applyCodesetProfile(name) {
+        const profile = CODESET_PROFILES[name];
+        if (!profile) throw new Error(`Unknown CODESET profile "${name}". Known: ${Object.keys(CODESET_PROFILES).join(", ")}`);
+        Object.keys(profile).forEach(k => { CODESET[k] = profile[k]; });
+        return CODESET;
+    }
     const inSet = (arr, t) => arr.indexOf(t) !== -1;
 
+    // How close a BC..EC (or MCS..MCE) span's shots must lie to a fitted circle
+    // before it's drawn as a real arc. A single absolute distance doesn't work
+    // across a realistic range of radii — a tight curb return and a gentle
+    // roadway curve don't fail at the same absolute deviation — so it's
+    // relative-or-absolute: accept if dev<=absFt OR dev/radius<=relFrac.
+    // Editable at runtime via window.Linework.ARC_FIT before importing, same
+    // as CODESET.
+    const ARC_FIT = { absFt: 0.15, relFrac: 0.06 };
+
+    /** Classify one already-uppercased token against the control/curve/offset
+     *  keyword sets. Returns {kind, value} or null if it's not a keyword at all
+     *  (kind: "begin"|"continue"|"end"|"close"|"fig"|"seg"). Shared by the
+     *  primary-token pass and the compound cross-reference pass in splitDesc. */
+    function classifyToken(t) {
+        if (inSet(CODESET.begin, t)) return { kind: "begin" };
+        if (inSet(CODESET.continue, t)) return { kind: "continue" };
+        if (inSet(CODESET.end, t)) return { kind: "end" };
+        if (inSet(CODESET.close, t)) return { kind: "close" };
+        if (/^\d{1,3}$/.test(t)) return { kind: "fig", value: t };
+        if (inSet(CODESET.lineSeg, t) || inSet(CODESET.curveSeg, t) ||
+            inSet(CODESET.offset, t) || /^[HV]-?\d/.test(t)) return { kind: "seg", value: t };
+        return null;
+    }
+
     /**
-     * Parse a survey description into { code, fig, control, closeFlag, segCodes }.
+     * Parse a survey description into
+     *   { code, fig, control, closeFlag, segCodes, crossRefs }.
      * control ∈ "" | "begin" | "continue" | "end" | "close".
+     * crossRefs: [{ code, control, closeFlag, segCodes }] — other figures this
+     * SAME shot also belongs to, via an escape-joined compound token (e.g.
+     * "SD1XB" with escape "X" → this shot also begins figure SD1). A
+     * cross-reference to the SAME code as the primary is folded into the
+     * primary's own control/segCodes instead of creating a duplicate vertex.
      */
     function splitDesc(desc) {
         const toks = String(desc || "").trim().split(/\s+/).filter(Boolean);
-        if (!toks.length) return { code: "LINE", fig: "1", control: "", closeFlag: false, segCodes: [] };
+        if (!toks.length) return { code: "LINE", fig: "1", control: "", closeFlag: false, segCodes: [], crossRefs: [] };
 
-        const primary = toks[0].split(CODESET.escape)[0].toUpperCase() || "LINE";
-        let control = "", fig = "";
+        let control = "", fig = "", primaryTok = null;
         const segCodes = [];
-        for (const raw of toks.slice(1)) {
+        const compoundToks = [];
+        for (const raw of toks) {
+            // Only a genuine "<code><escape><word>" split (content on both sides)
+            // counts as compound — a bare escape char alone (e.g. a lone "X"
+            // token when escape is also configured as "X") falls through to
+            // ordinary keyword/primary classification instead of being dropped.
+            if (raw.includes(CODESET.escape) && raw.split(CODESET.escape).filter(Boolean).length >= 2) {
+                compoundToks.push(raw); continue;
+            }
             const t = raw.toUpperCase();
-            if (inSet(CODESET.begin, t)) control = control || "begin";
-            else if (inSet(CODESET.continue, t)) control = "continue";
-            else if (inSet(CODESET.end, t)) control = control || "end";
-            else if (inSet(CODESET.close, t)) control = "close";
-            else if (/^\d{1,3}$/.test(t)) fig = t;
-            else if (inSet(CODESET.lineSeg, t) || inSet(CODESET.curveSeg, t) ||
-                     inSet(CODESET.offset, t) || /^[HV]-?\d/.test(t)) segCodes.push(t);
-            // unknown tokens are ignored
+            const c = classifyToken(t);
+            if (!c) { if (primaryTok == null) primaryTok = raw; continue; }
+            if (c.kind === "begin") control = control || "begin";
+            else if (c.kind === "continue") control = "continue";
+            else if (c.kind === "end") control = control || "end";
+            else if (c.kind === "close") control = "close";
+            else if (c.kind === "fig") fig = c.value;
+            else if (c.kind === "seg") segCodes.push(c.value);
         }
-        return { code: primary, fig: fig || "1", control, closeFlag: control === "close", segCodes };
+        const primary = (primaryTok || toks[0]).split(CODESET.escape)[0].toUpperCase() || "LINE";
+
+        // Compound tokens: "<code><escape><word>[<escape><word>...]" — the
+        // leading segment names the (possibly different) figure; each
+        // trailing segment is a control/curve word for THAT figure.
+        const crossRefs = [];
+        for (const raw of compoundToks) {
+            const segs = raw.split(CODESET.escape).filter(Boolean);
+            if (segs.length < 2) continue;
+            const refCode = segs[0].toUpperCase();
+            let refControl = "", refSeg = [];
+            for (const s of segs.slice(1)) {
+                const c = classifyToken(s.toUpperCase());
+                if (!c) continue;                       // unrecognized (e.g. "C3") — ignored, not fatal
+                if (c.kind === "begin") refControl = refControl || "begin";
+                else if (c.kind === "continue") refControl = "continue";
+                else if (c.kind === "end") refControl = refControl || "end";
+                else if (c.kind === "close") refControl = "close";
+                else if (c.kind === "seg") refSeg.push(c.value);
+            }
+            if (refCode === primary) {
+                // Same figure as the primary token — merge, don't duplicate the vertex.
+                if (refControl && !control) control = refControl;
+                else if (refControl === "close") control = "close";
+                refSeg.forEach(s => { if (segCodes.indexOf(s) === -1) segCodes.push(s); });
+            } else if (refControl || refSeg.length) {
+                crossRefs.push({ code: refCode, control: refControl, closeFlag: refControl === "close", segCodes: refSeg });
+            }
+        }
+
+        return { code: primary, fig: fig || "1", control, closeFlag: control === "close", segCodes, crossRefs };
     }
 
     function defaultLayer(code) {
@@ -251,16 +381,29 @@
                 else if (anyAt(i, CODESET.curveEnd) && bc >= 0) {
                     const span = f.pts.slice(bc, i + 1);
                     const cir = span.length >= 3 ? fitCircle(span) : null;
+                    const label = `curve span #${f.pts[bc].ptNum != null ? f.pts[bc].ptNum : bc}→#${f.pts[i].ptNum != null ? f.pts[i].ptNum : i}`;
                     if (cir && cir.r > 0 && cir.r < 1e7) {
                         const s = span[0], mid = span[Math.floor(span.length / 2)], e = span[span.length - 1];
                         const cross = (mid.e - s.e) * (e.n - mid.n) - (mid.n - s.n) * (e.e - mid.e);
                         // max deviation of a span point from the fitted circle
                         let dev = 0;
                         for (const p of span) dev = Math.max(dev, Math.abs(Math.hypot(p.e - cir.cx, p.n - cir.cy) - cir.r));
-                        arcs.push({ startIdx: bc, endIdx: i, cx: cir.cx, cy: cir.cy, r: cir.r, ccw: cross > 0, dev });
+                        const rel = dev / cir.r;
+                        if (dev <= ARC_FIT.absFt || rel <= ARC_FIT.relFrac) {
+                            arcs.push({ startIdx: bc, endIdx: i, cx: cir.cx, cy: cir.cy, r: cir.r, ccw: cross > 0, dev, rel });
+                        } else {
+                            // The shots don't actually lie on a circle (e.g. a natural
+                            // top-of-bank/toe-of-slope line, not an engineered curb
+                            // return) — drawing one anyway would be visibly wrong, so
+                            // the span is left to render as straight shot-to-shot
+                            // chords instead (see figurePolyPoints), same as a BC with
+                            // no matching EC.
+                            f.geomWarn = (f.geomWarn || "") + ` ${label}: fit deviation ${dev.toFixed(2)}ft ` +
+                                `(${(rel * 100).toFixed(0)}% of r=${cir.r.toFixed(1)}ft) exceeds tolerance — not a ` +
+                                `constant-radius curve, drawn as straight chords.`;
+                        }
                     } else {
-                        f.geomWarn = (f.geomWarn || "") +
-                            ` curve span #${f.pts[bc].ptNum != null ? f.pts[bc].ptNum : bc}→#${f.pts[i].ptNum != null ? f.pts[i].ptNum : i}: ` +
+                        f.geomWarn = (f.geomWarn || "") + ` ${label}: ` +
                             (span.length < 3 ? "need at least 3 shots (BC, on-curve, EC)." : "points are collinear — cannot fit an arc.");
                     }
                     bc = -1;
@@ -285,27 +428,42 @@
         const current = {};   // key → figure currently open for that key
         let n = 0;
 
-        ordered.forEach(p => {
-            const d = splitDesc(p.desc);
-            const key = mode === "byFigure" ? `${d.code} #${d.fig}` : d.code;
-
-            if (d.control === "begin" || !current[key]) {
-                current[key] = { id: "F" + (++n), name: key, code: d.code, layer: defaultLayer(d.code), closed: false, pts: [], segCodes: [] };
+        /** Open/resume `key` (auto-begin if nothing's open for it yet, matching
+         *  Civil 3D), push one copy of the shot onto it, honor end/close. Used
+         *  for both a point's primary figure and any cross-referenced ones
+         *  (see splitDesc's crossRefs — one shot can be a shared vertex of two
+         *  different figures, e.g. a curb line ending and a swale beginning). */
+        function apply(key, code, control, closeFlag, segCds, p) {
+            if (control === "begin" || !current[key]) {
+                current[key] = { id: "F" + (++n), name: key, code, layer: defaultLayer(code), closed: false, pts: [], segCodes: [] };
                 out.push(current[key]);
-            } else if (d.control === "continue" && !current[key]) {
-                // resume the last output figure with this key
+            } else if (control === "continue" && !current[key]) {
                 const prev = [...out].reverse().find(f => f.name === key);
-                current[key] = prev || (current[key] = { id: "F" + (++n), name: key, code: d.code, layer: defaultLayer(d.code), closed: false, pts: [], segCodes: [] });
+                current[key] = prev || (current[key] = { id: "F" + (++n), name: key, code, layer: defaultLayer(code), closed: false, pts: [], segCodes: [] });
                 if (!prev) out.push(current[key]);
             }
-
             const fig = current[key];
-            const P = pt(p); P.codes = d.segCodes.slice();
+            const P = pt(p); P.codes = segCds.slice();
             fig.pts.push(P);
-            d.segCodes.forEach(c => { if (fig.segCodes.indexOf(c) === -1) fig.segCodes.push(c); });
+            segCds.forEach(c => { if (fig.segCodes.indexOf(c) === -1) fig.segCodes.push(c); });
 
-            if (d.control === "close") { fig.closed = true; current[key] = null; }
-            else if (d.control === "end") { current[key] = null; }
+            if (closeFlag) { fig.closed = true; current[key] = null; }
+            else if (control === "end") { current[key] = null; }
+        }
+
+        const pointOnly = CODESET.pointOnly || [];
+        ordered.forEach(p => {
+            const d = splitDesc(p.desc);
+            if (pointOnly.indexOf(d.code) === -1) {
+                const key = mode === "byFigure" ? `${d.code} #${d.fig}` : d.code;
+                apply(key, d.code, d.control, d.closeFlag, d.segCodes, p);
+            }
+
+            (d.crossRefs || []).forEach(cr => {
+                if (pointOnly.indexOf(cr.code) !== -1) return;
+                const crKey = mode === "byFigure" ? `${cr.code} #1` : cr.code;
+                apply(crKey, cr.code, cr.control, cr.closeFlag, cr.segCodes, p);
+            });
         });
 
         return resolveGeometry(out.filter(f => f.pts.length >= 2));
@@ -1049,6 +1207,80 @@
         return out;
     }
 
+    /**
+     * Serialize a figures model (buildFigures' output, or Ed.model.figures)
+     * back into a Civil 3D Survey Command Language script — the same command
+     * forms documented in Autodesk's own reference (NEZ to plant a known 3D
+     * coordinate; FIG BEGIN/PT/CLOSE/END to assemble a figure from points
+     * already in the database — see Section 13, Example A there). This is
+     * the reverse of parsePointFile+buildFigures: a readable, standards-
+     * grounded script a person (or Civil 3D's Survey Command Window) can
+     * read back, not a re-import format for THIS app — round-trip back into
+     * this app still goes through a PNEZD point file (see exportPNEZD).
+     *
+     * A point shared between two figures (see splitDesc's crossRefs — a
+     * curb line ending and a swale beginning at the same corner) is planted
+     * ONCE via NEZ and referenced by FIG PT in both figures, not duplicated.
+     * Curve spans (arcs) are marked with a "// BC"/"// EC" comment on their
+     * FIG PT line — Autodesk's own FIG CRV command takes a radius/length
+     * parameter whose exact pairing with FIG PT isn't nailed down by the
+     * reference alone, so this sticks to the one thing verifiable from it: a
+     * plain comment (Section 13's own examples use "//" comments) rather
+     * than guessing at unconfirmed command syntax.
+     */
+    function buildLineworkScript(figures, opts) {
+        opts = opts || {};
+        const header = opts.header !== false;
+        const lines = [];
+        if (header) {
+            lines.push("// Generated by the Linework Editor (plugins/linework/linework.js)");
+            lines.push(`// ${new Date().toISOString()}`);
+            lines.push("// Civil 3D Survey Command Language — see FIG BEGIN/PT/CLOSE/END, NEZ.");
+            lines.push("");
+        }
+        const figs = (figures || []).filter(f => (f.pts && f.pts.length >= 2) || (f.isCircle && f.circle));
+        if (!figs.length) return lines.join("\n") + (lines.length ? "\n" : "");
+
+        const autoIds = new Map();
+        let autoNum = 9000;
+        const idFor = p => {
+            if (p.ptNum != null && p.ptNum !== "") return String(p.ptNum);
+            if (!autoIds.has(p)) autoIds.set(p, String(autoNum++));
+            return autoIds.get(p);
+        };
+        const seen = new Set();
+        const emitNez = p => {
+            const id = idFor(p);
+            if (!seen.has(id)) { seen.add(id); lines.push(`NEZ ${id} ${p.n.toFixed(4)} ${p.e.toFixed(4)} ${(p.z || 0).toFixed(4)}`); }
+            return id;
+        };
+        const circleCenterPt = f => ({ n: f.circle.cy, e: f.circle.cx, z: 0, ptNum: null });
+
+        // 1) plant every point once.
+        figs.forEach(f => f.isCircle && f.circle ? emitNez(circleCenterPt(f)) : f.pts.forEach(emitNez));
+        lines.push("");
+
+        // 2) figure structure.
+        figs.forEach(f => {
+            if (f.isCircle && f.circle) {
+                lines.push(`FIG CIR ${idFor(circleCenterPt(f))} ${f.circle.r.toFixed(4)}   // ${f.code}`);
+                return;
+            }
+            const arcs = f.arcs || [];
+            lines.push(`FIG BEGIN ${f.code}`);
+            f.pts.forEach((p, i) => {
+                const tag = arcs.some(a => a.startIdx === i) ? "   // BC (curve begins)"
+                          : arcs.some(a => a.endIdx === i) ? "   // EC (curve ends)" : "";
+                lines.push(`FIG PT ${idFor(p)}${tag}`);
+            });
+            if (f.closed) lines.push("FIG CLOSE");
+            lines.push("FIG END");
+            lines.push("");
+        });
+
+        return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+    }
+
     function exportDXF() {
         const figs = Ed.model.figures.filter(f => (f.pts && f.pts.length >= 2) || f.isCircle);
         if (!figs.length) return null;
@@ -1066,6 +1298,7 @@
         }));
         return rows.join("\r\n") + "\r\n";
     }
+    function exportLineworkScript() { return buildLineworkScript(Ed.model.figures); }
     function exportCalls() {
         const L = [];
         Ed.model.figures.forEach(f => {
@@ -1147,6 +1380,16 @@
             });
             document.getElementById("btn-lw-parse-points")?.addEventListener("click", () => loadPoints(paste(), ctx));
             document.getElementById("btn-lw-parse-calls")?.addEventListener("click", () => loadCalls(paste(), ctx));
+            document.getElementById("btn-lw-from-efbk")?.addEventListener("click", () => {
+                if (!window.EFBK) { ctx.showToast("EFB plugin is not loaded.", true); return; }
+                const model = (typeof window.EFBK.getLastModel === "function") ? window.EFBK.getLastModel() : null;
+                if (model && model.figures && model.figures.length) {
+                    Ed.setModel({ figures: model.figures });
+                    ctx.showToast(`Loaded ${model.figures.length} figure(s) from EFB.`);
+                } else {
+                    ctx.showToast("No EFB figures built yet. Build figures in the EFB tab first.", true);
+                }
+            });
             ["lw-order", "lw-group"].forEach(id => document.getElementById(id)?.addEventListener("change", () => {
                 const t = paste(); if (t.trim()) loadPoints(t, ctx);
             }));
@@ -1166,6 +1409,7 @@
             const dl = (name, txt, mime) => { if (!txt) { ctx.showToast("Nothing to export.", true); return; } window.COGO.downloadText(name, txt, mime); ctx.showToast("Exported " + name); };
             document.getElementById("btn-lw-exp-dxf")?.addEventListener("click", () => dl("linework.dxf", exportDXF(), "application/dxf"));
             document.getElementById("btn-lw-exp-pnezd")?.addEventListener("click", () => dl("linework_coordinates.txt", exportPNEZD(), "text/csv"));
+            document.getElementById("btn-lw-exp-script")?.addEventListener("click", () => dl("linework_script.fbk", exportLineworkScript(), "text/plain"));
             document.getElementById("btn-lw-exp-calls")?.addEventListener("click", () => dl("linework_calls.txt", exportCalls()));
             document.getElementById("btn-lw-exp-report")?.addEventListener("click", () => dl("linework_mapcheck.log", exportReport()));
 
@@ -1246,5 +1490,5 @@
     };
 
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
-    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, resolveGeometry, circumcircle, fitCircle, CODESET, _Ed: Ed };
+    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, resolveGeometry, circumcircle, fitCircle, buildLineworkScript, CODESET, CODESET_PROFILES, applyCodesetProfile, ARC_FIT, _Ed: Ed };
 })();

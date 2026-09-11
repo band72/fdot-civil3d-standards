@@ -171,4 +171,14 @@ module.exports = function (t, env) {
     t.eq(parsed.entities[0].type, "LWPOLYLINE", "polyline round-trips");
     t.eq(parsed.entities[0].vertices.length, 4, "4 vertices round-trip");
     t.close(parsed.entities[0].vertices[1].x, 500100, 1e-6, "vertex x round-trips");
+
+    t.group("cogo/normalizeDMS — seconds/minutes rollover carries correctly");
+    // REGRESSION: a raw seconds value that rounds to 60 must carry into
+    // minutes (never print as ":60") — found via plugins/legal-desc and
+    // plugins/traverse-cogo's Civil 3D script exporters both inlining
+    // `Math.round(sec)` directly into a DD.MMSS string.
+    t.eq(JSON.stringify(C.normalizeDMS(45, 12, 59.6)), JSON.stringify({ deg: 45, min: 13, sec: 0 }), "59.6\" rounds up and carries into minutes");
+    t.eq(JSON.stringify(C.normalizeDMS(45, 59, 59.6)), JSON.stringify({ deg: 46, min: 0, sec: 0 }), "…and a full minute+second rollover carries into degrees too");
+    t.eq(JSON.stringify(C.normalizeDMS(45, 12, 30.4)), JSON.stringify({ deg: 45, min: 12, sec: 30 }), "an ordinary value is unaffected (just rounds down)");
+    t.eq(JSON.stringify(C.normalizeDMS(45, 12, 29.5)), JSON.stringify({ deg: 45, min: 12, sec: 30 }), "…and rounds up normally when it doesn't hit a boundary");
 };

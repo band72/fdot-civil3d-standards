@@ -164,4 +164,52 @@ module.exports = async function (t, env) {
     const bad = await CMS.verifyAuditIntegrity();
     t.notOk(bad.isValid, "tampered block detected");
     t.match(bad.errorType || "", /TAMPER|MISMATCH/i, "reports a tamper error type");
+
+    // ── Stripe Billing & Webhook Integration ────────────────────────────
+    t.group("billing/stripe config & checkout");
+    const cfg = BILL.getStripeConfig();
+    t.ok(cfg && cfg.publishableKey && cfg.paymentLinks, "Stripe config default object intact");
+    BILL.saveStripeConfig({ mode: "live", publishableKey: "pk_test_live_12345" });
+    t.eq(BILL.getStripeConfig().mode, "live", "Stripe mode update persisted");
+    t.eq(BILL.getStripeConfig().publishableKey, "pk_test_live_12345", "Stripe publishable key persisted");
+
+    const checkoutRes = await BILL.processCheckout({
+        plan: "Firm",
+        company: "Kimley-Horn",
+        email: "jane.doe@kimley-horn.com",
+        cardLast4: "4242"
+    });
+    t.ok(checkoutRes.success, "processCheckout returns success");
+    t.eq(BILL.currentTier, "Firm", "currentTier updated to Firm");
+    t.eq(W.localStorage.getItem("bqc_user_tier"), "Firm", "localStorage tier updated to Firm");
+    t.ok(W.sessionStorage.getItem("bqc_c3d_jwt_token"), "sessionStorage ECDSA JWT minted");
+    const sub = BILL.getSubscription();
+    t.ok(sub && sub.status === "active" && sub.customerId && sub.subscriptionId, "active Stripe subscription recorded");
+
+    t.group("billing/stripe webhook processing");
+    const stripeEvt = {
+        id: "evt_test_" + Date.now(),
+        type: "invoice.payment_succeeded",
+        data: {
+            object: {
+                id: "in_test_123",
+                amount_total: 19900,
+                metadata: { plan: "firm" }
+            }
+        }
+    };
+    const hookRes1 = CMS.processStripeWebhook(stripeEvt, "whsec_test", stripeEvt.id);
+    t.ok(hookRes1.success, "Stripe standard invoice event processed");
+    t.eq(hookRes1.amount, 199, "Stripe amount parsed from amount_total in cents");
+
+    // Idempotency lock verification
+    const hookRes2 = CMS.processStripeWebhook(stripeEvt, "whsec_test", stripeEvt.id);
+    t.notOk(hookRes2.success, "duplicate Stripe webhook event blocked by idempotency key");
+    t.eq(hookRes2.reason, "IDEMPOTENT_REQUEST_ALREADY_PROCESSED", "returns idempotency reason");
+
+    // Cancellation test
+    const cancelRes = await BILL.cancelSubscription();
+    t.ok(cancelRes.success, "cancelSubscription returns success");
+    t.eq(BILL.currentTier, "Free", "tier downgraded to Free");
+    t.eq(CMS.getOrganizations()[0].plan, "free", "org plan downgraded to free in CMS");
 };

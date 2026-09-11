@@ -211,6 +211,115 @@ module.exports = function (t, env) {
     t.ok(!short.arcs || short.arcs.length === 0, "2-point BC..EC span produces no arc");
     t.ok(/at least 3 shots/i.test(short.geomWarn || ""), "2-point span warns");
 
+    // A bad circle fit (a "curve" that isn't actually one, e.g. a natural
+    // meandering line bracketed by MCS/MCE) must NOT be forced into a wrong
+    // arc — REGRESSION for the Vinings.txt top-of-bank/toe-of-slope finding.
+    const badFit = LW.buildFigures(LW.parsePointFile([
+        "1,-10,-10,0,TOB B", "2,0,0,0,TOB MCS", "3,15,10,0,TOB", "4,-5,20,0,TOB",
+        "5,20,30,0,TOB", "6,0,40,0,TOB MCE", "7,10,50,0,TOB E"
+    ].join("\n"), "NE").points, "byCode")[0];
+    t.notOk(badFit.arcs && badFit.arcs.length, "a poorly-fit MCS..MCE span isn't drawn as an arc");
+    t.match(badFit.geomWarn || "", /exceeds tolerance/i, "…and geomWarn explains why");
+    t.eq(badFit.pts.length, 7, "…all 7 shots still kept as straight-chord vertices");
+
+    t.group("linework/splitDesc — control-word-first order + MCS/MCE (field convention variants)");
+    // Civil 3D's own default puts the code first ("EP B"); some offices' point
+    // files put the control word first ("B EP") — both must parse identically.
+    t.eq(LW.splitDesc("B EP").code, "EP", "control-first: code recovered regardless of position");
+    t.eq(LW.splitDesc("B EP").control, "begin", "control-first: control word recognized out of position");
+    t.eq(LW.splitDesc("E TCL").code, "TCL", "control-first end: code recovered");
+    t.eq(LW.splitDesc("E TCL").control, "end", "control-first end: control recognized");
+    t.eq(LW.splitDesc("E TCL 30").code, "TCL", "control-first end + trailing number: code still TCL, not '30'");
+    t.eq(LW.splitDesc("E TCL 30").fig, "30", "…the trailing number still parses as `fig` (byCode mode ignores it)");
+    t.eq(LW.splitDesc("MCS SW").segCodes.join(","), "MCS", "MCS recognized as a curve-begin segCode");
+    t.eq(LW.splitDesc("MCE SW").segCodes.join(","), "MCE", "MCE recognized as a curve-end segCode");
+    const mcsFig = LW.buildFigures(LW.parsePointFile([
+        `1,0,0,9,W B`,
+        `2,250,0,9,W MCS`,
+        `3,250,250,9,W`,
+        `4,500,250,9,W MCE`,
+        `5,750,250,9,W E`
+    ].join("\n"), "NE").points, "byCode")[0];
+    t.ok(mcsFig.arcs && mcsFig.arcs.length === 1, "MCS..MCE resolves an arc exactly like BC..EC");
+
+    t.group("linework/splitDesc — X-compound cross-figure references");
+    // "<code><escape><word>" cross-references a DIFFERENT figure from this same
+    // shot (e.g. a curb line ending and a swale beginning at the same corner).
+    t.eq(LW.splitDesc("TB/E TB1").code, "TB1", "compound + plain: plain token is primary");
+    t.eq(LW.splitDesc("TB/E TB1").crossRefs.length, 1, "…the compound token becomes one crossRef");
+    t.eq(LW.splitDesc("TB/E TB1").crossRefs[0].code, "TB", "…targeting the OTHER code");
+    t.eq(LW.splitDesc("TB/E TB1").crossRefs[0].control, "end", "…with the right control word");
+    // Same code as primary → folds in, no duplicate cross-reference.
+    t.eq(LW.splitDesc("TB/E TB").crossRefs.length, 0, "same-code compound merges into the primary, no crossRef");
+    t.eq(LW.splitDesc("TB/E TB").control, "end", "…and its control word is honored on the primary");
+    t.eq(LW.splitDesc("LOT/EP").code, "LOT", "REGRESSION: bare compound-only description still parses (no plain token)");
+
+    const hingePts = LW.parsePointFile([
+        "1,0,0,10,ROAD B", "2,100,0,10,ROAD",
+        "3,100,100,10,ROAD/E DRV/B",     // shared vertex: ends ROAD, begins DRV
+        "4,100,200,10,DRV", "5,100,300,10,DRV E"
+    ].join("\n"), "NE").points;
+    const hingeFigs = LW.buildFigures(hingePts, "byCode");
+    const road = hingeFigs.find(f => f.code === "ROAD"), drv = hingeFigs.find(f => f.code === "DRV");
+    t.ok(road && drv, "both figures built from one description stream with a shared hinge shot");
+    t.eq(road.pts.map(p => p.ptNum).join(","), "1,2,3", "ROAD ends at the hinge point (#3)");
+    t.eq(drv.pts.map(p => p.ptNum).join(","), "3,4,5", "DRV begins at the SAME hinge point (#3)");
+    t.eq(road.pts[2].e, drv.pts[0].e, "…sharing identical coordinates (e)");
+    t.eq(road.pts[2].n, drv.pts[0].n, "…sharing identical coordinates (n)");
+    t.notOk(road.closed, "ROAD ended (E), not closed");
+
+    t.group("linework/CODESET.pointOnly — codes that never auto-chain into a figure");
+    // Default: 2+ shots sharing a bare code with no B/C/E at all still chain
+    // into one figure (existing, intended "automatic figure" behavior).
+    const gradePts = LW.parsePointFile("1,0,0,9,GRADE\n2,500,500,9,GRADE\n3,1000,10,9,GRADE", "NE").points;
+    t.ok(LW.buildFigures(gradePts, "byCode").some(f => f.code === "GRADE"), "by default, bare same-code shots DO chain");
+    const savedPointOnly = LW.CODESET.pointOnly;
+    try {
+        LW.CODESET.pointOnly = ["GRADE"];
+        const noChain = LW.buildFigures(gradePts, "byCode");
+        t.notOk(noChain.some(f => f.code === "GRADE"), "…unless the code is opted into pointOnly — then never a figure");
+    } finally {
+        LW.CODESET.pointOnly = savedPointOnly;   // don't leak into other suites
+    }
+
+    t.group("linework/CODESET_PROFILES — reusable per-convention presets");
+    t.throws(() => LW.applyCodesetProfile("not-a-real-profile"), "unknown profile name throws, doesn't silently no-op");
+    const savedEscape = LW.CODESET.escape, savedPointOnly2 = LW.CODESET.pointOnly;
+    try {
+        LW.applyCodesetProfile("control-first-x-escape");
+        t.eq(LW.CODESET.escape, "X", "profile applied: escape switched to X");
+        t.ok(LW.CODESET.pointOnly.indexOf("G") !== -1, "profile applied: pointOnly carries the known point-feature codes");
+        // control-word-first + X-compound cross-ref + MCS, all through ONE profile call
+        const profPts = LW.parsePointFile([
+            "1,0,0,10,B TCL", "2,100,0,10,TCL",
+            "3,100,100,10,TCLXE SW1XB",       // ends TCL, begins SW1 — at the same shot
+            "4,100,200,10,SW1",
+        ].join("\n"), "NE").points;
+        const profFigs = LW.buildFigures(profPts, "byCode");
+        t.ok(profFigs.find(f => f.code === "TCL" && f.pts.length === 3), "control-first TCL built via the profile");
+        t.ok(profFigs.find(f => f.code === "SW1" && f.pts.length === 2), "cross-referenced SW1 built from the same hinge shot");
+
+        LW.applyCodesetProfile("default");
+        t.eq(LW.CODESET.escape, "/", "\"default\" profile restores the stock escape char");
+        t.eq(LW.CODESET.pointOnly.length, 0, "\"default\" profile restores an empty pointOnly");
+
+        // FDOT State Kit profile verification
+        LW.applyCodesetProfile("fdot-state-kit");
+        t.eq(LW.CODESET.escape, "/", "fdot-state-kit profile uses '/' escape delimiter");
+        t.ok(LW.CODESET.pointOnly.includes("MONU") && LW.CODESET.pointOnly.includes("BENCH") && LW.CODESET.pointOnly.includes("TREE"),
+            "fdot-state-kit carries FDOT survey point-only codes (MONU, BENCH, TREE, FH)");
+        const fdotPts = LW.parsePointFile([
+            "1,0,0,10,MONU", "2,100,0,10,MONU",
+            "3,200,0,10,EOP B", "4,300,0,10,EOP", "5,400,0,10,EOP E"
+        ].join("\n"), "NE").points;
+        const fdotFigs = LW.buildFigures(fdotPts, "byCode");
+        t.notOk(fdotFigs.some(f => f.code === "MONU"), "MONU shots are point-only under fdot-state-kit, not chained");
+        t.ok(fdotFigs.some(f => f.code === "EOP" && f.pts.length === 3), "EOP linear figure built correctly");
+        LW.applyCodesetProfile("default");
+    } finally {
+        LW.CODESET.escape = savedEscape; LW.CODESET.pointOnly = savedPointOnly2;   // don't leak into other suites
+    }
+
     t.group("linework/CIR circle + RECT rectangle codes");
     const circ = LW.buildFigures(LW.parsePointFile("1,2000015,640000,9,MH CIR\n2,2000000,640015,9,MH\n3,2000000,639985,9,MH", "NE").points, "byCode")[0];
     t.ok(circ.isCircle && circ.circle, "CIR -> whole-figure circle");
@@ -263,4 +372,60 @@ module.exports = function (t, env) {
     const eDxf = COGO.buildDxf({ layers: [{ name: eFig.layer, color: 4 }], polylines: [{ layer: eFig.layer, closed: eFig.closed, points: eFig.pts }], texts: [] });
     t.match(eDxf.replace(/\r\n/g, " "), /LWPOLYLINE.*EOF/, "figure exports to DXF");
     t.match(COGO.pnezd(eFig.pts).split(/\r?\n/)[0], /^P,N,E,Z,D$/, "figure exports to PNEZD");
+
+    t.group("linework/buildLineworkScript — Civil 3D Survey Command Language export");
+    const scriptFigs = LW.buildFigures(LW.parsePointFile([
+        "1,2000000,600000,10,SQ B", "2,2000100,600000,10,SQ", "3,2000100,600100,10,SQ", "4,2000000,600100,10,SQ CLS",
+        "10,2010000,610000,10,OPEN B", "11,2010100,610000,10,OPEN E",
+    ].join("\n"), "NE").points, "byCode");
+    const script = LW.buildLineworkScript(scriptFigs);
+    t.match(script, /NEZ 1 2000000\.0000 600000\.0000 10\.0000/, "NEZ line for point 1 (N E Z order)");
+    t.match(script, /FIG BEGIN SQ/, "FIG BEGIN for the closed square");
+    t.match(script, /FIG PT 1[\s\S]*FIG PT 2[\s\S]*FIG PT 3[\s\S]*FIG PT 4/, "FIG PT lines in point order");
+    t.match(script, /FIG PT 4\nFIG CLOSE\nFIG END/, "FIG CLOSE before FIG END for the closed figure");
+    t.match(script, /FIG BEGIN OPEN[\s\S]*FIG PT 10[\s\S]*FIG PT 11\nFIG END/, "the open figure has no FIG CLOSE");
+    t.notOk(/OPEN[\s\S]*FIG CLOSE/.test(script.slice(script.indexOf("FIG BEGIN OPEN"))), "…confirmed: no stray CLOSE after OPEN");
+
+    // A point shared between two figures (crossRefs hinge) is planted once.
+    const hingeFigs2 = LW.buildFigures(LW.parsePointFile([
+        "1,0,0,10,ROAD B", "2,100,0,10,ROAD",
+        "3,100,100,10,ROAD/E DRV/B",
+        "4,100,200,10,DRV", "5,100,300,10,DRV E",
+    ].join("\n"), "NE").points, "byCode");
+    const hingeScript = LW.buildLineworkScript(hingeFigs2);
+    t.eq((hingeScript.match(/^NEZ 3 /gm) || []).length, 1, "the shared hinge point (#3) is planted with NEZ exactly once");
+    t.eq((hingeScript.match(/^FIG PT 3\b/gm) || []).length, 2, "…but referenced by FIG PT in BOTH figures");
+
+    // BC/EC curve markers land on the right FIG PT lines.
+    const arcCen2 = { e: 640000, n: 2000000 };
+    const onArc2 = a => ({ e: arcCen2.e + 250 * Math.cos(a), n: arcCen2.n + 250 * Math.sin(a) });
+    const q2 = onArc2(0), q3 = onArc2(Math.PI / 4), q4 = onArc2(Math.PI / 2);
+    const arcFig = LW.buildFigures(LW.parsePointFile([
+        `1,${arcCen2.n},${arcCen2.e},9,C1 B`,
+        `2,${q2.n.toFixed(4)},${q2.e.toFixed(4)},9,C1 BC`,
+        `3,${q3.n.toFixed(4)},${q3.e.toFixed(4)},9,C1`,
+        `4,${q4.n.toFixed(4)},${q4.e.toFixed(4)},9,C1 EC`,
+        `5,${(arcCen2.n - 250).toFixed(4)},${(arcCen2.e - 250).toFixed(4)},9,C1 E`,
+    ].join("\n"), "NE").points, "byCode");
+    const arcScript = LW.buildLineworkScript(arcFig);
+    t.match(arcScript, /FIG PT 2 {3}\/\/ BC \(curve begins\)/, "BC comment on the arc-start FIG PT line");
+    t.match(arcScript, /FIG PT 4 {3}\/\/ EC \(curve ends\)/, "EC comment on the arc-end FIG PT line");
+    t.notOk(/FIG PT 3 {3}\/\//.test(arcScript), "…the interior on-curve shot carries no marker");
+
+    // CIR whole-figure circle.
+    const circFig = LW.buildFigures(LW.parsePointFile("1,2000015,640000,9,MH CIR\n2,2000000,640015,9,MH\n3,2000000,639985,9,MH", "NE").points, "byCode");
+    const circScript = LW.buildLineworkScript(circFig);
+    t.match(circScript, /FIG CIR \d+ 15\.0000 {3}\/\/ MH/, "CIR figure exports as FIG CIR centre-point + radius");
+
+    // Points with no real ptNum (e.g. an interactively-added RECT corner) still export, auto-numbered.
+    const rectFig = LW.buildFigures(LW.parsePointFile("1,2000000,640000,9,PAD B RECT\n2,2000000,640100,9,PAD\n3,2000060,640100,9,PAD", "NE").points, "byCode");
+    const rectScript = LW.buildLineworkScript(rectFig);
+    t.eq((rectScript.match(/^NEZ /gm) || []).length, 4, "the computed 4th RECT corner still gets a NEZ line");
+    t.eq((rectScript.match(/^FIG PT /gm) || []).length, 4, "…and a FIG PT reference");
+
+    let emptyOk = true, emptyResult = "";
+    try { emptyResult = LW.buildLineworkScript([]); } catch (e) { emptyOk = false; }
+    t.ok(emptyOk, "empty figures array doesn't throw");
+    t.match(emptyResult, /Civil 3D Survey Command Language/, "…still emits the header comment");
+    t.match(LW.buildLineworkScript([], { header: false }), /^\s*$/, "header:false on an empty model returns empty/whitespace text");
 };

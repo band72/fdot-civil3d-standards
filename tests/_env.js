@@ -103,6 +103,7 @@ function load() {
         "plugins/plss-breakdown/plss-breakdown.js",
         "plugins/plat2dxf/plat2dxf.js",
         "plugins/linework/linework.js",
+        "plugins/efbk/efbk.js",
         "plugins/help/help.js"
     ];
 

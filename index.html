@@ -52,6 +52,10 @@
                         <i class="fa-solid fa-pen-ruler"></i>
                         <span>Linework Editor</span>
                     </button>
+                    <button class="nav-btn" data-tab="tab-efbk">
+                        <i class="fa-solid fa-book-open"></i>
+                        <span>Electronic Field Book</span>
+                    </button>
                 </div>
 
                 <div class="nav-section">
@@ -578,12 +582,15 @@
                             <label for="traverse-input">Enter Call List (e.g. N45°12'30"E 125.50'):</label>
                             <textarea id="traverse-input" rows="5" placeholder="N 45-12-30 E 150.00&#10;S 44-47-30 E 200.00&#10;S 45-12-30 W 150.00&#10;N 44-47-30 W 200.00"></textarea>
                         </div>
-                        <div style="display: flex; gap: 0.75rem;">
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                             <button class="btn btn-accent" id="btn-calc-traverse">
                                 <i class="fa-solid fa-calculator"></i> Run Bow-tie Verification
                             </button>
                             <button class="btn btn-primary" id="btn-gen-qc-report">
                                 <i class="fa-solid fa-file-invoice"></i> Generate Map Check Report
+                            </button>
+                            <button class="btn btn-secondary" id="btn-calc-traverse-script" title="Civil 3D Survey Command Window & .FBK format script">
+                                <i class="fa-solid fa-terminal"></i> Export Survey Script (.fbk)
                             </button>
                         </div>
 
@@ -635,6 +642,7 @@
                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                         <button class="btn btn-primary" id="btn-lw-parse-points"><i class="fa-solid fa-diagram-project"></i> Import as points</button>
                         <button class="btn btn-primary" id="btn-lw-parse-calls"><i class="fa-solid fa-compass-drafting"></i> Import as calls</button>
+                        <button class="btn btn-secondary" id="btn-lw-from-efbk"><i class="fa-solid fa-book-open"></i> Load from EFB</button>
                     </div>
                 </div>
 
@@ -650,6 +658,7 @@
                             <span style="flex:1;"></span>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-dxf">DXF</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-pnezd">P,N,E,Z,D</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-script" title="Civil 3D Survey Command Language script (NEZ + FIG BEGIN/PT/CLOSE/END)">Linework Script</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-calls">Calls</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-report">Map Check</button>
                         </div>
@@ -684,6 +693,15 @@
                 </div>
             </section>
 
+            <!-- Electronic Field Book — FDOT EFB point/chain data model -->
+            <section id="tab-efbk" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-book-open" style="color:var(--primary);"></i> Electronic Field Book</h2>
+                    <p class="subtitle">FDOT's EFB point/reference naming, P/C curve geometry, and chain-list mini-language (see the FDOT EFB User's Handbook). Builds a figures model — feeds the Linework Editor, or exports DXF / a Civil 3D linework script directly. Runs entirely in the browser.</p>
+                    <div id="efbk-controls" style="margin-top:1rem;"></div>
+                </div>
+            </section>
+
             <!-- Legal Description QC (ported from BoundaryQC desktop app) -->
             <section id="tab-legal-desc" class="tab-pane">
                 <div class="glass-panel" style="padding:1.5rem;">
@@ -697,6 +715,7 @@
                         <button class="btn btn-accent" id="btn-parse-legal-desc"><i class="fa-solid fa-list-check"></i> Parse &amp; Check</button>
                         <button class="btn btn-secondary" id="btn-legal-desc-pnezd"><i class="fa-solid fa-file-csv"></i> Export P,N,E,Z,D</button>
                         <button class="btn btn-secondary" id="btn-legal-desc-report"><i class="fa-solid fa-file-invoice"></i> Map Check Report</button>
+                        <button class="btn btn-secondary" id="btn-legal-desc-script" title="Civil 3D Survey Command Window & .FBK format script"><i class="fa-solid fa-terminal"></i> Export Survey Script (.fbk)</button>
                     </div>
                     <div id="legal-desc-results" class="results-box hidden" style="margin-top:1rem;"></div>
                 </div>
@@ -743,6 +762,40 @@
                             <span id="active-tier-badge" class="badge badge-tier-free" style="padding:0.3rem 0.6rem; border-radius:var(--radius-sm); font-size:0.7rem; font-weight:700; background:var(--bg-secondary); color:var(--text-secondary);">FREE PLAN ACTIVE</span>
                             <a href="docs/commercial_plan.md" target="_blank" class="btn btn-accent"><i class="fa-solid fa-file-contract"></i> View commercial_plan.md</a>
                             <button class="btn btn-primary" id="btn-open-checkout-top"><i class="fa-solid fa-bolt"></i> Activate Plan Demo</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Subscription & Stripe Gateway Dashboard -->
+                <div class="glass-panel" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                        <div>
+                            <h3 style="margin-bottom:0.25rem; font-size:1.1rem;"><i class="fa-brands fa-stripe" style="color:#635bff; font-size:1.4rem;"></i> Stripe Billing &amp; Subscription Portal</h3>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin:0;" id="billing-sub-status-line">Active plan: <strong id="billing-current-plan-name" style="color:var(--text-primary);">Free</strong> | Customer ID: <code id="billing-stripe-cus-id" style="color:var(--primary);">cus_demo</code></p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                            <button class="btn btn-secondary btn-sm" id="btn-manage-stripe-portal"><i class="fa-solid fa-sliders"></i> Stripe Config</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-view-invoices"><i class="fa-solid fa-receipt"></i> Receipts &amp; Ledger</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-cancel-subscription" style="display:none; color:var(--danger);"><i class="fa-solid fa-ban"></i> Cancel Subscription</button>
+                        </div>
+                    </div>
+                    <!-- Stripe Settings Panel (Toggleable) -->
+                    <div id="stripe-config-panel" class="hidden" style="margin-top:1rem; padding-top:1rem; border-top:1px solid var(--glass-border);">
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1rem;">
+                            <div class="form-group" style="margin:0;">
+                                <label style="font-size:0.75rem; color:var(--text-muted);">Stripe Publishable Key</label>
+                                <input type="text" id="stripe-pubkey-input" placeholder="pk_test_... or pk_live_..." style="width:100%; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-family:monospace; font-size:0.8rem;">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label style="font-size:0.75rem; color:var(--text-muted);">Gateway Mode</label>
+                                <select id="stripe-mode-select" style="width:100%; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-size:0.8rem;">
+                                    <option value="simulation">Simulation (ASC 606 &amp; Local Webhooks)</option>
+                                    <option value="live">Live / Direct Stripe Checkout</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem;">
+                            <button class="btn btn-primary btn-sm" id="btn-save-stripe-config"><i class="fa-solid fa-floppy-disk"></i> Save Stripe Settings</button>
                         </div>
                     </div>
                 </div>
@@ -1199,28 +1252,71 @@ public class CmdBoundaryQC : IExternalCommand {
 
     <!-- Subscription Checkout Modal -->
     <div id="modal-checkout" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
-        <div class="glass-panel" style="width: 90%; max-width: 500px; padding: 2rem; background: var(--bg-primary); border: 1px solid var(--primary); border-radius: var(--radius-md);">
+        <div class="glass-panel" style="width: 90%; max-width: 520px; padding: 2rem; background: var(--bg-primary); border: 1px solid var(--primary); border-radius: var(--radius-md);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                 <h3 id="modal-plan-title"><i class="fa-solid fa-credit-card" style="color:var(--primary);"></i> Activate Pro Tier ($49/mo)</h3>
                 <button class="icon-btn" id="btn-close-checkout"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">Simulated Stripe checkout integration for BoundaryQC & FDOT Civil3D Commercial Suite.</p>
+            
+            <div id="checkout-plan-banner" style="background:rgba(2, 132, 199, 0.08); border:1px solid var(--primary); border-radius:var(--radius-sm); padding:0.75rem 1rem; margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-weight:700; color:var(--text-main); font-size:0.95rem;" id="checkout-banner-name">Pro Tier Subscription</div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary);" id="checkout-banner-desc">Includes 1 User Seat, 50 Plat Extractions/mo, DXF Auto-Fix</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:1.4rem; font-weight:800; color:var(--primary);" id="checkout-banner-price">$49<span style="font-size:0.8rem; font-weight:400; color:var(--text-muted);">/mo</span></div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:1px solid var(--glass-border); padding-bottom:0.75rem;">
+                <button type="button" class="btn btn-sm btn-primary" id="btn-checkout-tab-card"><i class="fa-solid fa-credit-card"></i> Card / Stripe Elements</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-checkout-tab-link"><i class="fa-solid fa-link"></i> Stripe Payment Link</button>
+            </div>
 
             <form id="form-stripe-demo">
                 <div class="form-group" style="margin-bottom:0.75rem;">
                     <label style="font-size:0.8rem; color:var(--text-muted);">Company / Practice Name</label>
-                    <input type="text" value="Florida Land Surveying & Engineering LLC" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                    <input type="text" id="checkout-company-name" value="Kimley-Horn &amp; Associates, Inc." required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
                 </div>
                 <div class="form-group" style="margin-bottom:0.75rem;">
                     <label style="font-size:0.8rem; color:var(--text-muted);">Licensee Email (Domain Auto-Claim)</label>
-                    <input type="email" value="surveyor@fl-land-survey.com" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
+                    <input type="email" id="checkout-user-email" value="surveyor@kimley-horn.com" required style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm);">
                 </div>
-                <div class="form-group" style="margin-bottom:1.25rem;">
-                    <label style="font-size:0.8rem; color:var(--text-muted);">Card Number (Demo Stripe Gateway)</label>
-                    <input type="text" value="4242 •••• •••• 4242" readonly style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:var(--success); border-radius:var(--radius-sm); font-family:monospace;">
+
+                <div id="checkout-card-section">
+                    <div class="form-group" style="margin-bottom:0.75rem;">
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Card Number (Stripe Test Cards Accepted)</label>
+                        <div style="position:relative;">
+                            <input type="text" id="checkout-card-number" value="4242 •••• •••• 4242" placeholder="4242 4242 4242 4242" style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:var(--success); border-radius:var(--radius-sm); font-family:monospace;">
+                            <i class="fa-brands fa-cc-stripe" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:1.4rem; color:#635bff;"></i>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.5rem; margin-bottom:1.25rem;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.75rem; color:var(--text-muted);">Expires</label>
+                            <input type="text" id="checkout-card-exp" value="12/28" placeholder="MM/YY" style="width:100%; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-family:monospace; font-size:0.8rem;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.75rem; color:var(--text-muted);">CVC</label>
+                            <input type="text" id="checkout-card-cvc" value="123" placeholder="CVC" style="width:100%; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-family:monospace; font-size:0.8rem;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.75rem; color:var(--text-muted);">ZIP / Postal</label>
+                            <input type="text" id="checkout-card-zip" value="32301" placeholder="32301" style="width:100%; padding:0.5rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:#fff; border-radius:var(--radius-sm); font-family:monospace; font-size:0.8rem;">
+                        </div>
+                    </div>
                 </div>
+
+                <div id="checkout-link-section" class="hidden" style="margin-bottom:1.25rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Stripe Checkout / Payment Link URL</label>
+                        <input type="url" id="checkout-stripe-link-input" placeholder="https://buy.stripe.com/..." style="width:100%; padding:0.6rem; background:var(--bg-secondary); border:1px solid var(--glass-border); color:var(--accent); border-radius:var(--radius-sm); font-family:monospace; font-size:0.8rem;">
+                        <small style="color:var(--text-muted); display:block; margin-top:0.3rem;">Redirects to official Stripe-hosted checkout page.</small>
+                    </div>
+                </div>
+
                 <div style="display:flex; gap:0.75rem;">
-                    <button type="submit" class="btn btn-accent" style="flex:1;"><i class="fa-solid fa-lock"></i> Start 14-Day Free Trial</button>
+                    <button type="submit" id="checkout-submit-btn" class="btn btn-accent" style="flex:1;"><i class="fa-solid fa-lock"></i> <span id="checkout-btn-text">Confirm &amp; Activate Plan</span></button>
                     <button type="button" class="btn btn-secondary" id="btn-cancel-checkout">Cancel</button>
                 </div>
             </form>
@@ -1300,6 +1396,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/plss-breakdown/plss-breakdown.js"></script>
     <script src="plugins/plat2dxf/plat2dxf.js"></script>
     <script src="plugins/linework/linework.js"></script>
+    <script src="plugins/efbk/efbk.js"></script>
     <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->

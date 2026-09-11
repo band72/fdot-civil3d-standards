@@ -195,6 +195,18 @@
     /** Bulge factor for an LWPOLYLINE arc segment: tan(includedAngle / 4). Sign: + = CCW. */
     function bulge(includedAngleRad) { return Math.tan(includedAngleRad / 4); }
 
+    /** Round a D/M/S angle to whole seconds, carrying overflow into minutes
+     *  and degrees — a raw seconds value that rounds to 60 must not print as
+     *  ":60" (e.g. 45°12'59.6" -> {45,13,0}, not {45,12,60}). Every DMS/DD.MMSS
+     *  string built for a report or a Survey Command Language script should
+     *  round through this, not `Math.round(sec)` inline. */
+    function normalizeDMS(deg, min, sec) {
+        let d = deg, m = min, s = Math.round(sec);
+        if (s >= 60) { s -= 60; m += 1; }
+        if (m >= 60) { m -= 60; d += 1; }
+        return { deg: d, min: m, sec: s };
+    }
+
     /**
      * Build a minimal ASCII DXF (R12-style) from layers + entities.
      * layers:    [{ name, color }]  (ACI colour number)
@@ -249,7 +261,7 @@
         D2R, R2D, SQFT_PER_ACRE,
         parseBearing, azimuthToBearing, advance,
         distanceBetween, azimuthDegBetween, includedAngleDeg,
-        chordFromArc, deltaDegFromArc, shoelaceArea, bulge,
+        chordFromArc, deltaDegFromArc, shoelaceArea, bulge, normalizeDMS,
         runTraverse, pnezd, selfIntersects, buildDxf, downloadText
     };
 })();

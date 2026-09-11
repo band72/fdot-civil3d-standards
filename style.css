@@ -965,6 +965,28 @@ body:not(.dark-theme) .tag-discipline { color: #7c3aed; }
     .privacy-btn-text { display: none; }
 }
 
+/* ── Subscription Plan Tier Badges ────────────────────────────────────────── */
+.badge-tier-free {
+    background: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--glass-border) !important;
+}
+.badge-tier-pro {
+    background: rgba(59, 130, 246, 0.2) !important;
+    color: #60a5fa !important;
+    border: 1px solid var(--primary) !important;
+}
+.badge-tier-firm {
+    background: rgba(14, 165, 233, 0.2) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent) !important;
+}
+.badge-tier-enterprise {
+    background: rgba(16, 185, 129, 0.2) !important;
+    color: var(--success) !important;
+    border: 1px solid var(--success) !important;
+}
+
 /* ── Marketing & Conversion Refinements ──────────────────────────────────── */
 
 /* Hero Demo Card on Start Tab */
