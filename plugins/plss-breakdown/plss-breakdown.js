@@ -229,8 +229,19 @@
             });
             document.getElementById("btn-plss-report")?.addEventListener("click", () => {
                 if (!_last || !_last.parcels.length) { ctx.showToast("Run a breakdown first.", true); return; }
-                window.COGO.downloadText("plss_breakdown_report.log", report(_last));
-                ctx.showToast("Exported PLSS breakdown report.");
+                const reportContent = report(_last);
+                if (window.Reports?.addReport) {
+                    window.Reports.addReport({
+                        title: "PLSS Aliquot Section Breakdown Report",
+                        type: "plss-breakdown",
+                        category: "plss",
+                        format: "log",
+                        filename: "plss_breakdown_report.log",
+                        content: reportContent
+                    });
+                }
+                window.COGO.downloadText("plss_breakdown_report.log", reportContent);
+                ctx.showToast("Exported PLSS breakdown report & stored in Reports Hub.");
             });
         },
         onTabActivate(ctx) { if (_last) run(ctx); }

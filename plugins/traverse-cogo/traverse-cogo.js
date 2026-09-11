@@ -285,8 +285,19 @@
                     L.push(window.COGO.pnezd(t.verts));   // verts are already {e, n}
                 }
                 const report = L.join("\r\n");
+                if (window.Reports?.addReport) {
+                    window.Reports.addReport({
+                        title: "Traverse Closure & Map Check Report",
+                        type: "traverse-mapcheck",
+                        category: "cogo",
+                        format: "log",
+                        filename: "traverse_mapcheck.log",
+                        content: report,
+                        metadata: { linearMisclosure: t.linearMisclosure, precision: t.precisionDenominator, area: t.areaAcres }
+                    });
+                }
                 if (window.COGO) window.COGO.downloadText("traverse_mapcheck.log", report);
-                showToast("Map Check Report exported.");
+                showToast("Map Check Report exported & stored in Reports Hub.");
             });
             document.getElementById("btn-calc-traverse-script")?.addEventListener("click", () => {
                 if (!_lastTraverse) { showToast("Run the traverse calculation first.", true); return; }

@@ -106,6 +106,7 @@ function load() {
         "plugins/efbk/efbk.js",
         "plugins/landxml/landxml.js",
         "plugins/batchprocess/batchprocess.js",
+        "plugins/reports/reports.js",
         "plugins/help/help.js"
     ];
 

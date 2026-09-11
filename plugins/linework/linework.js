@@ -1411,7 +1411,20 @@
             document.getElementById("btn-lw-exp-pnezd")?.addEventListener("click", () => dl("linework_coordinates.txt", exportPNEZD(), "text/csv"));
             document.getElementById("btn-lw-exp-script")?.addEventListener("click", () => dl("linework_script.fbk", exportLineworkScript(), "text/plain"));
             document.getElementById("btn-lw-exp-calls")?.addEventListener("click", () => dl("linework_calls.txt", exportCalls()));
-            document.getElementById("btn-lw-exp-report")?.addEventListener("click", () => dl("linework_mapcheck.log", exportReport()));
+            document.getElementById("btn-lw-exp-report")?.addEventListener("click", () => {
+                const rep = exportReport();
+                if (window.Reports?.addReport) {
+                    window.Reports.addReport({
+                        title: "Linework Map Check Report",
+                        type: "linework-mapcheck",
+                        category: "cogo",
+                        format: "log",
+                        filename: "linework_mapcheck.log",
+                        content: rep
+                    });
+                }
+                dl("linework_mapcheck.log", rep);
+            });
 
             // Selection panel (event delegation)
             document.getElementById("lw-selection")?.addEventListener("click", e => {

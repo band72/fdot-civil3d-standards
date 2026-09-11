@@ -60,6 +60,11 @@
                         <i class="fa-solid fa-boxes-stacked"></i>
                         <span>Batch Project Auditor</span>
                     </button>
+                    <button class="nav-btn" data-tab="tab-reports">
+                        <i class="fa-solid fa-clipboard-list"></i>
+                        <span>Reports Hub</span>
+                        <span class="badge" id="reports-count-badge" style="display:none; background:var(--primary); color:#fff;">0</span>
+                    </button>
                 </div>
 
                 <div class="nav-section">
@@ -717,6 +722,11 @@
                     <p class="subtitle">Audit entire submittal packages of DXF and LandXML drawings simultaneously against FDOT CADD standards. Evaluates layer conformance, unclosed boundary gaps, bow-ties, and generates consolidated project scorecards and batch auto-fix scripts.</p>
                     <div id="batchprocess-controls" style="margin-top:1rem;"></div>
                 </div>
+            </section>
+
+            <!-- Centralized Reports Hub -->
+            <section id="tab-reports" class="tab-pane">
+                <div id="reports-root"></div>
             </section>
 
             <!-- Legal Description QC (ported from BoundaryQC desktop app) -->
@@ -1425,6 +1435,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/efbk/efbk.js"></script>
     <script src="plugins/landxml/landxml.js"></script>
     <script src="plugins/batchprocess/batchprocess.js"></script>
+    <script src="plugins/reports/reports.js"></script>
     <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->

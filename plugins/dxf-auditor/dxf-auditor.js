@@ -58,6 +58,28 @@
         renderDXFCanvas(parsed.entities, audit.issues);
         renderDXFIssues(audit.issues);
 
+        if (window.Reports?.addReport) {
+            let log = `=== FDOT DXF Project Audit Report ===\r\n`;
+            log += `File: ${filename}\r\n`;
+            log += `Compliance Score: ${audit.score}%\r\n`;
+            log += `Layers: ${audit.layersCount} | Entities: ${audit.entitiesCount}\r\n`;
+            log += `Total Issues Flagged: ${audit.issues.length}\r\n\r\n`;
+            log += `--- Itemized Issues ---\r\n`;
+            audit.issues.forEach(iss => {
+                log += `[${iss.severity}] ${iss.title}: ${iss.description} (Layer: ${iss.layer || 'N/A'})\r\n`;
+            });
+            window.Reports.addReport({
+                id: `dxf_audit_${filename.replace(/\W+/g, "_")}`,
+                title: `DXF Audit: ${filename}`,
+                type: "dxf-audit",
+                category: "dxf",
+                format: "log",
+                filename: `${filename.replace(/\.dxf$/i, "")}_audit.log`,
+                content: log,
+                metadata: { score: audit.score, issuesCount: audit.issues.length }
+            });
+        }
+
         await recordAuditToCMS(filename, audit, dxfText);
     }
 

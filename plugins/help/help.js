@@ -284,6 +284,20 @@
                 </ul>`
         },
         {
+            id: "reports-doc",
+            title: "3.15  Centralized Reports Hub & Submittal QA/QC Repository",
+            html: `
+                <p><em>Purpose:</em> unified central repository for all engineering and survey QA/QC audit logs, closure computations, mapchecks, and compliance scorecards generated across the entire FDOT suite.</p>
+                <h4>Unified Standards & Automation</h4>
+                <ul>
+                    <li><strong>Automated Ingestion:</strong> Whenever you run a Traverse closure, Legal Description mapcheck, Linework boundary audit, PLSS breakdown, DXF Project Audit, Standards baseline comparison, or Batch submittal, the generated report automatically registers with the Reports Hub.</li>
+                    <li><strong>FDOT Standard Headers:</strong> Every report is formatted with official FDOT metadata: Project, State Road / County, FPID, Surveyor / Engineer, Discipline, Standard Reference (FAC 5J-17 / 61G15 / Topic 625-050-001), and ISO timestamp.</li>
+                    <li><strong>Persistent Storage:</strong> Reports persist across browser sessions in local storage. Live badges on the navigation bar alert you to the active report count.</li>
+                    <li><strong>Filter &amp; Search:</strong> Filter instantaneously by category (<em>COGO</em>, <em>Legal</em>, <em>PLSS</em>, <em>DXF</em>, <em>Standards</em>) or search across report titles, FPIDs, authors, and summary contents.</li>
+                    <li><strong>In-App Preview &amp; Deliverables:</strong> View full raw logs or formatted HTML reports inside the preview modal with one-click <strong>Copy to Clipboard</strong>, <strong>Print / PDF</strong>, and <strong>Direct Download</strong>. Export all stored reports into a single consolidated master zip/bundle.</li>
+                </ul>`
+        },
+        {
             id: "accounts",
             title: "4. Accounts, sign-in & client templates (CMS tab)",
             html: `
@@ -355,6 +369,7 @@
                         <tr><td><code>export.xml / *.landxml</code></td><td>LandXML Studio</td><td>Schema-compliant LandXML 1.2 geometry with <code>&lt;Parcels&gt;</code>, <code>&lt;Alignments&gt;</code>, and <code>&lt;CgPoints&gt;</code></td></tr>
                         <tr><td><code>fdot_batch_fix.scr</code></td><td>Batch Auditor</td><td>Consolidated AutoCAD batch script running AUDIT, color resets, PURGE, and OVERKILL across all project drawings</td></tr>
                         <tr><td><code>fdot_master_submittal_report.html / .md</code></td><td>Batch Auditor</td><td>Consolidated project QA/QC submittal scorecard and sheet compliance matrix</td></tr>
+                        <tr><td><code>fdot_reports_bundle.json / fdot_reports_manifest.txt</code></td><td>Reports Hub</td><td>Consolidated export bundle containing all active survey, engineering, DXF, and standards QA/QC submittal reports with unified FDOT metadata</td></tr>
                     </tbody>
                 </table>`
         },

@@ -467,8 +467,18 @@
         const model = E().buildReportModel({ source: src.source, data: src.data, meta });
         const content = format === "markdown" ? E().renderMarkdown(model) : E().renderHtml(model);
         const filename = E().suggestFilename(model, format);
+        if (window.Reports?.addReport) {
+            window.Reports.addReport({
+                title: model.source === "heal" ? "DXF Auto-Correct Report" : "DXF Standards Compliance Report",
+                type: "standards-compare",
+                category: "standards",
+                format: format === "markdown" ? "markdown" : "html",
+                filename,
+                content
+            });
+        }
         window.COGO.downloadText(filename, content, format === "markdown" ? "text/markdown" : "text/html");
-        ctx.showToast(`Exported ${filename}.`);
+        ctx.showToast(`Exported ${filename} & stored in Reports Hub.`);
     }
 
     // ── Plugin ──────────────────────────────────────────────────────────────

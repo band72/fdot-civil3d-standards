@@ -359,8 +359,19 @@
             });
             document.getElementById("btn-legal-desc-report")?.addEventListener("click", () => {
                 if (!_last) { ctx.showToast("Run a parse first.", true); return; }
-                window.COGO.downloadText("legal_description_mapcheck.log", mapCheckReport(_last.parsed, _last.traverse, _last.issues));
-                ctx.showToast("Exported Map Check Report.");
+                const reportContent = mapCheckReport(_last.parsed, _last.traverse, _last.issues);
+                if (window.Reports?.addReport) {
+                    window.Reports.addReport({
+                        title: "Legal Description Map Check Report",
+                        type: "legal-desc-mapcheck",
+                        category: "legal",
+                        format: "log",
+                        filename: "legal_description_mapcheck.log",
+                        content: reportContent
+                    });
+                }
+                window.COGO.downloadText("legal_description_mapcheck.log", reportContent);
+                ctx.showToast("Exported Map Check Report & stored in Reports Hub.");
             });
             document.getElementById("btn-legal-desc-script")?.addEventListener("click", () => {
                 if (!_last || !_last.parsed) { ctx.showToast("Run a parse first.", true); return; }

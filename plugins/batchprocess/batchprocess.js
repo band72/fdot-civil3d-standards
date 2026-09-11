@@ -552,13 +552,36 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             const batchResult = auditBatch(files);
             _lastBatchResult = batchResult;
 
+            if (window.Reports?.addReport) {
+                window.Reports.addReport({
+                    id: "batch_report_html",
+                    title: `Master Submittal Scorecard (${batchResult.summary.totalFiles} Sheets)`,
+                    type: "batch-submittal",
+                    category: "dxf",
+                    format: "html",
+                    filename: "fdot_master_submittal_report.html",
+                    content: generateMasterReport(batchResult, "html"),
+                    metadata: { files: batchResult.summary.totalFiles, score: batchResult.summary.averageScore, verdict: batchResult.summary.verdict }
+                });
+                window.Reports.addReport({
+                    id: "batch_report_md",
+                    title: `Master Submittal Markdown Report (${batchResult.summary.totalFiles} Sheets)`,
+                    type: "batch-submittal",
+                    category: "dxf",
+                    format: "markdown",
+                    filename: "fdot_master_submittal_report.md",
+                    content: generateMasterReport(batchResult, "markdown"),
+                    metadata: { files: batchResult.summary.totalFiles, score: batchResult.summary.averageScore, verdict: batchResult.summary.verdict }
+                });
+            }
+
             if (pBar) pBar.style.width = "100%";
             if (pPct) pPct.textContent = "100%";
 
             setTimeout(() => {
                 if (pWrap) pWrap.classList.add("hidden");
                 renderResults(batchResult);
-                ctx.showToast(`Batch audit complete: Average score ${batchResult.summary.averageScore}%.`);
+                ctx.showToast(`Batch audit complete: Average score ${batchResult.summary.averageScore}%. Stored in Reports Hub.`);
             }, 250);
         }, 50);
     }
