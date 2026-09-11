@@ -37,12 +37,50 @@
         const currentUser = cms.getCurrentUser();
 
         if (!currentUser) {
-            const panel = document.getElementById("cms-templates-list");
-            if (panel) window.setSafeHTML(panel, `<div style="color:var(--text-muted); padding:0.5rem 0;"><i class="fa-solid fa-user-lock"></i> Sign in to manage client templates and workspace.</div>`);
+            // Signed out (or never signed in): clear every panel this function ever populates,
+            // not just the templates list — otherwise the previous session's Team Directory
+            // (names/emails/roles/license numbers), DOT projects, submittals (incl. SHA256
+            // hashes), transactions, and audit log stay fully rendered on-screen after logout.
+            const emptyMsg = `<div style="color:var(--text-muted); padding:0.5rem 0;"><i class="fa-solid fa-user-lock"></i> Sign in to view.</div>`;
             const nameEl = document.getElementById("cms-profile-name");
             if (nameEl) nameEl.textContent = "Not signed in";
+            const emailEl = document.getElementById("cms-profile-email");
+            if (emailEl) emailEl.textContent = "—";
+            const roleEl = document.getElementById("cms-profile-role");
+            if (roleEl) roleEl.textContent = "—";
+            const licenseEl = document.getElementById("cms-profile-license");
+            if (licenseEl) licenseEl.textContent = "—";
             const activeBadge = document.getElementById("cms-active-client-badge");
             if (activeBadge) activeBadge.hidden = true;
+
+            const templatesList = document.getElementById("cms-templates-list");
+            if (templatesList) window.setSafeHTML(templatesList, `<div style="color:var(--text-muted); padding:0.5rem 0;"><i class="fa-solid fa-user-lock"></i> Sign in to manage client templates and workspace.</div>`);
+            const tplCount = document.getElementById("cms-tpl-count");
+            if (tplCount) tplCount.textContent = "0 / —";
+            const tplSel = document.getElementById("cms-active-template");
+            if (tplSel) window.setSafeHTML(tplSel, "");
+            const tplUpsell = document.getElementById("cms-tpl-upsell");
+            if (tplUpsell) tplUpsell.hidden = true;
+
+            const projList = document.getElementById("cms-projects-list");
+            if (projList) window.setSafeHTML(projList, emptyMsg);
+            const projCount = document.getElementById("cms-proj-count");
+            if (projCount) projCount.textContent = "0 Projects";
+
+            const subList = document.getElementById("cms-submittals-list");
+            if (subList) window.setSafeHTML(subList, emptyMsg);
+            const subCount = document.getElementById("cms-sub-count");
+            if (subCount) subCount.textContent = "0 Submittals";
+
+            const txList = document.getElementById("cms-transactions-list");
+            if (txList) window.setSafeHTML(txList, emptyMsg);
+
+            const auditTable = document.getElementById("cms-audit-table-body");
+            if (auditTable) window.setSafeRows(auditTable, "");
+
+            const usersTable = document.getElementById("cms-users-table-body");
+            if (usersTable) window.setSafeRows(usersTable, "");
+
             return;
         }
 
