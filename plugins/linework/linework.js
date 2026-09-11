@@ -1004,19 +1004,19 @@
                     this.drag = { figId, idx, moved: false, e0: f.pts[idx].e, n0: f.pts[idx].n };
                     this.playSyncToSel();
                     try { svg.setPointerCapture(e.pointerId); } catch (x) {}
-                    this.render(); this._renderSelection();
+                    this.render(); this._renderSelection(); this._renderFigures(); this._renderFigurePointsGrid();
                     return;
                 }
                 if (t && t.getAttribute && t.getAttribute("data-seg") != null) {
                     this.sel = { figId: t.getAttribute("data-fig"), kind: "seg", idx: +t.getAttribute("data-seg") };
-                    this.render(); this._renderSelection();
+                    this.render(); this._renderSelection(); this._renderFigures(); this._renderFigurePointsGrid();
                     return;
                 }
                 this.sel = null;
                 this.pan = { cx: e.clientX, cy: e.clientY, vx: this.view.x, vy: this.view.y };
                 svg.style.cursor = "grabbing";
                 try { svg.setPointerCapture(e.pointerId); } catch (x) {}
-                this.render(); this._renderSelection();
+                this.render(); this._renderSelection(); this._renderFigures(); this._renderFigurePointsGrid();
             });
 
             svg.addEventListener("pointermove", e => {
@@ -1064,7 +1064,88 @@
 
         // ── operations ─────────────────────────────────────────────
         applyVertex(figId, idx, e, n) { const f = this._fig(figId); if (!f || !f.pts[idx]) return; f.pts[idx].e = nz(e, f.pts[idx].e); f.pts[idx].n = nz(n, f.pts[idx].n); this._commit(); },
-        deleteVertex(figId, idx) { const f = this._fig(figId); if (!f) return; f.pts.splice(idx, 1); this.sel = null; this._commit(); },
+        deleteVertex(figId, idx) {
+            const f = this._fig(figId);
+            if (!f) return;
+            f.pts.splice(idx, 1);
+            if (f.pts.length > 0) this.sel = { figId, kind: "vert", idx: Math.min(idx, f.pts.length - 1) };
+            else this.sel = null;
+            this._commit();
+        },
+        selectFigure(figId) {
+            const f = this._fig(figId);
+            if (!f) {
+                this.sel = null;
+                this.render();
+                this._renderSelection();
+                this._renderFigures();
+                this._renderFigurePointsGrid();
+                return;
+            }
+            this.sel = { figId, kind: "vert", idx: 0 };
+            if (f.pts && f.pts.length > 0) {
+                const pt = f.pts[0];
+                this.view.x = pt.e - this.view.w / 2;
+                this.view.y = -pt.n - this.view.h / 2;
+                this._applyView();
+            }
+            this.render();
+            this._renderSelection();
+            this._renderFigures();
+            this._renderFigurePointsGrid();
+        },
+        addPointToFigure(figId) {
+            const f = this._fig(figId);
+            if (!f) return;
+            let newPt;
+            if (f.pts.length > 0) {
+                const last = f.pts[f.pts.length - 1];
+                const nextNum = (typeof last.ptNum === "number") ? (last.ptNum + 1) : (f.pts.length + 1);
+                newPt = {
+                    ptNum: nextNum,
+                    e: Number((last.e + 20).toFixed(3)),
+                    n: Number(last.n.toFixed(3)),
+                    z: last.z != null ? last.z : 0,
+                    desc: last.desc || f.name
+                };
+            } else {
+                newPt = {
+                    ptNum: 1,
+                    e: 100,
+                    n: 100,
+                    z: 0,
+                    desc: f.name
+                };
+            }
+            const s = splitDesc(newPt.desc);
+            newPt.code = s.code;
+            newPt.lineCode = s.lineCode;
+            f.pts.push(newPt);
+            this.sel = { figId, kind: "vert", idx: f.pts.length - 1 };
+            this._commit();
+        },
+        movePointUp(figId, idx) {
+            const f = this._fig(figId);
+            if (!f || idx <= 0 || idx >= f.pts.length) return;
+            const tmp = f.pts[idx];
+            f.pts[idx] = f.pts[idx - 1];
+            f.pts[idx - 1] = tmp;
+            this.sel = { figId, kind: "vert", idx: idx - 1 };
+            this._commit();
+        },
+        movePointDown(figId, idx) {
+            const f = this._fig(figId);
+            if (!f || idx < 0 || idx >= f.pts.length - 1) return;
+            const tmp = f.pts[idx];
+            f.pts[idx] = f.pts[idx + 1];
+            f.pts[idx + 1] = tmp;
+            this.sel = { figId, kind: "vert", idx: idx + 1 };
+            this._commit();
+        },
+        closePointsGrid() {
+            const card = document.getElementById("lw-fig-points-card");
+            if (card) card.style.display = "none";
+        },
         swapNext(figId, idx) {
             const f = this._fig(figId); if (!f) return;
             const j = idx + 1; if (j >= f.pts.length) return;
@@ -1136,12 +1217,13 @@
             const f = this._fig(figId);
             if (f && f.pts.length) {
                 let cx, cy;
-                if (kind === "seg") { const a = f.pts[idx], b = f.pts[(idx + 1) % f.pts.length]; cx = (a.e + b.e) / 2; cy = -(a.n + b.n) / 2; }
-                else { cx = f.pts[idx].e; cy = -f.pts[idx].n; }
+                const safeIdx = Math.min(idx || 0, f.pts.length - 1);
+                if (kind === "seg") { const a = f.pts[safeIdx], b = f.pts[(safeIdx + 1) % f.pts.length]; cx = (a.e + b.e) / 2; cy = -(a.n + b.n) / 2; }
+                else { const pt = f.pts[safeIdx] || f.pts[0]; cx = pt.e; cy = -pt.n; }
                 this.view.x = cx - this.view.w / 2; this.view.y = cy - this.view.h / 2;
                 this._applyView();
             }
-            this.render(); this._renderSelection();
+            this.render(); this._renderSelection(); this._renderFigures(); this._renderFigurePointsGrid();
         },
         applyFix(fix) {
             if (!fix) return;
@@ -1155,7 +1237,7 @@
         },
 
         // ── right-rail panels ──────────────────────────────────────
-        _afterChange() { resolveGeometry(this.model.figures); this._buildSeq(); this._renderChecks(); this._renderFigures(); this._renderSelection(); this._hud(); this.render(); },
+        _afterChange() { resolveGeometry(this.model.figures); this._buildSeq(); this._renderChecks(); this._renderFigures(); this._renderSelection(); this._renderFigurePointsGrid(); this._hud(); this.render(); },
 
         _hud(msg) {
             const el = document.getElementById("lw-hud");
@@ -1242,6 +1324,94 @@
             }).join("");
             window.setSafeHTML(box, (rows || `<div style="color:var(--text-muted); font-size:0.76rem;">No figures.</div>`) +
                 `<button class="btn btn-secondary btn-sm" data-lw="fig-add" style="margin-top:0.2rem;"><i class="fa-solid fa-plus"></i> Add figure</button>`);
+        },
+
+        _renderFigurePointsGrid() {
+            const card = document.getElementById("lw-fig-points-card");
+            if (!card) return;
+            const figId = this.sel && this.sel.figId;
+            const f = figId ? this._fig(figId) : null;
+            if (!f) {
+                card.style.display = "none";
+                return;
+            }
+            card.style.display = "block";
+            const badge = document.getElementById("lw-fig-points-badge");
+            if (badge) {
+                let stat = `${f.pts.length} point${f.pts.length === 1 ? "" : "s"} · ${f.layer || "Default"}`;
+                if (f.closed) stat += " · Closed";
+                badge.textContent = `${f.name}: ${stat}`;
+            }
+            const tbody = document.getElementById("lw-fig-points-tbody");
+            if (!tbody) return;
+
+            if (!f.pts || f.pts.length === 0) {
+                const emptyRow = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">No points in figure "${clean(f.name)}". Click "Add Point" above to add one.</td></tr>`;
+                if (window.setSafeRows) window.setSafeRows(tbody, emptyRow);
+                else tbody.innerHTML = emptyRow;
+                return;
+            }
+
+            const activeIdx = (this.sel && this.sel.kind === "vert") ? this.sel.idx : -1;
+            const segIdx = (this.sel && this.sel.kind === "seg") ? this.sel.idx : -1;
+
+            const rowsHtml = f.pts.map((p, i) => {
+                const isSelected = (i === activeIdx) || (segIdx >= 0 && (i === segIdx || i === (segIdx + 1) % f.pts.length));
+                let courseStr = "— End —";
+                if (i < f.pts.length - 1) {
+                    const nextPt = f.pts[i + 1];
+                    const az = window.COGO.azimuthDegBetween(p, nextPt);
+                    const dist = window.COGO.distanceBetween(p, nextPt);
+                    courseStr = `${window.COGO.azimuthToBearing(az)} · ${dist.toFixed(2)}′`;
+                } else if (f.closed && f.pts.length > 1) {
+                    const nextPt = f.pts[0];
+                    const az = window.COGO.azimuthDegBetween(p, nextPt);
+                    const dist = window.COGO.distanceBetween(p, nextPt);
+                    courseStr = `${window.COGO.azimuthToBearing(az)} · ${dist.toFixed(2)}′ (cls)`;
+                }
+
+                const nVal = typeof p.n === "number" ? p.n.toFixed(3) : (p.n || "0.000");
+                const eVal = typeof p.e === "number" ? p.e.toFixed(3) : (p.e || "0.000");
+                const zVal = (p.z != null && typeof p.z === "number") ? p.z.toFixed(3) : (p.z != null ? String(p.z) : "");
+                const ptNumVal = p.ptNum != null ? String(p.ptNum) : String(i + 1);
+                const descVal = clean(p.desc || "");
+
+                const rowBg = isSelected ? "background:rgba(59,130,246,0.18);" : (i % 2 === 1 ? "background:rgba(255,255,255,0.02);" : "");
+                const borderLeft = isSelected ? "border-left:3px solid var(--accent);" : "border-left:3px solid transparent;";
+
+                return `<tr class="lw-pt-row" data-fig="${f.id}" data-idx="${i}" style="${rowBg} ${borderLeft} transition:background 0.15s ease;">
+                    <td style="padding:4px 6px; text-align:center; font-family:var(--font-mono); color:var(--text-muted); font-size:0.75rem;">${i + 1}</td>
+                    <td style="padding:3px 4px;">
+                        <input type="text" class="lw-pt-field" data-fig="${f.id}" data-idx="${i}" data-prop="ptNum" value="${clean(ptNumVal)}" title="Point Number" style="width:100%; min-width:55px; padding:2px 4px; font-size:0.75rem; font-family:var(--font-mono); background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); border-radius:3px; color:var(--text-primary);">
+                    </td>
+                    <td style="padding:3px 4px;">
+                        <input type="number" step="0.001" class="lw-pt-field" data-fig="${f.id}" data-idx="${i}" data-prop="n" value="${nVal}" title="Northing (Y)" style="width:100%; min-width:90px; padding:2px 4px; font-size:0.75rem; font-family:var(--font-mono); background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); border-radius:3px; color:var(--text-primary);">
+                    </td>
+                    <td style="padding:3px 4px;">
+                        <input type="number" step="0.001" class="lw-pt-field" data-fig="${f.id}" data-idx="${i}" data-prop="e" value="${eVal}" title="Easting (X)" style="width:100%; min-width:90px; padding:2px 4px; font-size:0.75rem; font-family:var(--font-mono); background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); border-radius:3px; color:var(--text-primary);">
+                    </td>
+                    <td style="padding:3px 4px;">
+                        <input type="number" step="0.001" class="lw-pt-field" data-fig="${f.id}" data-idx="${i}" data-prop="z" value="${zVal}" title="Elevation (Z)" placeholder="0.000" style="width:100%; min-width:70px; padding:2px 4px; font-size:0.75rem; font-family:var(--font-mono); background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); border-radius:3px; color:var(--text-primary);">
+                    </td>
+                    <td style="padding:3px 4px;">
+                        <input type="text" class="lw-pt-field" data-fig="${f.id}" data-idx="${i}" data-prop="desc" value="${descVal}" title="Raw Description / Linework Codes" placeholder="Description" style="width:100%; min-width:120px; padding:2px 4px; font-size:0.75rem; background:rgba(0,0,0,0.25); border:1px solid var(--glass-border); border-radius:3px; color:var(--text-primary);">
+                    </td>
+                    <td class="lw-pt-course" data-idx="${i}" style="padding:4px 6px; font-family:var(--font-mono); font-size:0.72rem; color:var(--text-secondary); white-space:nowrap;">
+                        ${courseStr}
+                    </td>
+                    <td style="padding:3px 4px; text-align:center; white-space:nowrap;">
+                        <div style="display:inline-flex; gap:2px;">
+                            <button type="button" class="btn btn-secondary btn-sm icon-btn" data-lw="pt-locate" data-fig="${f.id}" data-idx="${i}" title="Zoom/Pan to Vertex" style="padding:1px 4px; font-size:0.7rem; line-height:1;"><i class="fa-solid fa-crosshairs"></i></button>
+                            <button type="button" class="btn btn-secondary btn-sm icon-btn" data-lw="pt-up" data-fig="${f.id}" data-idx="${i}" ${i === 0 ? "disabled" : ""} title="Move Up" style="padding:1px 4px; font-size:0.7rem; line-height:1;"><i class="fa-solid fa-arrow-up"></i></button>
+                            <button type="button" class="btn btn-secondary btn-sm icon-btn" data-lw="pt-down" data-fig="${f.id}" data-idx="${i}" ${i === f.pts.length - 1 ? "disabled" : ""} title="Move Down" style="padding:1px 4px; font-size:0.7rem; line-height:1;"><i class="fa-solid fa-arrow-down"></i></button>
+                            <button type="button" class="btn btn-secondary btn-sm icon-btn" data-lw="pt-del" data-fig="${f.id}" data-idx="${i}" title="Delete Point" style="padding:1px 4px; font-size:0.7rem; line-height:1; color:var(--danger);"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join("");
+
+            if (window.setSafeRows) window.setSafeRows(tbody, rowsHtml);
+            if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = rowsHtml;
         },
 
         _renderChecks() {
@@ -1755,7 +1925,7 @@
                 const act = b.getAttribute("data-lw"), figId = b.getAttribute("data-fig");
                 if (act === "fig-add") Ed.addFig();
                 else if (act === "fig-del") Ed.deleteFig(figId);
-                else if (act === "fig-sel") Ed.gotoSel(figId, "vert", 0);
+                else if (act === "fig-sel") Ed.selectFigure(figId);
                 else if (act === "fig-rev") Ed.reverseFig(figId);
             });
             figBox?.addEventListener("change", e => {
@@ -1777,6 +1947,97 @@
                 if (b.getAttribute("data-lw") === "chk-goto") Ed.gotoSel(f.figId, f.fix && f.fix.kind || "vert", f.idx || 0);
                 else Ed.applyFix(f.fix);
             });
+
+            // Figure points grid panel
+            document.getElementById("btn-lw-fig-add-pt")?.addEventListener("click", () => {
+                if (Ed.sel && Ed.sel.figId) Ed.addPointToFigure(Ed.sel.figId);
+            });
+            document.getElementById("btn-lw-fig-close-grid")?.addEventListener("click", () => {
+                Ed.closePointsGrid();
+            });
+
+            const ptTbody = document.getElementById("lw-fig-points-tbody");
+            if (ptTbody) {
+                ptTbody.addEventListener("click", e => {
+                    const btn = e.target.closest("[data-lw]");
+                    if (btn) {
+                        const act = btn.getAttribute("data-lw");
+                        const figId = btn.getAttribute("data-fig");
+                        const idx = +btn.getAttribute("data-idx");
+                        if (act === "pt-locate") Ed.gotoSel(figId, "vert", idx);
+                        else if (act === "pt-up") Ed.movePointUp(figId, idx);
+                        else if (act === "pt-down") Ed.movePointDown(figId, idx);
+                        else if (act === "pt-del") Ed.deleteVertex(figId, idx);
+                        return;
+                    }
+                    const row = e.target.closest("tr.lw-pt-row");
+                    if (row && !e.target.closest("input")) {
+                        const figId = row.getAttribute("data-fig");
+                        const idx = +row.getAttribute("data-idx");
+                        Ed.gotoSel(figId, "vert", idx);
+                    }
+                });
+
+                ptTbody.addEventListener("input", e => {
+                    const inp = e.target.closest(".lw-pt-field");
+                    if (!inp) return;
+                    const figId = inp.getAttribute("data-fig");
+                    const idx = +inp.getAttribute("data-idx");
+                    const prop = inp.getAttribute("data-prop");
+                    const f = Ed._fig(figId);
+                    if (!f || !f.pts[idx]) return;
+                    const p = f.pts[idx];
+                    if (prop === "n") {
+                        p.n = parseFloat(inp.value) || 0;
+                    } else if (prop === "e") {
+                        p.e = parseFloat(inp.value) || 0;
+                    } else if (prop === "z") {
+                        p.z = inp.value === "" ? null : (parseFloat(inp.value) || 0);
+                    } else if (prop === "ptNum") {
+                        p.ptNum = inp.value.trim() === "" ? (idx + 1) : (!isNaN(+inp.value) ? +inp.value : inp.value.trim());
+                    } else if (prop === "desc") {
+                        p.desc = inp.value;
+                        const s = splitDesc(p.desc);
+                        p.code = s.code;
+                        p.lineCode = s.lineCode;
+                    }
+                    resolveGeometry(Ed.model.figures);
+                    Ed.render();
+                    if (Ed.sel && Ed.sel.figId === figId && Ed.sel.idx === idx && Ed.sel.kind === "vert") {
+                        const vE = document.getElementById("lw-v-e");
+                        const vN = document.getElementById("lw-v-n");
+                        if (vE && prop === "e") vE.value = p.e.toFixed(3);
+                        if (vN && prop === "n") vN.value = p.n.toFixed(3);
+                    }
+                    const updateRowCourse = (ri) => {
+                        if (ri < 0 || ri >= f.pts.length) return;
+                        const cCell = ptTbody.querySelector(`.lw-pt-course[data-idx="${ri}"]`);
+                        if (!cCell) return;
+                        const curP = f.pts[ri];
+                        if (ri < f.pts.length - 1) {
+                            const nextP = f.pts[ri + 1];
+                            const az = window.COGO.azimuthDegBetween(curP, nextP);
+                            const dist = window.COGO.distanceBetween(curP, nextP);
+                            cCell.textContent = `${window.COGO.azimuthToBearing(az)} · ${dist.toFixed(2)}′`;
+                        } else if (f.closed && f.pts.length > 1) {
+                            const nextP = f.pts[0];
+                            const az = window.COGO.azimuthDegBetween(curP, nextP);
+                            const dist = window.COGO.distanceBetween(curP, nextP);
+                            cCell.textContent = `${window.COGO.azimuthToBearing(az)} · ${dist.toFixed(2)}′ (cls)`;
+                        } else {
+                            cCell.textContent = "— End —";
+                        }
+                    };
+                    updateRowCourse(idx);
+                    updateRowCourse((idx - 1 + f.pts.length) % f.pts.length);
+                });
+
+                ptTbody.addEventListener("change", e => {
+                    const inp = e.target.closest(".lw-pt-field");
+                    if (!inp) return;
+                    Ed._commit();
+                });
+            }
 
             // Keyboard: undo/redo, delete selected vertex, ← → to scrub shots, space to play
             window.addEventListener("keydown", e => {

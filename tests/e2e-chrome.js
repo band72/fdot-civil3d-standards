@@ -194,6 +194,37 @@ async function main() {
         const wAfterFit = await evaluate("window.Linework._Ed.view.w");
         console.log(`  ✓ Fit reset view width: ${wAfterFit.toFixed(1)}`);
 
+        // Test Figure Selection and Figure Points Grid editing
+        await evaluate("document.querySelector('[data-lw=\"fig-sel\"]').click()");
+        const gridCardVisible = await evaluate("document.getElementById('lw-fig-points-card').style.display !== 'none'");
+        const initialPtRows = await evaluate("document.querySelectorAll('#lw-fig-points-tbody tr.lw-pt-row').length");
+        console.log(`  ✓ Figure selected -> Points Grid Visible: ${gridCardVisible} | Points rendered: ${initialPtRows}`);
+        if (!gridCardVisible || initialPtRows !== 2) throw new Error("Figure selection failed to open points grid or render points");
+
+        // In-place edit Northing and Description in the grid
+        await evaluate(`(() => {
+            const row2Desc = document.querySelector('#lw-fig-points-tbody tr.lw-pt-row[data-idx="1"] input[data-prop="desc"]');
+            row2Desc.value = "EP CLS";
+            row2Desc.dispatchEvent(new Event('input', { bubbles: true }));
+            row2Desc.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const row2N = document.querySelector('#lw-fig-points-tbody tr.lw-pt-row[data-idx="1"] input[data-prop="n"]');
+            row2N.value = "2015750.00";
+            row2N.dispatchEvent(new Event('input', { bubbles: true }));
+            row2N.dispatchEvent(new Event('change', { bubbles: true }));
+        })()`);
+
+        const updatedDesc = await evaluate("window.Linework._Ed.model.figures[0].pts[1].desc");
+        const updatedN = await evaluate("window.Linework._Ed.model.figures[0].pts[1].n");
+        console.log(`  ✓ Grid Point In-Place Edit -> Northing: ${updatedN}, Description: "${updatedDesc}"`);
+        if (updatedDesc !== "EP CLS" || updatedN !== 2015750.00) throw new Error("Grid editing failed to update figure point in model");
+
+        // Add Point via button
+        await evaluate("document.getElementById('btn-lw-fig-add-pt').click()");
+        const rowsAfterAdd = await evaluate("document.querySelectorAll('#lw-fig-points-tbody tr.lw-pt-row').length");
+        console.log(`  ✓ Add Point to Figure -> New point count: ${rowsAfterAdd}`);
+        if (rowsAfterAdd !== 3) throw new Error("Add point button failed to append point to figure");
+
         // 8. System Logs Viewer & Verification
         console.log("\n[TEST 8] System Logs Viewer & Error Audit Stream");
         await evaluate("document.querySelector('[data-tab=\"tab-logging\"]').click()");

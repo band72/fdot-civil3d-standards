@@ -178,6 +178,90 @@ module.exports = function (t, env) {
     Ed.playStep(-99);
     t.eq(Ed.playPos, 0, "playStep clamps to first");
 
+    // Figure selection and Figure Points & Descriptions Grid operations
+    t.group("linework/figure points grid & editing");
+    const testFigModel = {
+        figures: [{
+            id: "FIG_TEST",
+            name: "CURB",
+            layer: "SURV_BND_PR",
+            closed: false,
+            pts: [
+                { ptNum: 101, n: 1000.00, e: 500.00, z: 12.50, desc: "CURB B", code: "CURB", lineCode: "B" },
+                { ptNum: 102, n: 1000.00, e: 600.00, z: 12.75, desc: "CURB", code: "CURB", lineCode: null },
+                { ptNum: 103, n: 1050.00, e: 600.00, z: 13.00, desc: "CURB E", code: "CURB", lineCode: "E" }
+            ]
+        }]
+    };
+    Ed.setModel(testFigModel);
+    t.eq(Ed.sel, null, "initially no selection on setModel");
+
+    // Test selectFigure
+    Ed.selectFigure("FIG_TEST");
+    t.ok(Ed.sel && Ed.sel.figId === "FIG_TEST", "selectFigure selects figure");
+    t.eq(Ed.sel.kind, "vert", "selectFigure defaults to vertex selection");
+    t.eq(Ed.sel.idx, 0, "selectFigure selects vertex 0");
+
+    // Test addPointToFigure
+    Ed.addPointToFigure("FIG_TEST");
+    const curPts = Ed._fig("FIG_TEST").pts;
+    t.eq(curPts.length, 4, "addPointToFigure added a 4th point");
+    t.eq(curPts[3].ptNum, 104, "added point got incremental ptNum 104");
+    t.eq(curPts[3].e, 620.00, "added point offset Easting by +20");
+    t.eq(Ed.sel.idx, 3, "selection moved to newly added point");
+
+    // Test movePointUp and movePointDown
+    Ed.movePointUp("FIG_TEST", 3);
+    t.eq(Ed._fig("FIG_TEST").pts[2].ptNum, 104, "movePointUp moved point 104 to index 2");
+    t.eq(Ed.sel.idx, 2, "selection updated to new index 2");
+
+    Ed.movePointDown("FIG_TEST", 2);
+    t.eq(Ed._fig("FIG_TEST").pts[3].ptNum, 104, "movePointDown moved point 104 back to index 3");
+    t.eq(Ed.sel.idx, 3, "selection updated to index 3");
+
+    // Test point coordinate and description editing
+    const pt2 = Ed._fig("FIG_TEST").pts[1];
+    pt2.n = 1010.555;
+    pt2.e = 615.222;
+    pt2.desc = "CURB BC";
+    const parsedDesc = LW.splitDesc(pt2.desc);
+    pt2.code = parsedDesc.code;
+    pt2.segCodes = parsedDesc.segCodes;
+    t.ok(parsedDesc.segCodes.includes("BC"), "splitDesc recognized edited linework code BC");
+
+    // Test deleteVertex keeps selection on figure if points remain
+    Ed.deleteVertex("FIG_TEST", 3);
+    t.eq(Ed._fig("FIG_TEST").pts.length, 3, "deleteVertex removed point");
+    t.ok(Ed.sel && Ed.sel.figId === "FIG_TEST", "deleteVertex preserved selection on remaining figure");
+
+    // Test _renderFigurePointsGrid with mock DOM elements
+    const mockCard = env.fakeEl();
+    mockCard.id = "lw-fig-points-card";
+    const mockBadge = env.fakeEl();
+    mockBadge.id = "lw-fig-points-badge";
+    const mockTbody = env.fakeEl();
+    mockTbody.id = "lw-fig-points-tbody";
+    const prevGetEl = global.document.getElementById;
+    global.document.getElementById = id => {
+        if (id === "lw-fig-points-card") return mockCard;
+        if (id === "lw-fig-points-badge") return mockBadge;
+        if (id === "lw-fig-points-tbody") return mockTbody;
+        return prevGetEl ? prevGetEl(id) : null;
+    };
+
+    Ed._renderFigurePointsGrid();
+    t.eq(mockCard.style.display, "block", "points card displayed when figure selected");
+    t.ok(mockBadge.textContent.includes("CURB"), "points badge updated with figure name");
+    t.ok(mockTbody.innerHTML.includes("101"), "points tbody rendered point 101");
+    t.ok(mockTbody.innerHTML.includes("lw-pt-field"), "points tbody contains editable input fields");
+
+    // Test closePointsGrid
+    Ed.closePointsGrid();
+    t.eq(mockCard.style.display, "none", "closePointsGrid hid points card");
+
+    // Restore document.getElementById
+    global.document.getElementById = prevGetEl;
+
     t.group("linework/curves — BC..EC arc fitting");
     t.eq(LW.circumcircle({ e: 0, n: 1 }, { e: 1, n: 0 }, { e: 0, n: -1 }).r, 1, "circumcircle radius");
     t.close(LW.circumcircle({ e: 0, n: 1 }, { e: 1, n: 0 }, { e: 0, n: -1 }).cx, 0, 1e-9, "circumcircle center x");
