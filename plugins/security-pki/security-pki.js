@@ -421,61 +421,72 @@ class BoundaryQCSecurityEngine {
     }
 
     /**
-     * Report client-side security and isolation diagnostics.
-     * Proves drawings are processed 100% in-memory without network egress.
+     * Report how this app handles a drawing you open — stated accurately, not
+     * marketed. The real property worth knowing: the app's own code cannot send
+     * an opened drawing anywhere (CSP `connect-src 'self'` blocks every
+     * cross-origin fetch/XHR/WebSocket), and all parsing/diffing/healing/hashing
+     * happens in this tab. It is NOT "air-gapped" — the page still loads static
+     * assets (DOMPurify, Font Awesome, web fonts) from CDNs, which is disclosed
+     * here rather than hidden behind a "0 packets" claim.
      */
     getPrivacyDiagnostics() {
         const hasSubtle = Boolean(window.crypto && window.crypto.subtle);
-        const isSecureContext = Boolean(window.isSecureContext);
-        const protocol = (window.location && window.location.protocol) || "https:";
         return {
             clientSideExecution: true,
-            networkEgress: "0 packets (Air-Gapped In-Memory)",
-            cryptoEngine: hasSubtle ? "SubtleCrypto (FIPS 180-4 SHA-256 Hardware Accelerated)" : "Pure-JS FIPS 180-4 Engine",
-            isSecureContext,
-            protocol,
+            drawingProcessing: "In-page only — drawings are parsed, diffed, healed and hashed in this browser tab. Nothing is uploaded.",
+            appNetworkAccess: "Blocked to third parties by CSP connect-src 'self' — this app's JavaScript cannot fetch, XHR or open a WebSocket to any other origin, so an opened drawing cannot be transmitted by it.",
+            staticAssetHosts: [
+                "cdnjs.cloudflare.com — DOMPurify + Font Awesome (loaded once at page start)",
+                "fonts.googleapis.com / fonts.gstatic.com — web fonts"
+            ],
+            analytics: "None — no analytics, tracking, or beacon scripts are loaded.",
+            cryptoEngine: hasSubtle
+                ? "SubtleCrypto SHA-256, with a pure-JS FIPS 180-4 fallback"
+                : "Pure-JS FIPS 180-4 SHA-256",
+            storageType: "Browser-local only (sessionStorage / localStorage) — never sent anywhere.",
             cspActive: true,
-            storageType: "Browser-Local Only (sessionStorage / localStorage)",
-            thirdPartyTelemetry: "None (Zero Analytics / Zero External Trackers)"
+            isSecureContext: Boolean(window.isSecureContext),
+            protocol: (window.location && window.location.protocol) || "https:"
         };
     }
 
     /**
-     * Generate an FDOT CADD & Geometry Submittal Compliance Certificate.
-     * Conforms to Florida Administrative Code Rules 61G15-23.004 / 5J-17.062
-     * and FDOT Electronic Delivery Guidelines Topic No. 625-050-001.
+     * Build an UNOFFICIAL CADD self-check summary from an audit result.
+     *
+     * This is NOT an FDOT submittal, an F.A.C. compliance certificate, or a
+     * substitute for a licensed review / professional seal. The score and grade
+     * come from this tool's own demo heuristics run against unverified reference
+     * data (see core/data.js). It exists so a user can save/print a record of
+     * what the tool checked — clearly labelled as such by the modal's disclaimer.
+     *
+     * No default licensee/firm is invented — signatory fields are blank unless
+     * the caller supplies real ones.
+     *
      * @param {Object} auditData
-     * @param {Object} [signatory]
+     * @param {Object} [signatory]  { name, license, firm } — optional, caller-supplied
      * @returns {Promise<Object>}
      */
     async generateSubmittalCertificate(auditData = {}, signatory = {}) {
-        const filename = this.sanitizeInput(auditData.filename || "FDOT_Project_Drawing.dxf");
+        const filename = this.sanitizeInput(auditData.filename || "drawing.dxf");
         const rawContent = auditData.rawContent || auditData.content || "";
         const hash = auditData.sha256 || (rawContent ? await this.computeTextSHA256(rawContent) : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-        
+
         const score = typeof auditData.score === "number" ? Math.max(0, Math.min(100, Math.round(auditData.score))) : (auditData.passed ? 100 : 85);
         let grade = "F";
-        let statusText = "NON-COMPLIANT";
+        let statusText = "FAILS THE CHECKS";
         let gradeColor = "var(--danger)";
-        if (score >= 95) { grade = "A+"; statusText = "FULLY COMPLIANT"; gradeColor = "var(--success)"; }
-        else if (score >= 90) { grade = "A"; statusText = "COMPLIANT"; gradeColor = "var(--success)"; }
-        else if (score >= 80) { grade = "B"; statusText = "SUBSTANTIALLY COMPLIANT"; gradeColor = "var(--accent)"; }
-        else if (score >= 70) { grade = "C"; statusText = "CONDITIONAL (NEEDS REVIEW)"; gradeColor = "var(--warning)"; }
+        if (score >= 95) { grade = "A+"; statusText = "PASSES ALL CHECKS"; gradeColor = "var(--success)"; }
+        else if (score >= 90) { grade = "A"; statusText = "PASSES"; gradeColor = "var(--success)"; }
+        else if (score >= 80) { grade = "B"; statusText = "MINOR ISSUES"; gradeColor = "var(--accent)"; }
+        else if (score >= 70) { grade = "C"; statusText = "NEEDS REVIEW"; gradeColor = "var(--warning)"; }
 
         const timestamp = new Date().toISOString();
-        const certId = `FDOT-QC-${Date.now().toString(36).toUpperCase()}-${hash.substring(0, 8).toUpperCase()}`;
-        const signerName = this.sanitizeInput(signatory.name || "Jane Doe, PE");
-        const signerLicense = this.sanitizeInput(signatory.license || "PE 12345");
-        const signerFirm = this.sanitizeInput(signatory.firm || "Florida Infrastructure Engineering, Inc.");
-        const district = this.sanitizeInput(signatory.district || "District 7 (Tampa Bay)");
-        const standardName = this.sanitizeInput(auditData.standardName || "FDOT 2026 CADD State Kit Standard");
-
-        const statNotice = signerName.includes("PSM") || (signatory.role === "PSM_SURVEYOR")
-            ? this.signatureNoticePSM
-            : this.signatureNoticePE;
+        const summaryId = `SELFCHK-${Date.now().toString(36).toUpperCase()}-${hash.substring(0, 8).toUpperCase()}`;
+        const standardName = this.sanitizeInput(auditData.standardName || "FDOT 2026 CADD State Kit Standard (demo ruleset)");
 
         return {
-            certId,
+            summaryId,
+            certId: summaryId,   // back-compat alias for callers/tests
             filename,
             sha256: hash,
             fingerprint: hash.substring(0, 16).toUpperCase(),
@@ -484,12 +495,12 @@ class BoundaryQCSecurityEngine {
             gradeColor,
             statusText,
             timestamp,
-            signerName,
-            signerLicense,
-            signerFirm,
-            district,
+            // Only populated if the caller passes real values — nothing invented.
+            signerName: this.sanitizeInput(signatory.name || ""),
+            signerLicense: this.sanitizeInput(signatory.license || ""),
+            signerFirm: this.sanitizeInput(signatory.firm || ""),
             standardName,
-            statNotice,
+            disclaimer: "Unofficial self-check. Produced in this browser from this tool's demo rules and unverified reference data — not an FDOT submittal, an F.A.C. compliance certificate, or a substitute for a licensed review or professional seal.",
             violationsCount: auditData.violationsCount ?? (auditData.issues ? auditData.issues.length : 0),
             layersCount: auditData.layersCount ?? 0,
             entitiesCount: auditData.entitiesCount ?? 0,

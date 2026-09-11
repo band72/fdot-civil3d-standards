@@ -280,7 +280,7 @@
                 }
             });
 
-            // Submittal Compliance Certificate generator
+            // CADD self-check summary generator (unofficial — see security-pki.generateSubmittalCertificate)
             document.getElementById("btn-dxf-submittal-cert")?.addEventListener("click", async () => {
                 const audit = ctx.state.currentDXFAudit;
                 if (!audit) {

@@ -166,10 +166,9 @@
                         <input type="text" id="global-search" placeholder="Search layers, pay items, keys…" autocomplete="off">
                         <kbd>Ctrl K</kbd>
                     </div>
-                    <button class="btn btn-secondary" id="btn-privacy-guarantee" style="display:flex; align-items:center; gap:0.5rem; border-color:var(--success-light); background:rgba(34,197,94,0.08); color:var(--success);" title="100% Client-Side In-Memory Guarantee">
+                    <button class="btn btn-secondary" id="btn-privacy-guarantee" style="display:flex; align-items:center; gap:0.5rem;" title="How this app handles an opened drawing">
                         <i class="fa-solid fa-shield-halved"></i>
-                        <span class="privacy-btn-text">Air-Gapped Privacy</span>
-                        <span class="badge" style="background:var(--success); font-size:0.65rem;">ZERO UPLOADS</span>
+                        <span class="privacy-btn-text">Privacy</span>
                     </button>
                     <button class="btn btn-secondary" id="btn-open-auth-modal" style="display:flex; align-items:center; gap:0.5rem;" title="Manage Account & Switch Profile">
                         <i class="fa-solid fa-user-gear"></i>
@@ -265,7 +264,7 @@
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn btn-primary btn-sm" id="btn-export-audit-md"><i class="fa-solid fa-download"></i> Audit Report</button>
                                 <button class="btn btn-accent btn-sm" id="btn-export-fix-scr"><i class="fa-solid fa-terminal"></i> Auto-Fix Script (.scr)</button>
-                                <button class="btn btn-secondary btn-sm" id="btn-dxf-submittal-cert" style="border-color:var(--accent); color:var(--accent);"><i class="fa-solid fa-award"></i> Submittal Certificate</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-dxf-submittal-cert" style="border-color:var(--accent); color:var(--accent);"><i class="fa-solid fa-clipboard-check"></i> Self-Check Summary</button>
                             </div>
                             <div style="overflow-y: auto; max-height: 380px; display: flex; flex-direction: column; gap: 0.75rem;" id="dxf-issues-container">
                                 <!-- Dynamic Issue Cards -->
@@ -777,7 +776,7 @@
                             <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
                                 <li><strong>1-Click Auto-Fix (.scr) Export</strong></li>
                                 <li><strong>Self-Healing Corrected DXF Export</strong></li>
-                                <li><strong>Official F.A.C. Submittal Certificate (PDF)</strong></li>
+                                <li><strong>Printable CADD self-check summary (PDF)</strong></li>
                                 <li>Bowditch Traverse &amp; Map Check Solver</li>
                             </ul>
                         </div>
@@ -1228,60 +1227,48 @@ public class CmdBoundaryQC : IExternalCommand {
         </div>
     </div>
 
-    <!-- Client-Side Air-Gapped Privacy Guarantee Modal -->
+    <!-- "How your data is handled" modal -->
     <div id="modal-privacy-guarantee" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:99999;">
-        <div class="glass-panel" style="width:90%; max-width:600px; padding:2rem; background:var(--bg-primary); border:1px solid var(--success); border-radius:var(--radius-lg); max-height:90vh; overflow-y:auto;">
+        <div class="glass-panel" style="width:90%; max-width:600px; padding:2rem; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); max-height:90vh; overflow-y:auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
-                <h3 style="color:var(--success); display:flex; align-items:center; gap:0.6rem;">
-                    <i class="fa-solid fa-shield-halved"></i> 100% Client-Side Privacy &amp; Air-Gapped Trust Guarantee
+                <h3 style="display:flex; align-items:center; gap:0.6rem;">
+                    <i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> How your data is handled
                 </h3>
                 <button class="icon-btn" id="btn-close-privacy"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.5; margin-bottom:1.25rem;">
-                Civil engineering and survey deliverables contain proprietary CAD linework, boundary monuments, and critical infrastructure data. <strong>FDOT Standards Suite operates 100% inside your local browser memory</strong> — zero bytes of geometry ever leave your device.
+            <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.55; margin-bottom:1.25rem;">
+                A drawing you open here is parsed, compared, healed and hashed <strong>in this browser tab</strong> — it is never uploaded. The app's own JavaScript can't send it anywhere either: the page's Content Security Policy (<code>connect-src 'self'</code>) blocks every cross-origin request from the app's code. The page still loads a few static assets (DOMPurify, Font Awesome, web fonts) from CDNs when it first opens — those are listed below.
             </p>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.25rem;">
-                <div class="stat-card glass-panel" style="padding:0.85rem;">
-                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">NETWORK EGRESS</div>
-                    <div style="font-size:1.05rem; font-weight:700; color:var(--success); margin-top:0.25rem;"><i class="fa-solid fa-circle-check"></i> 0 CAD Packets Sent</div>
-                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Strict Content Security Policy</div>
-                </div>
-                <div class="stat-card glass-panel" style="padding:0.85rem;">
-                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">CRYPTOGRAPHIC INTEGRITY</div>
-                    <div style="font-size:1.05rem; font-weight:700; color:var(--accent); margin-top:0.25rem;"><i class="fa-solid fa-fingerprint"></i> FIPS 180-4 SHA-256</div>
-                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">SubtleCrypto / Pure-JS local hashing</div>
-                </div>
-            </div>
             <div style="background:var(--bg-secondary); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:1rem; margin-bottom:1.25rem;">
-                <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;"><i class="fa-solid fa-laptop-code"></i> Live Browser Sandbox Verification</div>
-                <ul id="privacy-diag-list" style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.8; font-family:var(--font-mono);">
-                    <!-- Dynamic live diagnostics -->
+                <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;"><i class="fa-solid fa-laptop-code"></i> This browser session</div>
+                <ul id="privacy-diag-list" style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.7;">
+                    <!-- Dynamic diagnostics -->
                 </ul>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-copy-privacy-attestation"><i class="fa-solid fa-copy"></i> Copy IT/CISO Security Attestation</button>
-                <button class="btn btn-primary btn-sm" id="btn-privacy-ok">Dismiss</button>
+                <button class="btn btn-secondary btn-sm" id="btn-copy-privacy-attestation"><i class="fa-solid fa-copy"></i> Copy this summary</button>
+                <button class="btn btn-primary btn-sm" id="btn-privacy-ok">Close</button>
             </div>
         </div>
     </div>
 
-    <!-- FDOT CADD Submittal Compliance Certificate Modal -->
+    <!-- CADD Self-Check Summary modal -->
     <div id="modal-certificate" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:99999;">
-        <div class="glass-panel cert-modal-content" style="width:92%; max-width:820px; padding:2rem; background:var(--bg-primary); border:1px solid var(--accent); border-radius:var(--radius-lg); max-height:92vh; overflow-y:auto;">
+        <div class="glass-panel cert-modal-content" style="width:92%; max-width:820px; padding:2rem; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); max-height:92vh; overflow-y:auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;" class="cert-modal-header no-print">
-                <h3><i class="fa-solid fa-award" style="color:var(--accent);"></i> Submittal Compliance Certificate</h3>
+                <h3><i class="fa-solid fa-clipboard-check" style="color:var(--primary);"></i> CADD Self-Check Summary</h3>
                 <button class="icon-btn" id="btn-close-cert"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            
+
             <div id="cert-sheet-container">
-                <!-- Dynamic printable certificate content -->
+                <!-- Dynamic printable summary content -->
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-top:1.5rem;" class="no-print">
-                <button class="btn btn-secondary" id="btn-copy-cert-hash"><i class="fa-solid fa-fingerprint"></i> Copy SHA-256 Checksum</button>
+                <button class="btn btn-secondary" id="btn-copy-cert-hash"><i class="fa-solid fa-fingerprint"></i> Copy SHA-256</button>
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-secondary" id="btn-close-cert-btn">Close</button>
-                    <button class="btn btn-primary" id="btn-print-cert"><i class="fa-solid fa-print"></i> Print / Save PDF Certificate</button>
+                    <button class="btn btn-primary" id="btn-print-cert"><i class="fa-solid fa-print"></i> Print / Save PDF</button>
                 </div>
             </div>
         </div>

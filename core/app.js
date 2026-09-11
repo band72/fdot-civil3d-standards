@@ -183,72 +183,70 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
 
+        const sigRows = (cert.signerName || cert.signerLicense || cert.signerFirm)
+            ? `<tr><th>Reviewed by:</th><td>${clean(cert.signerName) || "—"}${cert.signerLicense ? " (" + clean(cert.signerLicense) + ")" : ""}${cert.signerFirm ? " · " + clean(cert.signerFirm) : ""}</td></tr>`
+            : "";
+
         window.setSafeHTML(container, `
             <div class="cert-sheet">
                 <div class="cert-header">
-                    <div style="font-size:0.75rem; letter-spacing:0.12em; font-weight:800; color:#0284c7; text-transform:uppercase; margin-bottom:0.25rem;">
-                        <i class="fa-solid fa-flag-usa"></i> State of Florida • Department of Transportation
-                    </div>
-                    <h2>CADD STANDARDS &amp; GEOMETRY SUBMITTAL COMPLIANCE CERTIFICATE</h2>
-                    <h4>Electronic Delivery Verification • Topic No. 625-050-001</h4>
+                    <h2>CADD Self-Check Summary</h2>
+                    <h4>Generated in-browser · not an FDOT submittal</h4>
+                </div>
+
+                <div class="cert-disclaimer" style="background:var(--warning-light); border:1px solid var(--warning); border-radius:var(--radius-sm); padding:0.6rem 0.85rem; font-size:0.78rem; color:var(--text-primary); margin:0 0 1rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning);"></i>
+                    ${clean(cert.disclaimer)}
                 </div>
 
                 <div class="cert-grid">
                     <div>
                         <table class="cert-table">
                             <tbody>
-                                <tr><th>Project File:</th><td><strong>${clean(cert.filename)}</strong></td></tr>
-                                <tr><th>CADD Standard:</th><td>${clean(cert.standardName)}</td></tr>
-                                <tr><th>Submittal Certificate ID:</th><td>${clean(cert.certId)}</td></tr>
-                                <tr><th>Verification Timestamp:</th><td>${clean(cert.timestamp)}</td></tr>
-                                <tr><th>Signatory / Licensee:</th><td>${clean(cert.signerName)} (${clean(cert.signerLicense)})</td></tr>
-                                <tr><th>Engineering Firm:</th><td>${clean(cert.signerFirm)}</td></tr>
-                                <tr><th>FDOT District:</th><td>${clean(cert.district)}</td></tr>
-                                <tr><th>CADD Entity Summary:</th><td>${cert.layersCount} Layers / ${cert.entitiesCount} Entities</td></tr>
-                                <tr><th>Standards Deviations:</th><td>${cert.violationsCount} (${cert.violationsCount === 0 ? "Zero Non-Conformances" : (cert.autoHealReady ? "Auto-Heal Available" : "Manual Review Required")})</td></tr>
+                                <tr><th>Drawing:</th><td><strong>${clean(cert.filename)}</strong></td></tr>
+                                <tr><th>Ruleset used:</th><td>${clean(cert.standardName)}</td></tr>
+                                <tr><th>Summary ID:</th><td>${clean(cert.summaryId || cert.certId)}</td></tr>
+                                <tr><th>Generated:</th><td>${clean(cert.timestamp)}</td></tr>
+                                ${sigRows}
+                                <tr><th>Drawing contents:</th><td>${cert.layersCount} layers / ${cert.entitiesCount} entities</td></tr>
+                                <tr><th>Issues flagged:</th><td>${cert.violationsCount} (${cert.violationsCount === 0 ? "none" : (cert.autoHealReady ? "self-heal available" : "manual review needed")})</td></tr>
                             </tbody>
                         </table>
                     </div>
                     <div class="cert-badge-box">
-                        <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:0.25rem;">Compliance Score</div>
-                        <div class="cert-grade" style="color:${cert.gradeColor || '#0284c7'};">${clean(cert.grade)}</div>
-                        <div style="font-size:1.15rem; font-weight:800; color:${cert.gradeColor || '#0284c7'}; margin-bottom:0.25rem;">${cert.score}%</div>
-                        <div style="font-size:0.75rem; font-weight:700; color:#334155; padding:2px 8px; border-radius:12px; background:#e2e8f0;">${clean(cert.statusText)}</div>
-                        <div style="font-size:0.68rem; color:#64748b; margin-top:0.6rem; font-family:var(--font-mono);">ERC Pre-Check: ${cert.violationsCount === 0 ? "PASSED" : "REVIEW"}</div>
+                        <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.25rem;">Self-check score</div>
+                        <div class="cert-grade" style="color:${cert.gradeColor || 'var(--primary)'};">${clean(cert.grade)}</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:${cert.gradeColor || 'var(--primary)'}; margin-bottom:0.25rem;">${cert.score}%</div>
+                        <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); padding:2px 8px; border-radius:12px; background:var(--bg-surface-elevated);">${clean(cert.statusText)}</div>
                     </div>
                 </div>
 
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:0.6rem 0.8rem; font-family:var(--font-mono); font-size:0.72rem; word-break:break-all;">
-                    <span style="font-weight:700; color:#0284c7;"><i class="fa-solid fa-fingerprint"></i> FIPS 180-4 SHA-256 CHECKSUM:</span><br>
-                    <span style="color:#0f172a; font-size:0.78rem;">${clean(cert.sha256)}</span>
+                <div style="background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); border-radius:4px; padding:0.6rem 0.8rem; font-family:var(--font-mono); font-size:0.72rem; word-break:break-all; margin-top:1rem;">
+                    <span style="font-weight:700; color:var(--primary);"><i class="fa-solid fa-fingerprint"></i> SHA-256 of the drawing text:</span><br>
+                    <span style="color:var(--text-primary); font-size:0.78rem;">${clean(cert.sha256)}</span>
                 </div>
 
-                <div class="cert-stat-notice">
-                    <strong>STATUTORY SEAL NOTICE:</strong><br>
-                    ${clean(cert.statNotice)}
-                </div>
-
-                <div class="cert-footer">
-                    <div>
-                        <div style="font-weight:700; color:#0f172a;">BoundaryQC &amp; FDOT Civil 3D Standards Suite</div>
-                        <div style="font-size:0.7rem; color:#64748b;">Client-Side Cryptographic Audit Engine • banks.land • Ref: FAC-61G15/5J-17</div>
-                    </div>
-                    <div>
-                        <div class="cert-sig-line">Digital Verification Stamp</div>
-                    </div>
+                <div class="cert-footer" style="margin-top:1rem;">
+                    <div style="font-size:0.7rem; color:var(--text-muted);">FDOT Civil3D Standards Suite · client-side self-check · banks.land</div>
                 </div>
             </div>
         `);
 
         modal.classList.remove("hidden");
 
-        const closeCert = () => modal.classList.add("hidden");
+        const closeCert = () => {
+            modal.classList.add("hidden");
+            document.getElementById("btn-close-cert")?.removeEventListener("click", closeCert);
+            document.getElementById("btn-close-cert-btn")?.removeEventListener("click", closeCert);
+            document.getElementById("btn-print-cert")?.removeEventListener("click", onPrint);
+            document.getElementById("btn-copy-cert-hash")?.removeEventListener("click", onCopy);
+        };
+        const onPrint = () => window.print();
+        const onCopy = () => navigator.clipboard.writeText(cert.sha256).then(() => showToast("Copied SHA-256.")).catch(() => {});
         document.getElementById("btn-close-cert")?.addEventListener("click", closeCert);
         document.getElementById("btn-close-cert-btn")?.addEventListener("click", closeCert);
-        document.getElementById("btn-print-cert")?.addEventListener("click", () => window.print());
-        document.getElementById("btn-copy-cert-hash")?.addEventListener("click", () => {
-            navigator.clipboard.writeText(cert.sha256).then(() => showToast("Copied SHA-256 Checksum!")).catch(() => {});
-        });
+        document.getElementById("btn-print-cert")?.addEventListener("click", onPrint);
+        document.getElementById("btn-copy-cert-hash")?.addEventListener("click", onCopy);
     }
 
     window.showSubmittalCertificateModal = showSubmittalCertificateModal;
@@ -434,36 +432,43 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast(`Demo build — CNAME for "${domain}" was not provisioned. Portal hosting is not part of this repo.`, true);
         });
 
-        // Air-Gapped Privacy Modal Wiring
+        // "How your data is handled" modal — plain, accurate description.
         const modalPrivacy = document.getElementById("modal-privacy-guarantee");
+        const closePrivacy = () => modalPrivacy?.classList.add("hidden");
         document.getElementById("btn-privacy-guarantee")?.addEventListener("click", () => {
             if (!modalPrivacy) return;
             const diagList = document.getElementById("privacy-diag-list");
             if (diagList && window.BoundaryQCSecurity) {
                 const diag = window.BoundaryQCSecurity.getPrivacyDiagnostics();
-                window.setSafeHTML(diagList, `
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Execution Model:</strong> 100% Client-Side In-Memory (Zero Server Upload)</li>
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Network Egress:</strong> ${diag.networkEgress}</li>
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Crypto Engine:</strong> ${diag.cryptoEngine}</li>
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Telemetry &amp; Tracking:</strong> ${diag.thirdPartyTelemetry}</li>
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Local Storage Isolation:</strong> ${diag.storageType}</li>
-                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Content Security Policy:</strong> Enforced by browser</li>
-                `);
+                const row = (label, val) => `<li><strong>${label}:</strong> ${val}</li>`;
+                window.setSafeHTML(diagList,
+                    row("Where drawings are processed", diag.drawingProcessing) +
+                    row("Can this app send my drawing anywhere", diag.appNetworkAccess) +
+                    row("Static assets loaded from CDNs", diag.staticAssetHosts.join("; ")) +
+                    row("Analytics / tracking", diag.analytics) +
+                    row("Hashing", diag.cryptoEngine) +
+                    row("Storage", diag.storageType) +
+                    row("Secure context", diag.isSecureContext ? "yes" : "no (served over " + diag.protocol + ")")
+                );
             }
             modalPrivacy.classList.remove("hidden");
         });
-
-        const closePrivacy = () => modalPrivacy?.classList.add("hidden");
         document.getElementById("btn-close-privacy")?.addEventListener("click", closePrivacy);
         document.getElementById("btn-privacy-ok")?.addEventListener("click", closePrivacy);
         document.getElementById("btn-copy-privacy-attestation")?.addEventListener("click", () => {
-            const attestation = `FDOT CIVIL3D STANDARDS SUITE — CLIENT-SIDE PRIVACY & SECURITY ATTESTATION\n` +
-                `Architecture: 100% Client-Side Execution (HTML5 / Pure JavaScript / WebAssembly)\n` +
-                `Cloud Transmission: ZERO (CAD geometries, layers, and coordinates never leave browser RAM)\n` +
-                `Data Retention: Ephemeral in-memory. No drawings stored on server.\n` +
-                `Compliance: Safe for CUI, ITAR/EAR boundary, FDOT EDG Topic No. 625-050-001, and NDA project deliverables.\n` +
-                `Verification Engine: FIPS 180-4 SHA-256 cryptographic local hashing (banks.land).`;
-            navigator.clipboard.writeText(attestation).then(() => showToast("Copied Security Attestation to clipboard!")).catch(() => {});
+            const diag = window.BoundaryQCSecurity ? window.BoundaryQCSecurity.getPrivacyDiagnostics() : {};
+            const text = [
+                "FDOT Civil3D Standards Suite — how it handles an opened drawing",
+                "",
+                "- Processing: " + (diag.drawingProcessing || "in-page only; nothing is uploaded"),
+                "- App network access: " + (diag.appNetworkAccess || "CSP connect-src 'self' blocks cross-origin requests from the app's code"),
+                "- Static assets from CDNs (page load only): " + ((diag.staticAssetHosts || []).join("; ") || "DOMPurify, Font Awesome, web fonts"),
+                "- Analytics/tracking: " + (diag.analytics || "none"),
+                "- Storage: " + (diag.storageType || "browser-local only"),
+                "",
+                "This is a plain description of the client-side app, not a formal security attestation or a compliance claim."
+            ].join("\n");
+            navigator.clipboard.writeText(text).then(() => showToast("Copied.")).catch(() => {});
         });
     }
 

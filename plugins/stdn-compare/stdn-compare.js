@@ -119,21 +119,18 @@
 
         window.setSafeHTML(box, `
           <div class="hero-demo-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.4rem;">
-              <strong style="color:var(--text-primary); font-size:0.95rem; display:flex; align-items:center; gap:0.4rem;">
-                <i class="fa-solid fa-bolt" style="color:var(--warning);"></i> 1-Click FDOT 2026 Live Demo
-              </strong>
-              <span class="badge" style="background:var(--primary); font-size:0.68rem;">INSTANT PROOF OF VALUE</span>
+            <div style="font-size:0.85rem; font-weight:600; color:var(--text-primary); margin-bottom:0.3rem;">
+              <i class="fa-solid fa-flask" style="color:var(--text-muted);"></i> Try it with a bundled sample
             </div>
-            <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.75rem; line-height:1.4;">
-              Instantly test the standards auditor, visual geometry CAD diff, and auto-healing engine on Florida DOT drawing deliverables without uploading your own files.
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.7rem; line-height:1.4;">
+              Run the standards check, geometry diff and self-heal against a sample FDOT drawing — no upload needed.
             </p>
             <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
-              <button class="btn btn-accent btn-sm" id="stdn-hero-drainage-demo">
-                <i class="fa-solid fa-play"></i> Run Non-Compliant Drainage Demo (Check + Heal)
+              <button class="btn btn-secondary btn-sm" id="stdn-hero-drainage-demo">
+                <i class="fa-solid fa-play"></i> Non-compliant drainage sample
               </button>
               <button class="btn btn-secondary btn-sm" id="stdn-hero-sr50-demo">
-                <i class="fa-solid fa-road"></i> Run SR-50 Roadway Corridor Demo
+                <i class="fa-solid fa-road"></i> SR-50 roadway sample
               </button>
             </div>
           </div>
@@ -372,7 +369,7 @@
                 </details>` : ""}
               ${geometrySection(r.geometryDiff)}
               <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem;">
-                <button class="btn btn-primary btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-award"></i> Generate Submittal Certificate</button>
+                <button class="btn btn-primary btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-clipboard-check"></i> Generate self-check summary</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-html"><i class="fa-solid fa-file-code"></i> Export HTML report</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-md"><i class="fa-solid fa-file-lines"></i> Export Markdown report</button>
                 ${r.standardsCheck && !r.overall.standardsPassed ? `<span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Tip: switch to Self-heal with a master template to auto-correct these.</span>` : ""}
@@ -410,7 +407,7 @@
                 ${violationsTable(h.unresolved, { withReason: true })}
               </details>
               <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem;">
-                <button class="btn btn-accent btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-award"></i> Generate Submittal Certificate</button>
+                <button class="btn btn-accent btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-clipboard-check"></i> Generate self-check summary</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-html"><i class="fa-solid fa-file-code"></i> Export HTML report</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-md"><i class="fa-solid fa-file-lines"></i> Export Markdown report</button>
               </div>`);
