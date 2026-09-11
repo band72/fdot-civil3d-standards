@@ -5,6 +5,8 @@
   "description": "FDOT Civil3D Standards Suite — client-side surveying / CADD tools",
   "scripts": {
     "start": "python3 -m http.server 8085",
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "test:e2e": "node --experimental-websocket tests/e2e-chrome.js",
+    "test:all": "node tests/run.js && node --experimental-websocket tests/e2e-chrome.js"
   }
 }

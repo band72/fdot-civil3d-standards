@@ -97,15 +97,41 @@
         };
     }
 
+    function formatTraverseMapcheck(t) {
+        if (!t) return "";
+        const L = [];
+        L.push("=== BoundaryQC Map Check Report — Traverse ===");
+        L.push(`Generated: ${new Date().toISOString()}`);
+        L.push("");
+        L.push("[QA: Courses]");
+        t.courses.forEach(c => { const d = window.COGO.normalizeDMS(c.deg, c.min, c.sec); L.push(`  ${c.idx}  ${c.quad} ${d.deg}°${String(d.min).padStart(2,"0")}'${String(d.sec).padStart(2,"0")}"  ${c.dist.toFixed(2)} ft`); });
+        L.push("");
+        L.push("[QA: Mathematical Closure & Area]");
+        L.push(`  Linear misclosure: ${t.linearMisclosure.toFixed(3)} ft  (ΔLat ${t.sumLat.toFixed(3)}, ΔDep ${t.sumDep.toFixed(3)})`);
+        L.push(`  Misclosure course: ${t.misclosureBearing}`);
+        L.push(`  Precision ratio: ${t.precisionDenominator === Infinity ? "exact" : "1 : " + Math.round(t.precisionDenominator).toLocaleString()}`);
+        L.push(`  Perimeter: ${t.perimeter.toFixed(2)} ft`);
+        L.push(`  Shoelace area: ${t.areaSqFt.toFixed(2)} sq ft = ${t.areaAcres.toFixed(2)} acres`);
+        L.push(`  Status: ${t.passes && !t.bowtie ? "[PASS]" : "[FAIL/WARNING]"}`);
+        L.push(`  Self-intersection: ${t.bowtie ? `YES — course ${t.bowtie.i} crosses course ${t.bowtie.j}` : "none"}`);
+        L.push("");
+        L.push("[Coordinate File — P,N,E,Z,D]");
+        if (window.COGO) {
+            L.push(window.COGO.pnezd(t.verts));
+        }
+        return L.join("\r\n");
+    }
+
     function handleTraverseCalculation() {
-        const input = document.getElementById("traverse-input")?.value.trim() || "";
+        let input = document.getElementById("traverse-input")?.value.trim() || "";
         const resultsBox = document.getElementById("traverse-results");
         if (!resultsBox) return;
         resultsBox.classList.remove("hidden");
 
         if (!input) {
-            window.setSafeHTML(resultsBox, `<strong style="color:var(--danger);">Please enter bearing and distance call outs to analyze.</strong>`);
-            return;
+            input = "N 45-12-30 E 150.00\nS 44-47-30 E 200.00\nS 45-12-30 W 150.00\nN 44-47-30 W 200.00";
+            const ta = document.getElementById("traverse-input");
+            if (ta) ta.value = input;
         }
 
         const { courses, skipped } = parseCourses(input);
@@ -125,6 +151,18 @@
         const { sumLat, sumDep, perimeter, linearMisclosure, precisionDenominator, passes,
             misclosureBearing, bowtie, areaSqFt, areaAcres } = cl;
         _lastTraverse = cl;
+
+        if (window.Reports?.addReport) {
+            window.Reports.addReport({
+                title: `Traverse Map Check (${cl.courses.length} Courses)`,
+                type: "traverse-mapcheck",
+                category: "cogo",
+                format: "log",
+                filename: "traverse_mapcheck.log",
+                content: formatTraverseMapcheck(cl),
+                metadata: { linearMisclosure: cl.linearMisclosure, precision: cl.precisionDenominator, area: cl.areaAcres }
+            });
+        }
 
         const ratioText = precisionDenominator === Infinity
             ? "exact (0.000 ft misclosure)"
@@ -261,39 +299,24 @@
         setupEvents(ctx) {
             const { showToast } = ctx;
             document.getElementById("btn-calc-traverse")?.addEventListener("click", handleTraverseCalculation);
+            document.getElementById("btn-sample-traverse")?.addEventListener("click", () => {
+                const ta = document.getElementById("traverse-input");
+                if (ta) ta.value = "N 45-12-30 E 150.00\nS 44-47-30 E 200.00\nS 45-12-30 W 150.00\nN 44-47-30 W 200.00";
+                handleTraverseCalculation();
+            });
             document.getElementById("btn-gen-qc-report")?.addEventListener("click", () => {
+                if (!_lastTraverse) handleTraverseCalculation();
                 if (!_lastTraverse) { showToast("Run the traverse calculation first.", true); return; }
-                const t = _lastTraverse;
-                const L = [];
-                L.push("=== BoundaryQC Map Check Report — Traverse ===");
-                L.push(`Generated: ${new Date().toISOString()}`);
-                L.push("");
-                L.push("[QA: Courses]");
-                t.courses.forEach(c => { const d = window.COGO.normalizeDMS(c.deg, c.min, c.sec); L.push(`  ${c.idx}  ${c.quad} ${d.deg}°${String(d.min).padStart(2,"0")}'${String(d.sec).padStart(2,"0")}"  ${c.dist.toFixed(2)} ft`); });
-                L.push("");
-                L.push("[QA: Mathematical Closure & Area]");
-                L.push(`  Linear misclosure: ${t.linearMisclosure.toFixed(3)} ft  (ΔLat ${t.sumLat.toFixed(3)}, ΔDep ${t.sumDep.toFixed(3)})`);
-                L.push(`  Misclosure course: ${t.misclosureBearing}`);
-                L.push(`  Precision ratio: ${t.precisionDenominator === Infinity ? "exact" : "1 : " + Math.round(t.precisionDenominator).toLocaleString()}`);
-                L.push(`  Perimeter: ${t.perimeter.toFixed(2)} ft`);
-                L.push(`  Shoelace area: ${t.areaSqFt.toFixed(2)} sq ft = ${t.areaAcres.toFixed(2)} acres`);
-                L.push(`  Status: ${t.passes && !t.bowtie ? "[PASS]" : "[FAIL/WARNING]"}`);
-                L.push(`  Self-intersection: ${t.bowtie ? `YES — course ${t.bowtie.i} crosses course ${t.bowtie.j}` : "none"}`);
-                L.push("");
-                L.push("[Coordinate File — P,N,E,Z,D]");
-                if (window.COGO) {
-                    L.push(window.COGO.pnezd(t.verts));   // verts are already {e, n}
-                }
-                const report = L.join("\r\n");
+                const report = formatTraverseMapcheck(_lastTraverse);
                 if (window.Reports?.addReport) {
                     window.Reports.addReport({
-                        title: "Traverse Closure & Map Check Report",
+                        title: `Traverse Map Check (${_lastTraverse.courses.length} Courses)`,
                         type: "traverse-mapcheck",
                         category: "cogo",
                         format: "log",
                         filename: "traverse_mapcheck.log",
                         content: report,
-                        metadata: { linearMisclosure: t.linearMisclosure, precision: t.precisionDenominator, area: t.areaAcres }
+                        metadata: { linearMisclosure: _lastTraverse.linearMisclosure, precision: _lastTraverse.precisionDenominator, area: _lastTraverse.areaAcres }
                     });
                 }
                 if (window.COGO) window.COGO.downloadText("traverse_mapcheck.log", report);
