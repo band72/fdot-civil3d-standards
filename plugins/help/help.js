@@ -117,6 +117,7 @@
                 <p><em>Purpose:</em> import linework from <strong>field data</strong>, check it for the common blunders, and correct it interactively. (Linework already inside a DXF is corrected in the DXF Project Auditor.)</p>
                 <h4>Import</h4>
                 <ul>
+                    <li><strong>File Upload &amp; Drag-and-Drop</strong> — Drop or browse point coordinate files (<code>.txt</code>, <code>.csv</code>, <code>.pts</code>, <code>.pnt</code>, <code>.dat</code>) or bearing/distance call lists directly into the upload dropzone. Supports quote-aware CSV parsing (preserving commas in descriptions such as <code>"CURB B, R10"</code>) and automatic header detection (e.g. <code>Point,Northing,Easting,...</code>). Malformed or corrupt rows are flagged in the interactive diagnostics panel and logged with line numbers and reasons to the <strong>System Logs</strong> plugin.</li>
                     <li><strong>Point file</strong> — a P,N,E,Z,D coordinate file (comma, tab, or space delimited; Z optional). Set the coordinate order (P,N,E,… or P,E,N,…). Descriptions carry linework codes after the feature code, matching the Civil 3D Linework Code Set: <code>B</code> begin a figure, <code>C</code> continue an interrupted figure, <code>E</code> end it (no closing segment), <code>CLS</code> close it (draws the segment back to the start), plus an optional figure number (so <code>EP 2 B</code> starts a second EP line). <strong>Curve codes are resolved into real geometry:</strong> <code>BC</code>…<code>EC</code> (or <code>PC</code>…<code>PT</code>) fits a circular arc through the bracketed shots — reported with radius and fit residual, exported as a DXF bulge; <code>CIR</code> makes the whole figure a circle from 2 shots (centre + radius) or 3 shots (through-points); <code>RECT</code> completes a rectangle from 3 shots. The remaining line codes (<code>RT</code> right-turn, <code>X</code> extend, <code>RPN</code>/<code>CPN</code> recall/connect, <code>H&lt;n&gt;</code>/<code>V&lt;n&gt;</code>/<code>SO</code> offsets) are recognized and listed but must be applied in CAD.</li>
                     <li><strong>Build linework</strong> — <em>By description code</em> connects points that share a code, in point-number order. <em>By figure</em> also splits on a trailing figure number (so <code>EP 1</code> and <code>EP 2</code> are separate lines). <em>Single line</em> connects every point in order.</li>
                     <li><strong>Bearing/distance calls</strong> — paste a traverse (one course per line) and <em>Import as calls</em>. This figure is treated as a traverse, so misclosure and precision are checked.</li>
@@ -295,6 +296,22 @@
                     <li><strong>Persistent Storage:</strong> Reports persist across browser sessions in local storage. Live badges on the navigation bar alert you to the active report count.</li>
                     <li><strong>Filter &amp; Search:</strong> Filter instantaneously by category (<em>COGO</em>, <em>Legal</em>, <em>PLSS</em>, <em>DXF</em>, <em>Standards</em>) or search across report titles, FPIDs, authors, and summary contents.</li>
                     <li><strong>In-App Preview &amp; Deliverables:</strong> View full raw logs or formatted HTML reports inside the preview modal with one-click <strong>Copy to Clipboard</strong>, <strong>Print / PDF</strong>, and <strong>Direct Download</strong>. Export all stored reports into a single consolidated master zip/bundle.</li>
+                </ul>`
+        },
+        {
+            id: "logging-doc",
+            title: "3.16  System Diagnostics, Error Logging & Real-Time Event Stream",
+            html: `
+                <p><em>Purpose:</em> centralized runtime event logger and diagnostic auditor across all plugins, parsing engines, file loaders, and background tasks.</p>
+                <h4>Features &amp; Capabilities</h4>
+                <ul>
+                    <li><strong>Global Logging API (<code>window.Logging</code>):</strong> Standalone plugin providing <code>info()</code>, <code>warn()</code>, <code>error()</code>, and <code>debug()</code> event logging with source attribution and structured metadata.</li>
+                    <li><strong>Linework File Upload &amp; Error Logging:</strong> Supports drag-and-drop and manual upload of point and call files (<code>.txt</code>, <code>.csv</code>, <code>.pts</code>, <code>.pnt</code>, <code>.dat</code>). Quote-aware CSV parsing correctly handles commas within description fields (e.g. <code>"CURB B, R10"</code>). Header rows are automatically detected and skipped. Malformed rows (insufficient tokens, non-numeric coordinates) are logged to the System Logs stream with line numbers and diagnostic reasons, and displayed in an interactive in-tab diagnostics panel with one-click navigation to System Logs.</li>
+                    <li><strong>Automatic Exception Monitoring:</strong> Subscribes to global <code>window.onerror</code> and <code>window.onunhandledrejection</code> events, preventing silent failures and alerting users via a persistent navbar badge.</li>
+                    <li><strong>Live Error Badge:</strong> Displays real-time error counts in the sidebar navigation menu.</li>
+                    <li><strong>Filtering &amp; Real-Time Search:</strong> Filter logs by severity level (<em>ALL</em>, <em>ERROR</em>, <em>WARN</em>, <em>INFO</em>, <em>DEBUG</em>) or originating subsystem (<em>linework</em>, <em>batchprocess</em>, <em>landxml</em>, <em>dxf</em>, <em>reports</em>, <em>system</em>), with instant search filtering.</li>
+                    <li><strong>Reports Hub Integration:</strong> One-click <em>Send to Reports Hub</em> packages the formatted audit log into an official FDOT QA/QC System Diagnostics report stored in the Reports Hub repository.</li>
+                    <li><strong>Export Formats:</strong> Download raw logs as formatted text (<code>.log</code>) or structured JSON (<code>.json</code>).</li>
                 </ul>`
         },
         {

@@ -65,6 +65,11 @@
                         <span>Reports Hub</span>
                         <span class="badge" id="reports-count-badge" style="display:none; background:var(--primary); color:#fff;">0</span>
                     </button>
+                    <button class="nav-btn" data-tab="tab-logging">
+                        <i class="fa-solid fa-terminal"></i>
+                        <span>System Logs</span>
+                        <span class="badge" id="logging-error-badge" style="display:none; background:var(--danger, #ef4444); color:#fff;">0</span>
+                    </button>
                 </div>
 
                 <div class="nav-section">
@@ -651,6 +656,16 @@
                         <button class="btn btn-accent" id="btn-lw-sample"><i class="fa-solid fa-vial"></i> Load sample field data</button>
                     </div>
 
+                    <!-- Drag & Drop Upload Zone -->
+                    <div id="lw-dropzone" class="dropzone-area" style="border: 2px dashed var(--border, rgba(255,255,255,0.2)); border-radius: 8px; padding: 1.1rem; text-align: center; background: rgba(0,0,0,0.15); margin-top: 0.85rem; cursor: pointer; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="font-size: 1.6rem; color: var(--primary); margin-bottom: 0.35rem; display: block;"></i>
+                        <strong style="display: block; font-size: 0.92rem; margin-bottom: 0.2rem;">Drop Point (.txt, .csv, .pts, .pnt) or Call List Files Here or Click to Browse</strong>
+                        <span style="font-size: 0.78rem; color: var(--text-muted); display: block;">Supports P,N,E,Z,D / P,E,N,Z,D delimiters (comma, tab, space, quotes) &amp; Bearing/Distance traverse calls</span>
+                    </div>
+
+                    <!-- Import Diagnostics & Error List -->
+                    <div id="lw-import-diagnostics" style="margin-top: 0.75rem; display: none;"></div>
+
                     <div class="form-group" style="margin-top:0.75rem;">
                         <label for="lw-paste">…or paste a point file, or bearing/distance calls (one course per line)</label>
                         <textarea id="lw-paste" rows="3" placeholder="N 45-12-30 E 150.00&#10;S 44-47-30 E 200.00&#10;…"></textarea>
@@ -730,6 +745,11 @@
             <!-- Centralized Reports Hub -->
             <section id="tab-reports" class="tab-pane">
                 <div id="reports-root"></div>
+            </section>
+
+            <!-- Centralized Logging & Diagnostics -->
+            <section id="tab-logging" class="tab-pane">
+                <div id="logging-root"></div>
             </section>
 
             <!-- Legal Description QC (ported from BoundaryQC desktop app) -->
@@ -1439,6 +1459,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/landxml/landxml.js"></script>
     <script src="plugins/batchprocess/batchprocess.js"></script>
     <script src="plugins/reports/reports.js"></script>
+    <script src="plugins/logging/logging.js"></script>
     <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->

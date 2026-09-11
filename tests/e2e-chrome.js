@@ -149,8 +149,43 @@ async function main() {
         console.log(`  ✓ Reports count after Traverse COGO: ${finalReportCount}`);
         if (finalReportCount <= reportsCount) throw new Error("Traverse report did not register in Reports Hub");
 
-        // 7. Check for Any Uncaught In-Page Exceptions
-        console.log("\n[TEST 7] Page Stability & Unhandled Exceptions Check");
+        // 7. Linework Editor File Import & Error Diagnostics Workflow
+        console.log("\n[TEST 7] Linework Editor File Import, Diagnostics & System Logs");
+        await evaluate("document.querySelector('[data-tab=\"tab-linework\"]').click()");
+        const isLineworkActive = await evaluate("document.getElementById('tab-linework').classList.contains('active')");
+        console.log(`  ✓ Tab switch to Linework Editor: ${isLineworkActive}`);
+        if (!isLineworkActive) throw new Error("tab-linework did not activate");
+
+        // Paste CSV with quotes and an intentional error row
+        const testCsv = [
+            "Point,Northing,Easting,Elevation,Description",
+            "1,2015600.00,642100.00,12.5,\\\"EP B, R10\\\"",
+            "corrupt_row_with_no_coords",
+            "2,2015700.00,642100.00,12.5,\\\"EP E\\\""
+        ].join("\\n");
+
+        await evaluate(`document.getElementById('lw-paste').value = "${testCsv}"`);
+        await evaluate("document.getElementById('btn-lw-parse-points').click()");
+        await new Promise(r => setTimeout(r, 200));
+
+        const diagVisible = await evaluate("document.getElementById('lw-import-diagnostics').style.display !== 'none'");
+        const diagContent = await evaluate("document.getElementById('lw-import-diagnostics').textContent");
+        console.log(`  ✓ Diagnostics rendered: ${diagVisible} | Contains skipped row alert: ${diagContent.includes("skipped")}`);
+        if (!diagVisible || !diagContent.includes("skipped")) throw new Error("Linework diagnostics failed to render skipped row warning");
+
+        // 8. System Logs Viewer & Verification
+        console.log("\n[TEST 8] System Logs Viewer & Error Audit Stream");
+        await evaluate("document.querySelector('[data-tab=\"tab-logging\"]').click()");
+        const isLogsActive = await evaluate("document.getElementById('tab-logging').classList.contains('active')");
+        console.log(`  ✓ Tab switch to System Logs: ${isLogsActive}`);
+        if (!isLogsActive) throw new Error("tab-logging did not activate");
+
+        const logStats = await evaluate("window.Logging.getStats()");
+        console.log(`  ✓ System Logs Recorded -> Total: ${logStats.total}, Errors: ${logStats.errors}, Warnings: ${logStats.warnings}`);
+        if (logStats.total < 1) throw new Error("Expected at least 1 log entry in Logging store");
+
+        // 9. Check for Any Uncaught In-Page Exceptions
+        console.log("\n[TEST 9] Page Stability & Unhandled Exceptions Check");
         console.log(`  ✓ Total Uncaught Runtime Exceptions: ${uncaughtExceptions.length}`);
         if (uncaughtExceptions.length > 0) {
             console.error("Uncaught exceptions detected:", uncaughtExceptions);

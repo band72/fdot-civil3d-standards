@@ -66,33 +66,99 @@
 
     // ── Parsing ──────────────────────────────────────────────────────────────
 
+    /** Quote-aware CSV/TSV/whitespace tokenizer. */
+    function tokenizeLine(line) {
+        line = (line || "").trim();
+        if (!line) return [];
+        if (line.includes(",")) {
+            const toks = [];
+            let cur = "";
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        cur += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch === ',' && !inQuotes) {
+                    toks.push(cur.trim());
+                    cur = "";
+                } else {
+                    cur += ch;
+                }
+            }
+            toks.push(cur.trim());
+            return toks.filter(t => t.length > 0);
+        }
+        if (line.includes("\t")) {
+            return line.split("\t").map(t => t.trim()).filter(t => t.length > 0);
+        }
+        return line.split(/\s+/).map(t => t.trim()).filter(t => t.length > 0);
+    }
+
     /** Parse a P,N,E,Z,D point file. order = "NE" (default) or "EN". */
     function parsePointFile(text, order) {
-        const en = order === "EN";
+        let en = order === "EN";
         const points = [];
         const bad = [];
+        const badDetails = [];
         const lines = String(text || "").split(/\r?\n/);
+        let headerDetected = null;
+
         lines.forEach((raw, i) => {
             const line = raw.trim();
             if (!line || line.startsWith("#") || line.startsWith(";")) return;
-            const delim = line.includes(",") ? "," : (line.includes("\t") ? "\t" : /\s+/);
-            const toks = line.split(delim).map(t => t.trim()).filter(t => t.length);
-            if (toks.length < 3) { bad.push(i + 1); return; }
+            const toks = tokenizeLine(line);
+            if (toks.length < 3) {
+                bad.push(i + 1);
+                const detail = { line: i + 1, raw: line, reason: `Insufficient columns (${toks.length} found, expected >= 3)` };
+                badDetails.push(detail);
+                if (window.Logging) window.Logging.warn(`Linework: Skipped line ${i + 1} (${detail.reason}): "${line}"`, { source: "linework", ...detail });
+                return;
+            }
+
             const a = parseFloat(toks[1]), b = parseFloat(toks[2]);
-            if (!Number.isFinite(a) || !Number.isFinite(b)) { if (points.length) bad.push(i + 1); return; }
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                // Header detection check (e.g. Point, Northing, Easting, Elev, Desc)
+                const isHeader = (i === 0 || !points.length) && /^(p|pt|point|n|north|northing|e|east|easting|z|elev|elevation|desc|code)/i.test(toks[0] + toks[1] + toks[2]);
+                if (isHeader) {
+                    headerDetected = line;
+                    if (window.Logging) window.Logging.info(`Linework: Detected and skipped header row at line ${i + 1}: "${line}"`, { source: "linework", line: i + 1, raw: line });
+                    return;
+                }
+                if (points.length) {
+                    bad.push(i + 1);
+                    const detail = { line: i + 1, raw: line, reason: `Non-numeric coordinate tokens [${toks[1]}, ${toks[2]}]` };
+                    badDetails.push(detail);
+                    if (window.Logging) window.Logging.warn(`Linework: Skipped line ${i + 1} (${detail.reason}): "${line}"`, { source: "linework", ...detail });
+                }
+                return;
+            }
+
             let z = parseFloat(toks[3]);
             let descStart = 4;
             if (!Number.isFinite(z)) { z = 0; descStart = 3; }
             const desc = toks.slice(descStart).join(" ").replace(/^["']+|["']+$/g, "").trim();
             const pn = parseInt(toks[0], 10);
             points.push({
-                ptNum: Number.isFinite(pn) ? pn : toks[0],
+                ptNum: Number.isFinite(pn) && String(pn) === toks[0] ? pn : toks[0],
                 n: en ? b : a,
                 e: en ? a : b,
                 z, desc, srcLine: i + 1
             });
         });
-        return { points, bad };
+
+        const stats = {
+            totalLines: lines.length,
+            pointCount: points.length,
+            badCount: bad.length,
+            headerDetected
+        };
+
+        return { points, bad, badDetails, stats };
     }
 
     // Linework Code Set — matches the Civil 3D "Edit Linework Code Set" defaults.
@@ -1344,20 +1410,174 @@
 
     // ── Plugin ───────────────────────────────────────────────────────────────
 
-    function loadPoints(text, ctx) {
+    function safeText(str) {
+        return String(str || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+    }
+
+    function renderDiagnostics(filename, res) {
+        const box = document.getElementById("lw-import-diagnostics");
+        if (!box) return;
+        box.style.display = "block";
+
+        if (res.type === "points") {
+            const hasBad = res.bad > 0;
+            const borderCol = hasBad ? "var(--warning, #f59e0b)" : "var(--success, #10b981)";
+            const bgCol = hasBad ? "rgba(245, 158, 11, 0.08)" : "rgba(16, 185, 129, 0.08)";
+            let html = `
+                <div style="border:1px solid ${borderCol}; background:${bgCol}; border-radius:6px; padding:0.75rem 1rem; font-size:0.85rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                        <div>
+                            <i class="fa-solid ${hasBad ? 'fa-triangle-exclamation' : 'fa-circle-check'}" style="color:${borderCol}; margin-right:0.4rem;"></i>
+                            <strong>${filename ? safeText(filename) : "Point Data"}:</strong>
+                            <span>Imported <strong>${res.points}</strong> points &rarr; <strong>${res.figures}</strong> figure(s).</span>
+                            ${hasBad ? `<span style="color:${borderCol}; font-weight:600; margin-left:0.5rem;">(${res.bad} row${res.bad > 1 ? 's' : ''} skipped)</span>` : `<span style="color:var(--success,#10b981); margin-left:0.5rem;">All rows valid</span>`}
+                        </div>
+                        <div style="display:flex; gap:0.4rem;">
+                            ${hasBad ? `<button class="btn btn-secondary btn-sm" id="btn-lw-toggle-errors" style="font-size:0.75rem; padding:0.2rem 0.5rem;"><i class="fa-solid fa-list-ul"></i> Inspect Skipped Rows</button>` : ''}
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-goto-logs" style="font-size:0.75rem; padding:0.2rem 0.5rem;"><i class="fa-solid fa-terminal"></i> View in System Logs</button>
+                        </div>
+                    </div>
+            `;
+            if (hasBad && res.badDetails && res.badDetails.length) {
+                html += `
+                    <div id="lw-skipped-rows-list" style="display:none; margin-top:0.75rem; max-height:180px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.1); padding-top:0.5rem; font-family:var(--font-mono, monospace); font-size:0.75rem;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="text-align:left; opacity:0.7; border-bottom:1px solid rgba(255,255,255,0.1);">
+                                    <th style="padding:0.2rem 0.4rem; width:50px;">Line</th>
+                                    <th style="padding:0.2rem 0.4rem; width:45%;">Reason</th>
+                                    <th style="padding:0.2rem 0.4rem;">Raw Content</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${res.badDetails.map(d => `
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:0.2rem 0.4rem; color:var(--warning, #f59e0b);">#${d.line}</td>
+                                        <td style="padding:0.2rem 0.4rem;">${safeText(d.reason)}</td>
+                                        <td style="padding:0.2rem 0.4rem; opacity:0.8; word-break:break-all;">${safeText(d.raw)}</td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            html += `</div>`;
+            box.innerHTML = html;
+
+            document.getElementById("btn-lw-toggle-errors")?.addEventListener("click", () => {
+                const list = document.getElementById("lw-skipped-rows-list");
+                if (list) list.style.display = list.style.display === "none" ? "block" : "none";
+            });
+            document.getElementById("btn-lw-goto-logs")?.addEventListener("click", () => {
+                if (window.PluginRegistry && window.PluginRegistry.activateTab) {
+                    window.PluginRegistry.activateTab("tab-logging");
+                }
+            });
+        } else if (res.type === "calls") {
+            box.innerHTML = `
+                <div style="border:1px solid var(--primary, #0284c7); background:rgba(2,132,199,0.08); border-radius:6px; padding:0.75rem 1rem; font-size:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <i class="fa-solid fa-compass-drafting" style="color:var(--primary); margin-right:0.4rem;"></i>
+                        <strong>${filename ? safeText(filename) : "Call Data"}:</strong> Auto-detected bearing/distance calls &rarr; loaded <strong>${res.courses}</strong> course(s) as a traverse.
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="btn-lw-goto-logs2" style="font-size:0.75rem;"><i class="fa-solid fa-terminal"></i> View Logs</button>
+                </div>
+            `;
+            document.getElementById("btn-lw-goto-logs2")?.addEventListener("click", () => {
+                if (window.PluginRegistry && window.PluginRegistry.activateTab) {
+                    window.PluginRegistry.activateTab("tab-logging");
+                }
+            });
+        } else if (res.type === "error") {
+            box.innerHTML = `
+                <div style="border:1px solid var(--danger, #ef4444); background:rgba(239,68,68,0.08); border-radius:6px; padding:0.75rem 1rem; font-size:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <i class="fa-solid fa-circle-xmark" style="color:var(--danger, #ef4444); margin-right:0.4rem;"></i>
+                        <strong>Import Error:</strong> ${safeText(res.error)}
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="btn-lw-goto-logs3" style="font-size:0.75rem;"><i class="fa-solid fa-terminal"></i> View Logs</button>
+                </div>
+            `;
+            document.getElementById("btn-lw-goto-logs3")?.addEventListener("click", () => {
+                if (window.PluginRegistry && window.PluginRegistry.activateTab) {
+                    window.PluginRegistry.activateTab("tab-logging");
+                }
+            });
+        }
+    }
+
+    function loadPoints(text, ctx, filename) {
+        ctx = ctx || { showToast: () => {} };
         const order = document.getElementById("lw-order") ? document.getElementById("lw-order").value : "NE";
         const mode = document.getElementById("lw-group") ? document.getElementById("lw-group").value : "byCode";
-        const { points, bad } = parsePointFile(text, order);
-        if (!points.length) { ctx.showToast("No point rows recognized. Check the coordinate order.", true); return; }
+
+        if (window.Logging) {
+            window.Logging.info("Linework Editor: Processing point file import" + (filename ? " (" + filename + ")" : "") + "...", { source: "linework", filename, length: text ? text.length : 0 });
+        }
+
+        const { points, bad, badDetails } = parsePointFile(text, order);
+
+        // Auto-fallback: if 0 points parsed, check if it's a bearing/distance call list!
+        if (!points.length) {
+            const fig = parseCalls(text, { e: 0, n: 0 });
+            if (fig && fig.pts && fig.pts.length > 1) {
+                if (window.Logging) {
+                    window.Logging.info("Linework Editor: File format detected as bearing/distance calls instead of point coordinates. Auto-imported " + (fig.pts.length - 1) + " course(s) as traverse.", { source: "linework", filename, courses: fig.pts.length - 1 });
+                }
+                Ed.setModel({ figures: [fig] });
+                ctx.showToast("Auto-detected bearing/distance calls: imported " + (fig.pts.length - 1) + " course(s) as a traverse.");
+                renderDiagnostics(filename, { type: "calls", courses: fig.pts.length - 1 });
+                return;
+            }
+
+            const errMsg = "No valid point rows or bearing/distance calls recognized. Check coordinate order / delimiter.";
+            if (window.Logging) {
+                window.Logging.error("Linework Editor: Point import failed. " + errMsg, { source: "linework", filename, badCount: bad.length, sample: String(text || "").slice(0, 200) });
+            }
+            ctx.showToast(errMsg, true);
+            renderDiagnostics(filename, { type: "error", error: errMsg, badDetails });
+            return;
+        }
+
         const figs = buildFigures(points, mode);
         Ed.setModel({ figures: figs });
+
+        if (window.Logging) {
+            window.Logging.info(`Linework Editor: Imported ${points.length} points → ${figs.length} figure(s)${bad.length ? `, ${bad.length} row(s) skipped` : ""}.`, {
+                source: "linework",
+                filename: filename || "manual-input",
+                points: points.length,
+                figures: figs.length,
+                skippedRows: bad.length
+            });
+            if (bad.length > 0) {
+                window.Logging.warn(`Linework Editor: ${bad.length} row(s) skipped during import due to formatting or non-numeric values.`, {
+                    source: "linework",
+                    filename: filename || "manual-input",
+                    skippedCount: bad.length,
+                    details: (badDetails || []).slice(0, 30)
+                });
+            }
+        }
+
         ctx.showToast(`Imported ${points.length} points → ${figs.length} figure(s)${bad.length ? `, ${bad.length} row(s) skipped` : ""}.`, bad.length > 0);
+        renderDiagnostics(filename, { type: "points", points: points.length, figures: figs.length, bad: bad.length, badDetails });
     }
-    function loadCalls(text, ctx) {
+
+    function loadCalls(text, ctx, filename) {
+        ctx = ctx || { showToast: () => {} };
         const fig = parseCalls(text, { e: 0, n: 0 });
-        if (!fig) { ctx.showToast("No bearing/distance calls recognized.", true); return; }
+        if (!fig) {
+            if (window.Logging) window.Logging.warn("Linework Editor: No bearing/distance calls recognized in input.", { source: "linework", filename });
+            ctx.showToast("No bearing/distance calls recognized.", true);
+            renderDiagnostics(filename, { type: "error", error: "No bearing/distance calls recognized." });
+            return;
+        }
         Ed.setModel({ figures: [fig] });
+        if (window.Logging) window.Logging.info(`Linework Editor: Imported ${fig.pts.length - 1} course(s) as a traverse.`, { source: "linework", filename, courses: fig.pts.length - 1 });
         ctx.showToast(`Imported ${fig.pts.length - 1} course(s) as a traverse.`);
+        renderDiagnostics(filename, { type: "calls", courses: fig.pts.length - 1 });
     }
 
     const Plugin = {
@@ -1369,14 +1589,54 @@
 
             document.getElementById("btn-lw-sample")?.addEventListener("click", () => {
                 const ta = document.getElementById("lw-paste"); if (ta) ta.value = SAMPLE;
-                loadPoints(SAMPLE, ctx);
+                loadPoints(SAMPLE, ctx, "sample-points.txt");
             });
-            document.getElementById("lw-file")?.addEventListener("change", e => {
-                const file = e.target.files && e.target.files[0];
+
+            // Drag-and-drop & File Upload
+            const dropzone = document.getElementById("lw-dropzone");
+            const fileInput = document.getElementById("lw-file");
+
+            function handleFile(file) {
                 if (!file) return;
                 const r = new FileReader();
-                r.onload = ev => loadPoints(String(ev.target.result || ""), ctx);
+                r.onload = ev => {
+                    const content = String(ev.target.result || "");
+                    const ta = document.getElementById("lw-paste");
+                    if (ta) ta.value = content;
+                    loadPoints(content, ctx, file.name);
+                };
+                r.onerror = err => {
+                    if (window.Logging) window.Logging.error("FileReader failed reading " + file.name, { error: err, source: "linework" });
+                    ctx.showToast("Failed to read file: " + file.name, true);
+                    renderDiagnostics(file.name, { type: "error", error: "Failed to read file: " + file.name });
+                };
                 r.readAsText(file);
+            }
+
+            if (dropzone) {
+                dropzone.addEventListener("click", () => fileInput?.click());
+                dropzone.addEventListener("dragover", e => {
+                    e.preventDefault();
+                    dropzone.style.borderColor = "var(--primary, #0284c7)";
+                    dropzone.style.background = "rgba(2, 132, 199, 0.15)";
+                });
+                dropzone.addEventListener("dragleave", e => {
+                    e.preventDefault();
+                    dropzone.style.borderColor = "var(--border, rgba(255,255,255,0.2))";
+                    dropzone.style.background = "rgba(0,0,0,0.15)";
+                });
+                dropzone.addEventListener("drop", e => {
+                    e.preventDefault();
+                    dropzone.style.borderColor = "var(--border, rgba(255,255,255,0.2))";
+                    dropzone.style.background = "rgba(0,0,0,0.15)";
+                    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (file) handleFile(file);
+                });
+            }
+
+            fileInput?.addEventListener("change", e => {
+                const file = e.target.files && e.target.files[0];
+                if (file) handleFile(file);
             });
             document.getElementById("btn-lw-parse-points")?.addEventListener("click", () => loadPoints(paste(), ctx));
             document.getElementById("btn-lw-parse-calls")?.addEventListener("click", () => loadCalls(paste(), ctx));

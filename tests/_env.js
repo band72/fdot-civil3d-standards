@@ -59,6 +59,8 @@ function load() {
     win.navigator = { credentials: undefined, userAgent: "node-test" };
     win.PublicKeyCredential = undefined;
     win.requestAnimationFrame = cb => setTimeout(cb, 0);
+    win.addEventListener = () => {};
+    win.removeEventListener = () => {};
     win.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 
     const doc = {
@@ -107,6 +109,7 @@ function load() {
         "plugins/landxml/landxml.js",
         "plugins/batchprocess/batchprocess.js",
         "plugins/reports/reports.js",
+        "plugins/logging/logging.js",
         "plugins/help/help.js"
     ];
 
