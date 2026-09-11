@@ -16,7 +16,7 @@
         tab: "tab-dxf-inspector",
         icon: "fa-file-circle-check",
         tier: "Free",
-        dependencies: ["spatial-engine", "security-pki"]
+        dependencies: ["spatial-engine", "security-pki", "cms-engine"]
     };
 
     let _ctx = null;
@@ -25,7 +25,7 @@
 
     // ── Audit Pipeline ───────────────────────────────────────────────────────
 
-    function auditDXFText(dxfText, filename) {
+    async function auditDXFText(dxfText, filename) {
         if (!_inspector) return;
         _ctx.showToast(`Auditing DXF file: ${filename}...`);
 
@@ -57,6 +57,27 @@
 
         renderDXFCanvas(parsed.entities, audit.issues);
         renderDXFIssues(audit.issues);
+
+        await recordAuditToCMS(filename, audit, dxfText);
+    }
+
+    /**
+     * Record this audit — whether the drawing came from a live upload or from
+     * clicking a bundled sample — into the CMS Submittal Vault (see
+     * plugins/cms-engine/cms-engine.js), so real usage shows up next to the
+     * seeded demo project/submittal records instead of never appearing there.
+     * No-op when signed out; never invents a submitter or a fake precision.
+     */
+    async function recordAuditToCMS(filename, audit, dxfText) {
+        if (!window.BoundaryQCCMS || !window.BoundaryQCCMS.isAuthenticated()) return;
+        const bowtieDetected = audit.issues.some(i => i.category === "Bow-Tie / Self-Intersection");
+        const sha256 = window.BoundaryQCSecurity ? await window.BoundaryQCSecurity.computeTextSHA256(dxfText) : "";
+        const status = audit.score >= 80 ? "PASSED" : (audit.score >= 50 ? "NEEDS REVIEW" : "FAILED");
+        window.BoundaryQCCMS.addSubmittal(
+            null, filename, status, audit.score,
+            "n/a — layer/geometry audit only, no traverse closure computed",
+            bowtieDetected, sha256
+        );
     }
 
     function renderDXFIssues(issues) {

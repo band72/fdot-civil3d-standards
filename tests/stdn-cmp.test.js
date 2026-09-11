@@ -2,7 +2,7 @@
 /* Functional tests for plugins/stdn-compare/* (window.StdnEngine) — ported
  * from the standardcompare-plugin project's server/test/run.js, minus the
  * Express / multer / rate-limiter assertions which don't apply client-side. */
-module.exports = function (t, env) {
+module.exports = async function (t, env) {
     const E = env.win.StdnEngine;
     const S = env.win.StdnCompare.SAMPLES;   // the same fixtures, bundled in the plugin
     const crypto = require("crypto");
@@ -349,7 +349,10 @@ module.exports = function (t, env) {
             master: { name: "master.dxf", text: S.master },
             standard: null,
         };
-        SC.runCheck(noToast);
+        const CMS = env.win.BoundaryQCCMS;
+        const subsBefore = CMS && CMS.isAuthenticated() ? CMS.getSubmittals().length : null;
+
+        await SC.runCheck(noToast);
         const res = H("stdn-results");
         t.match(res, /Needs attention/, "runCheck → verdict banner");
         t.match(res, /Standards violations \(\d+\)/, "runCheck → violations section");
@@ -360,22 +363,41 @@ module.exports = function (t, env) {
         t.match(res, /Export HTML report/, "runCheck → report export buttons");
         t.ok(SC.state.lastReport && SC.state.lastReport.source === "compare", "runCheck stashes the report for export");
 
+        // The run also records itself into the CMS Submittal Vault (live-upload /
+        // demo-sample results integrated with the seeded demo project data).
+        if (subsBefore !== null) {
+            const subs = CMS.getSubmittals();
+            t.eq(subs.length, subsBefore + 1, "runCheck adds one CMS submittal record");
+            const rec = subs[0];
+            t.eq(rec.fileName, "target.dxf", "…for the checked file");
+            t.eq(rec.status, "NEEDS REVIEW", "…status reflects the failed check, not a fake APPROVED default");
+            t.lt(rec.score, 100, "…score reflects the real violations, not a fake 95/100 default");
+            t.match(rec.sha256, /^[0-9a-f]{64}$/, "…a real 64-hex SHA-256 of the checked drawing, not the empty-string placeholder");
+            t.ne(rec.sha256, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "…specifically not the hardcoded placeholder hash");
+            t.ok(CMS.getProjects().some(p => p.id === rec.projectId), "…auto-assigned to a real project (no projectId required from the caller)");
+        }
+
         // Heal run
         SC.state.mode = "heal";
         SC.state.files = { target: { name: "messy.dxf", text: S.messy }, master: { name: "master.dxf", text: S.master }, reference: null, standard: null };
         SC.state.healBlocks = true;
-        SC.runHeal(noToast);
+        await SC.runHeal(noToast);
         const hres = H("stdn-results");
         t.match(hres, /Partially healed/, "runHeal → verdict");
         t.match(hres, /Applied automatically \(\d+\)/, "runHeal → actions section");
         t.match(hres, /Download corrected DXF/, "runHeal → download button");
         t.match(hres, /MISSING_REQUIRED_STYLE/, "runHeal → the item left for manual review");
         t.ok(SC.state.lastHeal && SC.state.lastHeal.source === "heal", "runHeal stashes the result for export");
+        if (subsBefore !== null) {
+            const rec = CMS.getSubmittals()[0];
+            t.eq(rec.fileName, "messy.dxf", "runHeal also records a CMS submittal, for the healed file");
+            t.eq(rec.status, "PARTIALLY HEALED", "…status reflects the heal outcome");
+        }
 
         // guardrails
         SC.state.files = { target: null, reference: null, master: null, standard: null };
         let toasted = "";
-        SC.runCheck({ showToast: (m) => { toasted = m; } });
+        await SC.runCheck({ showToast: (m) => { toasted = m; } });
         t.match(toasted, /Add a drawing/, "runCheck with no target → friendly toast, no throw");
     } finally {
         env.win.document.getElementById = realGEBI;

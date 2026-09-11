@@ -125,6 +125,32 @@ module.exports = async function (t, env) {
     t.eq(BILL.nextTierForTemplates(), null, "no upgrade beyond Enterprise");
     BILL.currentTier = "Pro";
 
+    t.group("cms/submittals — live-upload results integrated with the demo project data");
+    // Be explicit about who's signed in — earlier groups end on a per-user-isolation
+    // test account with its own (project-less) org, which would make the "own org"
+    // assertion below meaningless.
+    await CMS.loginUser("jane.doe@kimley-horn.com", CMS.AUTH.DEMO_PASSWORD);
+    const subsBefore = CMS.getSubmittals().length;
+    const rec = CMS.addSubmittal(null, "MyProject_ROW.dxf", "PASSED", 92, null, false, "a".repeat(64));
+    t.eq(CMS.getSubmittals().length, subsBefore + 1, "addSubmittal appends a record");
+    t.eq(CMS.getSubmittals()[0].id, rec.id, "…most recent first");
+    t.eq(rec.fileName, "MyProject_ROW.dxf", "filename recorded");
+    t.eq(rec.score, 92, "real score recorded");
+    t.eq(rec.submittedBy, CMS.getCurrentUser().fullName, "submitter is the actual signed-in user, not a hardcoded default");
+    t.ok(CMS.getProjects().some(p => p.id === rec.projectId), "no projectId given -> auto-assigned to a real project on file");
+    t.eq(CMS.getProjects().find(p => p.id === rec.projectId).orgId, CMS.getCurrentUser().orgId, "…specifically one in the current user's own org");
+
+    // REGRESSION: score 0 must not be swallowed by a `score || 95` fallback.
+    const zero = CMS.addSubmittal(null, "Failing.dxf", "FAILED", 0, null, false, "b".repeat(64));
+    t.eq(zero.score, 0, "REGRESSION: a real score of 0 is preserved, not defaulted to 95");
+
+    // REGRESSION: no fabricated precision ratio when the caller has none to report.
+    t.eq(zero.precisionRatio, "n/a", "REGRESSION: unspecified precisionRatio is 'n/a', not the old fake '1:307,958'");
+
+    // an explicit projectId is honoured as given
+    const explicit = CMS.addSubmittal("prj_fdot_882019", "Explicit.dxf", "PASSED", 100, "1:12,000", false, "c".repeat(64));
+    t.eq(explicit.projectId, "prj_fdot_882019", "an explicit projectId is used as-is");
+
     t.group("cms/audit hash chain");
     const chain = await CMS.verifyAuditIntegrity();
     t.ok(chain.isValid, "seeded + appended audit chain verifies");

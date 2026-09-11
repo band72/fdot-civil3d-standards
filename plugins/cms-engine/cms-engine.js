@@ -840,24 +840,39 @@ class BoundaryQCCMSEngine {
         return this._readJSON(this.STORAGE_KEYS.SUBMITTALS, []);
     }
 
+    /**
+     * Record a submittal — the write side of the Submittal Vault the CMS tab
+     * displays. `projectId` may be omitted (null/undefined): the current user's
+     * own org project is used, falling back to the first project on file, so a
+     * live DXF Auditor / Standards Compare run can record itself without the
+     * caller having to know about the demo project list.
+     */
     addSubmittal(projectId, fileName, status, score, precisionRatio, bowtieDetected, sha256) {
         const submittals = this.getSubmittals();
         const user = this.getCurrentUser();
+
+        let pid = projectId;
+        if (!pid) {
+            const projects = this.getProjects();
+            const own = user ? projects.find(p => p.orgId === user.orgId) : null;
+            pid = (own || projects[0] || {}).id || null;
+        }
+
         const newSub = {
             id: "sub_" + Date.now(),
-            projectId,
+            projectId: pid,
             fileName,
-            submittedBy: user ? user.fullName : "Jane Doe, PSM",
-            status: status || "APPROVED",
-            score: score || 95,
-            precisionRatio: precisionRatio || "1:307,958",
+            submittedBy: user ? user.fullName : "Unknown",
+            status: status || "RECORDED",
+            score: typeof score === "number" ? score : 95,
+            precisionRatio: precisionRatio || "n/a",
             bowtieDetected: !!bowtieDetected,
             sha256: sha256 || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             timestamp: new Date().toISOString()
         };
         submittals.unshift(newSub);
         localStorage.setItem(this.STORAGE_KEYS.SUBMITTALS, JSON.stringify(submittals));
-        this.addAuditLog(user ? user.fullName : "System", "SUBMITTAL_UPLOADED", `Uploaded DXF Submittal ${fileName} for Project ${projectId}`);
+        this.addAuditLog(user ? user.fullName : "System", "SUBMITTAL_UPLOADED", `Uploaded DXF Submittal ${fileName} for Project ${pid || "(none)"}`);
         return newSub;
     }
 

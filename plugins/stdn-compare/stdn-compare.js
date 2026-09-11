@@ -31,7 +31,7 @@
         tab: "tab-stdn-compare",
         icon: "fa-code-branch",
         tier: "Pro",
-        dependencies: [],
+        dependencies: ["cms-engine"],
     };
 
     const E = () => window.StdnEngine;
@@ -179,7 +179,38 @@
         catch (e) { return { err: e.message }; }
     }
 
-    function runCheck(ctx) {
+    /**
+     * Record this run — whether `target` came from a live upload or from
+     * clicking a bundled sample — into the CMS Submittal Vault (see
+     * plugins/cms-engine/cms-engine.js), so real usage shows up next to the
+     * seeded demo project/submittal records instead of only that one frozen
+     * seed row ever appearing. No-op when signed out; never invents a
+     * submitter. The score is a rough client-side heuristic for the CMS list,
+     * not an engine output — StdnEngine itself reports pass/fail, not a score.
+     */
+    async function recordSubmittal({ filename, dxfText, score, status }) {
+        if (!window.BoundaryQCCMS || !window.BoundaryQCCMS.isAuthenticated()) return;
+        const sha256 = window.BoundaryQCSecurity ? await window.BoundaryQCSecurity.computeTextSHA256(dxfText) : "";
+        window.BoundaryQCCMS.addSubmittal(
+            null, filename, status, score,
+            "n/a — no traverse closure computed", false, sha256
+        );
+    }
+
+    function deriveCheckScore(report) {
+        if (report.standardsCheck) {
+            const s = report.standardsCheck.summary;
+            return Math.max(0, 100 - s.errors * 8 - s.warnings * 3);
+        }
+        return report.overall.geometryIdentical ? 100 : 70;
+    }
+
+    function deriveHealScore(result) {
+        const s = result.summary;
+        return s.fullyHealed ? 100 : Math.max(0, 100 - s.violationsAfter * 8);
+    }
+
+    async function runCheck(ctx) {
         const { target, reference, master } = state.files;
         if (!target) { ctx.showToast("Add a drawing to check.", true); return; }
 
@@ -207,11 +238,15 @@
         state.lastHeal = null;
         renderResults(ctx);
         ctx.showToast(report.overall.passed ? "Passed — conforms to the standard." : "Comparison complete — see the results below.", !report.overall.passed);
+        await recordSubmittal({
+            filename: target.name, dxfText: target.text,
+            score: deriveCheckScore(report), status: report.overall.passed ? "PASSED" : "NEEDS REVIEW",
+        });
     }
 
     // ── Run: Heal ───────────────────────────────────────────────────────────
 
-    function runHeal(ctx) {
+    async function runHeal(ctx) {
         const { target, master } = state.files;
         if (!target || !master) { ctx.showToast("Self-heal needs both a target drawing and a master template.", true); return; }
         let result;
@@ -225,6 +260,10 @@
         state.lastReport = null;
         renderResults(ctx);
         ctx.showToast(result.summary.fullyHealed ? "Fully healed." : `${result.summary.actionsApplied} fix(es) applied, ${result.summary.unresolved} for manual review.`, !result.summary.fullyHealed);
+        await recordSubmittal({
+            filename: target.name, dxfText: target.text,
+            score: deriveHealScore(result), status: result.summary.fullyHealed ? "HEALED" : "PARTIALLY HEALED",
+        });
     }
 
     // ── Results rendering ───────────────────────────────────────────────────
