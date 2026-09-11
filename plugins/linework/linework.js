@@ -754,7 +754,7 @@
 
         fit() {
             const pts = this._allPts();
-            const r = this.root.getBoundingClientRect();
+            const r = (this.root && typeof this.root.getBoundingClientRect === "function") ? this.root.getBoundingClientRect() : { width: 600, height: 400 };
             const aspect = (r.width || 600) / (r.height || 400);
             if (!pts.length) { this.view = { x: -50, y: -50, w: 100 * aspect, h: 100 }; this._applyView(); this.render(); return; }
             let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
@@ -1145,6 +1145,61 @@
         closePointsGrid() {
             const card = document.getElementById("lw-fig-points-card");
             if (card) card.style.display = "none";
+        },
+        saveSession() {
+            if (!this.model || !this.model.figures || !this.model.figures.length) {
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("No linework figures to save.", true);
+                return false;
+            }
+            try {
+                const payload = {
+                    savedAt: new Date().toISOString(),
+                    model: this.model,
+                    view: this.view
+                };
+                if (typeof window !== "undefined" && window.localStorage) {
+                    window.localStorage.setItem("fdot_linework_saved_session", JSON.stringify(payload));
+                }
+                if (typeof window !== "undefined" && window.Logging?.info) {
+                    window.Logging.info("Linework", `Saved linework session with ${this.model.figures.length} figure(s) and ${this._allPts().length} point(s).`);
+                }
+                const nFigs = this.model.figures.length;
+                const nPts = this._allPts().length;
+                if (this.ctx && this.ctx.showToast) {
+                    this.ctx.showToast(`Saved session: ${nFigs} figure(s) · ${nPts} point(s)`);
+                }
+                this._snapshot();
+                return true;
+            } catch (err) {
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("Failed to save session: " + err.message, true);
+                return false;
+            }
+        },
+        loadSavedSession() {
+            try {
+                if (typeof window === "undefined" || !window.localStorage) return false;
+                const raw = window.localStorage.getItem("fdot_linework_saved_session");
+                if (!raw) {
+                    if (this.ctx && this.ctx.showToast) this.ctx.showToast("No saved linework session found in storage.", true);
+                    return false;
+                }
+                const payload = JSON.parse(raw);
+                if (payload && payload.model && Array.isArray(payload.model.figures)) {
+                    this.setModel(payload.model);
+                    if (payload.view) {
+                        this.view = payload.view;
+                        this._applyView();
+                    }
+                    if (this.ctx && this.ctx.showToast) {
+                        const timeStr = payload.savedAt ? new Date(payload.savedAt).toLocaleTimeString() : "";
+                        this.ctx.showToast(`Restored saved session ${timeStr ? `from ${timeStr}` : ""} (${payload.model.figures.length} figures)`);
+                    }
+                    return true;
+                }
+            } catch (err) {
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("Failed to restore session: " + err.message, true);
+            }
+            return false;
         },
         swapNext(figId, idx) {
             const f = this._fig(figId); if (!f) return;
@@ -1558,10 +1613,104 @@
         const rows = ["P,N,E,Z,D"];
         let auto = 500;
         Ed.model.figures.forEach(f => f.pts.forEach(p => {
-            const pn = (typeof p.ptNum === "number" && Number.isFinite(p.ptNum)) ? p.ptNum : auto++;
-            rows.push(`${pn},${p.n.toFixed(3)},${p.e.toFixed(3)},${(p.z || 0).toFixed(3)},${clean(f.name)}`);
+            const pn = (p.ptNum != null && p.ptNum !== "") ? p.ptNum : auto++;
+            rows.push(`${pn},${p.n.toFixed(3)},${p.e.toFixed(3)},${(p.z || 0).toFixed(3)},${clean(p.desc || f.name)}`);
         }));
         return rows.join("\r\n") + "\r\n";
+    }
+    function exportCSV(figId) {
+        let figs = Ed.model.figures;
+        if (figId) figs = figs.filter(f => f.id === figId);
+        if (!figs.length || !figs.some(f => (f.pts && f.pts.length) || f.isCircle)) return null;
+
+        const rows = ["Point,Northing,Easting,Elevation,Description"];
+        let auto = 100;
+        figs.forEach(f => {
+            if (f.isCircle && f.circle) {
+                rows.push(`${auto++},${f.circle.cy.toFixed(3)},${f.circle.cx.toFixed(3)},0.000,"${clean(f.code || f.name)} CIR R=${f.circle.r.toFixed(2)}"`);
+            }
+            (f.pts || []).forEach(p => {
+                const pn = (p.ptNum != null && p.ptNum !== "") ? p.ptNum : auto++;
+                const n = typeof p.n === "number" ? p.n.toFixed(3) : (parseFloat(p.n) || 0).toFixed(3);
+                const e = typeof p.e === "number" ? p.e.toFixed(3) : (parseFloat(p.e) || 0).toFixed(3);
+                const z = (p.z != null && !isNaN(+p.z)) ? Number(p.z).toFixed(3) : "0.000";
+                const desc = String(p.desc || f.name || "").replace(/"/g, '""');
+                rows.push(`${pn},${n},${e},${z},"${desc}"`);
+            });
+        });
+        return rows.join("\r\n") + "\r\n";
+    }
+    function exportLandXML(figId) {
+        let figs = Ed.model.figures;
+        if (figId) figs = figs.filter(f => f.id === figId);
+        if (!figs.length || !figs.some(f => (f.pts && f.pts.length) || f.isCircle)) return null;
+
+        const projName = figId && figs[0] ? `Figure_${clean(figs[0].name)}` : "FDOT_Linework_Survey";
+        if (typeof window !== "undefined" && window.LandXML && typeof window.LandXML.fromFiguresModel === "function") {
+            return window.LandXML.fromFiguresModel(figs, projName);
+        }
+
+        const points = [];
+        const parcels = [];
+        let pId = 1;
+        figs.forEach((f, fIdx) => {
+            const verts = (f.pts || []).map(p => {
+                const pn = String((p.ptNum != null && p.ptNum !== "") ? p.ptNum : pId++);
+                points.push({
+                    name: pn,
+                    northing: p.n,
+                    easting: p.e,
+                    elev: p.z || 0,
+                    code: p.code || f.layer || "SURV",
+                    desc: p.desc || ""
+                });
+                return { n: p.n, e: p.e, z: p.z || 0 };
+            });
+            if (f.closed && verts.length >= 3) {
+                const area = (typeof window !== "undefined" && window.COGO?.shoelaceArea) ? window.COGO.shoelaceArea(verts) : 0;
+                parcels.push({
+                    name: f.name || `FIGURE_${fIdx + 1}`,
+                    area,
+                    desc: f.layer || "Survey Boundary",
+                    parcelType: "Property",
+                    vertices: verts
+                });
+            }
+        });
+
+        const dateStr = new Date().toISOString().split("T")[0];
+        const timeStr = new Date().toTimeString().split(" ")[0];
+        const cgXml = points.map(p => {
+            const descAttr = p.desc ? ` desc="${clean(p.desc)}"` : "";
+            return `    <CgPoint name="${clean(p.name)}" code="${clean(p.code)}"${descAttr}>${p.northing.toFixed(4)} ${p.easting.toFixed(4)} ${Number(p.elev || 0).toFixed(4)}</CgPoint>`;
+        }).join("\n");
+
+        let parcelsXml = "";
+        if (parcels.length) {
+            parcelsXml = "\n  <Parcels>\n" + parcels.map(p => {
+                const coordList = p.vertices.map(v => `${v.n.toFixed(4)} ${v.e.toFixed(4)}`).join(" ");
+                return `    <Parcel name="${clean(p.name)}" area="${p.area.toFixed(2)}" desc="${clean(p.desc)}" parcelType="Property">
+      <CoordGeom>
+        <Polyline>
+          <CoordList>${coordList}</CoordList>
+        </Polyline>
+      </CoordGeom>
+    </Parcel>`;
+            }).join("\n") + "\n  </Parcels>";
+        }
+
+        return `<?xml version="1.0" encoding="utf-8"?>
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" version="1.2" date="${dateStr}" time="${timeStr}" readSpec="FDOT-Civil3D-Standards">
+  <Units>
+    <Imperial linearUnit="USSurveyFoot" areaUnit="squareFoot" volumeUnit="cubicYard" angularUnit="decimal degrees"/>
+  </Units>
+  <CoordinateSystem desc="Florida State Plane East Zone NAD83 US Survey Feet" epsgCode="2236"/>
+  <Project name="${clean(projName)}" description="FDOT Civil3D Standards Linework Survey Export"/>
+  <Application name="FDOT Civil3D Standards Suite" version="2.6.0" manufacturer="BoundaryQC"/>
+  <CgPoints>
+${cgXml}
+  </CgPoints>${parcelsXml}
+</LandXML>\n`;
     }
     function exportLineworkScript() { return buildLineworkScript(Ed.model.figures); }
     function exportCalls() {
@@ -1871,6 +2020,10 @@
             document.getElementById("btn-lw-play")?.addEventListener("click", () => Ed.playToggle());
 
             const dl = (name, txt, mime) => { if (!txt) { ctx.showToast("Nothing to export.", true); return; } window.COGO.downloadText(name, txt, mime); ctx.showToast("Exported " + name); };
+            document.getElementById("btn-lw-save")?.addEventListener("click", () => Ed.saveSession());
+            document.getElementById("btn-lw-load-saved")?.addEventListener("click", () => Ed.loadSavedSession());
+            document.getElementById("btn-lw-exp-csv")?.addEventListener("click", () => dl("linework_points.csv", exportCSV(), "text/csv"));
+            document.getElementById("btn-lw-exp-landxml")?.addEventListener("click", () => dl("linework_model.xml", exportLandXML(), "application/xml"));
             document.getElementById("btn-lw-exp-dxf")?.addEventListener("click", () => dl("linework.dxf", exportDXF(), "application/dxf"));
             document.getElementById("btn-lw-exp-pnezd")?.addEventListener("click", () => dl("linework_coordinates.txt", exportPNEZD(), "text/csv"));
             document.getElementById("btn-lw-exp-script")?.addEventListener("click", () => dl("linework_script.fbk", exportLineworkScript(), "text/plain"));
@@ -1949,8 +2102,21 @@
             });
 
             // Figure points grid panel
+            document.getElementById("btn-lw-fig-save")?.addEventListener("click", () => Ed.saveSession());
             document.getElementById("btn-lw-fig-add-pt")?.addEventListener("click", () => {
                 if (Ed.sel && Ed.sel.figId) Ed.addPointToFigure(Ed.sel.figId);
+            });
+            document.getElementById("btn-lw-fig-exp-csv")?.addEventListener("click", () => {
+                const figId = Ed.sel && Ed.sel.figId;
+                const f = figId ? Ed._fig(figId) : null;
+                const fName = f ? f.name.replace(/[^a-zA-Z0-9_-]/g, "_") : "figure";
+                dl(`${fName}_points.csv`, exportCSV(figId), "text/csv");
+            });
+            document.getElementById("btn-lw-fig-exp-landxml")?.addEventListener("click", () => {
+                const figId = Ed.sel && Ed.sel.figId;
+                const f = figId ? Ed._fig(figId) : null;
+                const fName = f ? f.name.replace(/[^a-zA-Z0-9_-]/g, "_") : "figure";
+                dl(`${fName}.xml`, exportLandXML(figId), "application/xml");
             });
             document.getElementById("btn-lw-fig-close-grid")?.addEventListener("click", () => {
                 Ed.closePointsGrid();
@@ -2039,13 +2205,14 @@
                 });
             }
 
-            // Keyboard: undo/redo, delete selected vertex, ← → to scrub shots, space to play
+            // Keyboard: undo/redo, delete selected vertex, ← → to scrub shots, space to play, Ctrl+S to save
             window.addEventListener("keydown", e => {
                 if (Ed.model.figures.length === 0) return;
                 if (!document.getElementById("tab-linework")?.classList.contains("active")) return;
                 const tag = (e.target.tagName || "").toLowerCase();
                 if (tag === "input" || tag === "textarea" || tag === "select") return;
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); Ed.undo(); }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); Ed.saveSession(); }
+                else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); Ed.undo(); }
                 else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); Ed.redo(); }
                 else if (e.key === "ArrowRight") { e.preventDefault(); Ed.playStep(1); }
                 else if (e.key === "ArrowLeft") { e.preventDefault(); Ed.playStep(-1); }
@@ -2060,6 +2227,15 @@
         }
     };
 
+    Ed.exportCSV = exportCSV;
+    Ed.exportLandXML = exportLandXML;
+
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
-    window.Linework = { parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, resolveGeometry, circumcircle, fitCircle, buildLineworkScript, CODESET, CODESET_PROFILES, applyCodesetProfile, ARC_FIT, _Ed: Ed };
+    window.Linework = {
+        parsePointFile, buildFigures, parseCalls, checkModel, splitDesc, resolveGeometry,
+        circumcircle, fitCircle, buildLineworkScript, CODESET, CODESET_PROFILES,
+        applyCodesetProfile, ARC_FIT, exportCSV, exportLandXML,
+        saveSession: () => Ed.saveSession(), loadSavedSession: () => Ed.loadSavedSession(),
+        _Ed: Ed
+    };
 })();

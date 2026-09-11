@@ -578,11 +578,12 @@
         (figures || []).forEach((f, fIdx) => {
             const vertices = (f.pts || []).map(p => {
                 const ptObj = {
-                    name: String(p.id || pId++),
+                    name: String((p.ptNum != null && p.ptNum !== "") ? p.ptNum : (p.id || pId++)),
                     northing: p.n,
                     easting: p.e,
                     elev: p.z || 0,
-                    code: p.code || f.layer || "SURV"
+                    code: p.code || f.layer || "SURV",
+                    desc: p.desc || ""
                 };
                 points.push(ptObj);
                 return { n: p.n, e: p.e, z: p.z || 0 };

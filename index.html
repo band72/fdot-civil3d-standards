@@ -825,6 +825,7 @@
                         <button class="btn btn-primary" id="btn-lw-parse-points"><i class="fa-solid fa-diagram-project"></i> Import as points</button>
                         <button class="btn btn-primary" id="btn-lw-parse-calls"><i class="fa-solid fa-compass-drafting"></i> Import as calls</button>
                         <button class="btn btn-secondary" id="btn-lw-from-efbk"><i class="fa-solid fa-book-open"></i> Load from EFB</button>
+                        <button class="btn btn-secondary" id="btn-lw-load-saved" title="Restore last saved linework session"><i class="fa-solid fa-clock-rotate-left"></i> Restore Saved</button>
                     </div>
                 </div>
 
@@ -840,8 +841,11 @@
                                 <input type="checkbox" id="lw-traverse-mode" style="width:auto;"> Traverse edit (downstream follows)
                             </label>
                             <span style="flex:1;"></span>
+                            <button class="btn btn-primary btn-sm" id="btn-lw-save" title="Save Linework Session (Ctrl+S)"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-csv" title="Export points as CSV (Point,Northing,Easting,Elevation,Description)"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-landxml" title="Export survey model as LandXML 1.2"><i class="fa-solid fa-file-code"></i> LandXML</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-dxf">DXF</button>
-                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-pnezd">P,N,E,Z,D</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-exp-pnezd" title="P,N,E,Z,D text format">P,N,E,Z,D</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-script" title="Civil 3D Survey Command Language script (NEZ + FIG BEGIN/PT/CLOSE/END)">Linework Script</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-calls">Calls</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-report">Map Check</button>
@@ -881,9 +885,18 @@
                                     </h3>
                                     <span id="lw-fig-points-badge" class="badge" style="background:var(--bg-secondary); border:1px solid var(--glass-border); font-size:0.75rem;">—</span>
                                 </div>
-                                <div style="display:flex; gap:0.4rem; align-items:center;">
+                                <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+                                    <button type="button" class="btn btn-primary btn-sm" id="btn-lw-fig-save" title="Save figure edits to session" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
+                                        <i class="fa-solid fa-floppy-disk"></i> Save
+                                    </button>
                                     <button type="button" class="btn btn-secondary btn-sm" id="btn-lw-fig-add-pt" title="Add new point to figure" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
                                         <i class="fa-solid fa-plus"></i> Add Point
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-lw-fig-exp-csv" title="Export this figure's points as CSV" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
+                                        <i class="fa-solid fa-file-csv"></i> CSV
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-lw-fig-exp-landxml" title="Export this figure as LandXML" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
+                                        <i class="fa-solid fa-file-code"></i> LandXML
                                     </button>
                                     <button type="button" class="btn btn-secondary btn-sm" id="btn-lw-fig-close-grid" title="Close Points Table" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
                                         <i class="fa-solid fa-xmark"></i>

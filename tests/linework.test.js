@@ -520,4 +520,57 @@ module.exports = function (t, env) {
     t.ok(emptyOk, "empty figures array doesn't throw");
     t.match(emptyResult, /Civil 3D Survey Command Language/, "…still emits the header comment");
     t.match(LW.buildLineworkScript([], { header: false }), /^\s*$/, "header:false on an empty model returns empty/whitespace text");
+
+    t.group("linework/save-and-export");
+    const EdSave = LW._Ed;
+    const testPoints = [
+        "101,2000100.500,600100.250,15.200,EP B",
+        "102,2000200.000,600150.000,16.000,EP",
+        "103,2000300.750,600200.125,16.500,EP E",
+        "201,2000150.000,600250.000,12.000,DRV B",
+        "202,2000250.000,600300.000,12.500,DRV E"
+    ].join("\n");
+    const parsedFigs = LW.buildFigures(LW.parsePointFile(testPoints, "NE").points, "byCode");
+    EdSave.setModel({ figures: parsedFigs });
+
+    // 1. Export CSV for all figures
+    const fullCsv = LW.exportCSV();
+    t.ok(fullCsv && fullCsv.length > 0, "full CSV export generated");
+    t.match(fullCsv, /^Point,Northing,Easting,Elevation,Description/, "CSV starts with standard PNEZD header");
+    t.match(fullCsv, /101,2000100\.500,600100\.250,15\.200,"EP B"/, "CSV includes point 101 correctly formatted");
+    t.match(fullCsv, /201,2000150\.000,600250\.000,12\.000,"DRV B"/, "CSV includes point 201 from second figure");
+
+    // 2. Export CSV for single figure
+    const epFig = EdSave.model.figures.find(f => f.name === "EP" || f.code === "EP");
+    t.ok(epFig, "EP figure found");
+    const singleCsv = LW.exportCSV(epFig.id);
+    t.match(singleCsv, /101,2000100\.500,600100\.250,15\.200,"EP B"/, "single figure CSV includes point 101");
+    t.notOk(singleCsv.includes("201,2000150"), "single figure CSV does not include other figure's point");
+
+    // 3. Export LandXML
+    const fullLandXml = LW.exportLandXML();
+    t.ok(fullLandXml && fullLandXml.length > 0, "LandXML export generated");
+    t.match(fullLandXml, /<LandXML xmlns="http:\/\/www\.landxml\.org\/schema\/LandXML-1\.2"/, "LandXML has correct schema root");
+    t.match(fullLandXml, /<CgPoint name="101"/, "LandXML contains CgPoint 101");
+    t.match(fullLandXml, /2000100\.5000 600100\.2500 15\.2000<\/CgPoint>/, "LandXML contains correct coordinates");
+
+    const singleLandXml = LW.exportLandXML(epFig.id);
+    t.match(singleLandXml, /<CgPoint name="101"/, "single figure LandXML contains CgPoint 101");
+    t.notOk(singleLandXml.includes('name="201"'), "single figure LandXML excludes point 201");
+
+    // 4. Save and load session round-trip
+    const saveRes = EdSave.saveSession();
+    t.eq(saveRes, true, "Ed.saveSession returns true on valid model");
+    const stored = env.win.localStorage.getItem("fdot_linework_saved_session");
+    t.ok(stored && stored.length > 0, "localStorage has fdot_linework_saved_session");
+    const parsedSession = JSON.parse(stored);
+    t.ok(parsedSession.model && parsedSession.model.figures.length >= 2, "stored payload has model figures");
+
+    // Clear current model and restore from storage
+    EdSave.setModel({ figures: [] });
+    t.eq(EdSave.model.figures.length, 0, "model cleared");
+    const loadRes = EdSave.loadSavedSession();
+    t.eq(loadRes, true, "Ed.loadSavedSession returns true");
+    t.eq(EdSave.model.figures.length, parsedFigs.length, "model figures restored to original count");
+    t.eq(EdSave.model.figures[0].pts[0].ptNum, 101, "restored first point number matches");
 };

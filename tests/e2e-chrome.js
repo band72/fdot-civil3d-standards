@@ -225,6 +225,49 @@ async function main() {
         console.log(`  ✓ Add Point to Figure -> New point count: ${rowsAfterAdd}`);
         if (rowsAfterAdd !== 3) throw new Error("Add point button failed to append point to figure");
 
+        // Test Linework Save Button and LocalStorage persistence
+        console.log("\n[TEST 7b] Linework Save Session, Restore & Export CSV / LandXML");
+        const hasSaveBtn = await evaluate("!!document.getElementById('btn-lw-save')");
+        const hasFigSaveBtn = await evaluate("!!document.getElementById('btn-lw-fig-save')");
+        const hasRestoreBtn = await evaluate("!!document.getElementById('btn-lw-load-saved')");
+        const hasExpCsvBtn = await evaluate("!!document.getElementById('btn-lw-exp-csv')");
+        const hasExpLandXmlBtn = await evaluate("!!document.getElementById('btn-lw-exp-landxml')");
+        const hasFigExpCsvBtn = await evaluate("!!document.getElementById('btn-lw-fig-exp-csv')");
+        const hasFigExpLandXmlBtn = await evaluate("!!document.getElementById('btn-lw-fig-exp-landxml')");
+        console.log(`  ✓ Export/Save UI elements: Save=${hasSaveBtn}, FigSave=${hasFigSaveBtn}, Restore=${hasRestoreBtn}, ExpCSV=${hasExpCsvBtn}, ExpLandXML=${hasExpLandXmlBtn}`);
+        if (!hasSaveBtn || !hasFigSaveBtn || !hasRestoreBtn || !hasExpCsvBtn || !hasExpLandXmlBtn) {
+            throw new Error("Missing Linework Save or Export buttons in toolbar/figure card");
+        }
+
+        // Click Save button and check localStorage
+        await evaluate("document.getElementById('btn-lw-save').click()");
+        const savedSession = await evaluate("localStorage.getItem('fdot_linework_saved_session')");
+        if (!savedSession || !savedSession.includes("figures")) throw new Error("Save button failed to persist session to localStorage");
+        console.log(`  ✓ Session successfully saved to localStorage (${savedSession.length} bytes)`);
+
+        // Test Export CSV
+        const exportedCsv = await evaluate("window.Linework.exportCSV()");
+        if (!exportedCsv || !exportedCsv.startsWith("Point,Northing,Easting,Elevation,Description")) {
+            throw new Error("exportCSV() failed to produce valid CSV with header");
+        }
+        console.log(`  ✓ Exported CSV sample: ${exportedCsv.split('\\n')[0]} | Total rows: ${exportedCsv.split('\\n').length}`);
+
+        // Test Export LandXML
+        const exportedLandXml = await evaluate("window.Linework.exportLandXML()");
+        if (!exportedLandXml || !exportedLandXml.includes("<LandXML") || !exportedLandXml.includes("<CgPoints>")) {
+            throw new Error("exportLandXML() failed to produce valid LandXML document");
+        }
+        console.log(`  ✓ Exported LandXML root and CgPoints verified (${exportedLandXml.length} bytes)`);
+
+        // Test Restore Saved button
+        await evaluate("window.Linework._Ed.setModel({ figures: [] })");
+        const countBeforeRestore = await evaluate("window.Linework._Ed.model.figures.length");
+        if (countBeforeRestore !== 0) throw new Error("Failed to clear model for restore test");
+        await evaluate("document.getElementById('btn-lw-load-saved').click()");
+        const countAfterRestore = await evaluate("window.Linework._Ed.model.figures.length");
+        console.log(`  ✓ Restore Saved: before=${countBeforeRestore}, after restore=${countAfterRestore}`);
+        if (countAfterRestore < 1) throw new Error("Restore Saved button failed to reload model");
+
         // 8. System Logs Viewer & Verification
         console.log("\n[TEST 8] System Logs Viewer & Error Audit Stream");
         await evaluate("document.querySelector('[data-tab=\"tab-logging\"]').click()");
