@@ -297,11 +297,162 @@
             </section>
 
             <!-- Start page: Standards Compare + Auto-Correct (ported from the standardcompare-plugin project) -->
+            <!-- Start page: Standards Compare + Auto-Correct (Home Page) -->
             <section id="tab-stdn-compare" class="tab-pane active">
+                <!-- Target & Template File Upload and Execution Panel -->
+                <div class="glass-panel" style="padding:1.5rem; margin-bottom:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+                        <div>
+                            <h2><i class="fa-solid fa-code-branch" style="color:var(--accent);"></i> Standards &amp; Template Compare</h2>
+                            <p class="subtitle">Upload or select a <strong>Target</strong> drawing and a <strong>Template</strong> standard to execute instant compliance checking, geometry diff, and grid inspection.</p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-compare-demo"><i class="fa-solid fa-vial"></i> Load Demo Target &amp; Template</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-compare-clear"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+                        </div>
+                    </div>
+
+                    <!-- Two File Upload Textboxes: Target and Template -->
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.25rem; margin-top:1.25rem;">
+                        <!-- Target File Upload Textbox -->
+                        <div class="form-group" style="margin:0;">
+                            <label for="target-file-text" style="font-weight:700; font-size:0.95rem; color:var(--text-primary); display:flex; justify-content:space-between; align-items:center;">
+                                <span><i class="fa-solid fa-bullseye" style="color:var(--primary); margin-right:0.35rem;"></i> Target</span>
+                                <small style="font-weight:normal; color:var(--text-muted);">Drawing / File to inspect</small>
+                            </label>
+                            <div style="display:flex; gap:0.4rem; margin-top:0.4rem;">
+                                <input type="text" id="target-file-text" placeholder="Upload or drop Target file (.dxf, .json, .csv, .txt)…" readonly style="flex:1; cursor:pointer; font-family:var(--font-mono); font-size:0.85rem; background:rgba(0,0,0,0.2); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:0.6rem 0.75rem; color:var(--text-primary);">
+                                <input type="file" id="target-file-input" accept=".dxf,.json,.txt,.csv,.pts,.pnt,.xml,.dwt" style="display:none;">
+                                <button type="button" class="btn btn-secondary" id="btn-browse-target"><i class="fa-solid fa-folder-open"></i> Browse</button>
+                            </div>
+                            <div id="target-file-meta" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem; min-height:1.1rem;"></div>
+                        </div>
+
+                        <!-- Template File Upload Textbox -->
+                        <div class="form-group" style="margin:0;">
+                            <label for="template-file-text" style="font-weight:700; font-size:0.95rem; color:var(--text-primary); display:flex; justify-content:space-between; align-items:center;">
+                                <span><i class="fa-solid fa-file-contract" style="color:var(--accent); margin-right:0.35rem;"></i> Template</span>
+                                <small style="font-weight:normal; color:var(--text-muted);">Master template / standard</small>
+                            </label>
+                            <div style="display:flex; gap:0.4rem; margin-top:0.4rem;">
+                                <input type="text" id="template-file-text" placeholder="Upload or drop Template file (.dxf, .dwt, .json, .txt)…" readonly style="flex:1; cursor:pointer; font-family:var(--font-mono); font-size:0.85rem; background:rgba(0,0,0,0.2); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:0.6rem 0.75rem; color:var(--text-primary);">
+                                <input type="file" id="template-file-input" accept=".dxf,.json,.txt,.csv,.pts,.pnt,.xml,.dwt" style="display:none;">
+                                <button type="button" class="btn btn-secondary" id="btn-browse-template"><i class="fa-solid fa-folder-open"></i> Browse</button>
+                            </div>
+                            <div id="template-file-meta" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem; min-height:1.1rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Execute Button & Status -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-top:1.25rem; padding-top:1rem; border-top:1px solid var(--border-subtle);">
+                        <button type="button" class="btn btn-primary" id="btn-compare-execute" style="font-size:1.05rem; padding:0.6rem 2.2rem; font-weight:700;">
+                            <i class="fa-solid fa-play"></i> Execute
+                        </button>
+                        <div id="compare-status-msg" style="font-size:0.85rem; color:var(--text-muted);">
+                            Ready. Select Target and Template files, then click Execute.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Results Grid -->
+                <div id="compare-grid-card" class="glass-panel" style="padding:1.5rem; margin-bottom:1.25rem; display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+                        <div>
+                            <h3 style="margin:0; font-size:1.2rem; display:flex; align-items:center; gap:0.5rem;">
+                                <i class="fa-solid fa-table-cells" style="color:var(--primary);"></i> Comparison Results Grid
+                            </h3>
+                            <p style="margin:0.2rem 0 0; font-size:0.8rem; color:var(--text-muted);" id="compare-grid-subtitle">
+                                Evaluation of Target drawing against Template standard.
+                            </p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-grid-export-csv"><i class="fa-solid fa-file-csv"></i> Export Grid (CSV)</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-grid-to-reports"><i class="fa-solid fa-clipboard-list"></i> Send to Reports Hub</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-grid-auto-fix" style="display:none;"><i class="fa-solid fa-wand-magic-sparkles"></i> Download Auto-Corrected DXF</button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats Cards -->
+                    <div class="stats-grid" id="compare-grid-stats" style="margin-bottom:1.25rem;">
+                        <div class="stat-card glass-panel" style="padding:0.9rem;">
+                            <div class="stat-details">
+                                <h3 style="font-size:0.75rem;">Total Evaluated</h3>
+                                <p class="stat-number" id="grid-stat-total" style="font-size:1.5rem;">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding:0.9rem;">
+                            <div class="stat-details">
+                                <h3 style="font-size:0.75rem;">Matches</h3>
+                                <p class="stat-number" id="grid-stat-matches" style="color:var(--success); font-size:1.5rem;">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding:0.9rem;">
+                            <div class="stat-details">
+                                <h3 style="font-size:0.75rem;">Mismatches</h3>
+                                <p class="stat-number" id="grid-stat-mismatches" style="color:var(--warning); font-size:1.5rem;">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding:0.9rem;">
+                            <div class="stat-details">
+                                <h3 style="font-size:0.75rem;">Missing in Target</h3>
+                                <p class="stat-number" id="grid-stat-missing" style="color:var(--danger); font-size:1.5rem;">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding:0.9rem;">
+                            <div class="stat-details">
+                                <h3 style="font-size:0.75rem;">Compliance Score</h3>
+                                <p class="stat-number" id="grid-stat-score" style="font-size:1.5rem;">100%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar & Search -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem;">
+                        <div class="discipline-pills" id="grid-filter-pills" style="margin:0;">
+                            <button type="button" class="pill-btn active" data-grid-filter="all">All (<span id="pill-cnt-all">0</span>)</button>
+                            <button type="button" class="pill-btn" data-grid-filter="mismatch" style="color:var(--warning);">Mismatches (<span id="pill-cnt-mismatch">0</span>)</button>
+                            <button type="button" class="pill-btn" data-grid-filter="missing" style="color:var(--danger);">Missing (<span id="pill-cnt-missing">0</span>)</button>
+                            <button type="button" class="pill-btn" data-grid-filter="match" style="color:var(--success);">Matches (<span id="pill-cnt-match">0</span>)</button>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <input type="text" id="grid-search-input" placeholder="Search in grid…" style="font-size:0.8rem; padding:0.35rem 0.65rem; width:220px; background:rgba(0,0,0,0.2); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-primary);">
+                        </div>
+                    </div>
+
+                    <!-- Results Data Table Grid -->
+                    <div style="overflow-x:auto; border:1px solid var(--border-subtle); border-radius:var(--radius-md); max-height:480px; overflow-y:auto;">
+                        <table class="data-table" id="compare-results-table" style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                            <thead style="position:sticky; top:0; background:var(--bg-surface-elevated, #1a2234); z-index:2;">
+                                <tr>
+                                    <th style="width:40px; padding:0.5rem 0.6rem;">#</th>
+                                    <th style="width:110px; padding:0.5rem 0.6rem;">Category</th>
+                                    <th style="width:160px; padding:0.5rem 0.6rem;">Item / Name</th>
+                                    <th style="width:120px; padding:0.5rem 0.6rem;">Status</th>
+                                    <th style="width:180px; padding:0.5rem 0.6rem;">Target Value</th>
+                                    <th style="width:180px; padding:0.5rem 0.6rem;">Template Value</th>
+                                    <th style="width:90px; padding:0.5rem 0.6rem;">Severity</th>
+                                    <th style="padding:0.5rem 0.6rem;">Diagnostic Details &amp; Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="compare-results-tbody">
+                                <!-- Grid Rows Rendered Dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
+                        <span id="grid-row-counter">Showing 0 of 0 records</span>
+                        <span>Click headers or search to filter</span>
+                    </div>
+                </div>
+
+                <!-- Existing Advanced Multi-Slot Engine & Overlay Panel -->
                 <div class="glass-panel" style="padding:1.5rem;">
-                    <h2><i class="fa-solid fa-code-branch" style="color:var(--accent);"></i> Standards Compare &amp; Auto-Correct</h2>
-                    <p class="subtitle">Check a DXF against a JSON standard and/or a master-template DXF (its LAYER / LTYPE / STYLE tables and BLOCKS become the rules), tolerance-diff its geometry against a reference drawing, then auto-correct the deficiencies that are safe to fix and download a corrected <code>.dxf</code>. Runs entirely in the browser — no upload.</p>
-                    <div id="stdn-controls" style="margin-top:1rem;"></div>
+                    <details>
+                        <summary style="cursor:pointer; font-weight:600; color:var(--text-muted); font-size:0.9rem;">
+                            <i class="fa-solid fa-sliders"></i> Advanced Multi-Drawing Slots &amp; Visual Geometry Diff (Reference, JSON Standard, Overlay)
+                        </summary>
+                        <div id="stdn-controls" style="margin-top:1rem;"></div>
+                    </details>
                     <div id="stdn-results" class="hidden" style="margin-top:1.25rem;"></div>
                 </div>
             </section>

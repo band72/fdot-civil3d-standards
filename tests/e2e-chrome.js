@@ -184,8 +184,55 @@ async function main() {
         console.log(`  ✓ System Logs Recorded -> Total: ${logStats.total}, Errors: ${logStats.errors}, Warnings: ${logStats.warnings}`);
         if (logStats.total < 1) throw new Error("Expected at least 1 log entry in Logging store");
 
-        // 9. Check for Any Uncaught In-Page Exceptions
-        console.log("\n[TEST 9] Page Stability & Unhandled Exceptions Check");
+        // 9. Home Page Target & Template Upload and Results Grid Workflow
+        console.log("\n[TEST 9] Home Page Target & Template Upload and Results Grid");
+        await evaluate("document.querySelector('[data-tab=\"tab-stdn-compare\"]').click()");
+        const isHomeActive = await evaluate("document.getElementById('tab-stdn-compare').classList.contains('active')");
+        console.log(`  ✓ Tab switch to Home (tab-stdn-compare): ${isHomeActive}`);
+        if (!isHomeActive) throw new Error("tab-stdn-compare did not activate");
+
+        const hasTargetInput = await evaluate("!!document.getElementById('target-file-text')");
+        const hasTemplateInput = await evaluate("!!document.getElementById('template-file-text')");
+        const hasExecuteBtn = await evaluate("!!document.getElementById('btn-compare-execute')");
+        console.log(`  ✓ Home page elements: Target=${hasTargetInput}, Template=${hasTemplateInput}, Execute=${hasExecuteBtn}`);
+        if (!hasTargetInput || !hasTemplateInput || !hasExecuteBtn) throw new Error("Missing Target, Template, or Execute elements on Home Page");
+
+        // Click demo pair
+        await evaluate("document.getElementById('btn-compare-demo').click()");
+        const targetVal = await evaluate("document.getElementById('target-file-text').value");
+        const templateVal = await evaluate("document.getElementById('template-file-text').value");
+        console.log(`  ✓ Loaded demo pair -> Target: "${targetVal}", Template: "${templateVal}"`);
+        if (!targetVal || !templateVal) throw new Error("Failed to load demo pair into textboxes");
+
+        // Click Execute
+        await evaluate("document.getElementById('btn-compare-execute').click()");
+        await new Promise(r => setTimeout(r, 300));
+
+        // Verify Results Grid is rendered
+        const isGridVisible = await evaluate("document.getElementById('compare-grid-card').style.display !== 'none'");
+        const totalRows = await evaluate("document.getElementById('compare-results-tbody').querySelectorAll('tr').length");
+        const totalStat = await evaluate("document.getElementById('grid-stat-total').textContent");
+        const matchesStat = await evaluate("document.getElementById('grid-stat-matches').textContent");
+        const mismatchesStat = await evaluate("document.getElementById('grid-stat-mismatches').textContent");
+        const missingStat = await evaluate("document.getElementById('grid-stat-missing').textContent");
+        const scoreStat = await evaluate("document.getElementById('grid-stat-score').textContent");
+
+        console.log(`  ✓ Results Grid Visible: ${isGridVisible} | Total: ${totalStat} (${totalRows} table rows), Matches: ${matchesStat}, Mismatches: ${mismatchesStat}, Missing: ${missingStat}, Score: ${scoreStat}`);
+        if (!isGridVisible || totalRows === 0) throw new Error("Results Grid failed to render comparison rows");
+
+        // Test Filter Pill
+        await evaluate("document.querySelector('[data-grid-filter=\"mismatch\"]').click()");
+        const mismatchRows = await evaluate("document.getElementById('compare-results-tbody').querySelectorAll('tr').length");
+        console.log(`  ✓ Filter by Mismatch -> Rows: ${mismatchRows}`);
+
+        // Test Search Input
+        await evaluate("document.querySelector('[data-grid-filter=\"all\"]').click()");
+        await evaluate("document.getElementById('grid-search-input').value = 'WALLS'; document.getElementById('grid-search-input').dispatchEvent(new Event('input'))");
+        const wallsRows = await evaluate("document.getElementById('compare-results-tbody').querySelectorAll('tr').length");
+        console.log(`  ✓ Search for 'WALLS' -> Rows: ${wallsRows}`);
+
+        // 10. Check for Any Uncaught In-Page Exceptions
+        console.log("\n[TEST 10] Page Stability & Unhandled Exceptions Check");
         console.log(`  ✓ Total Uncaught Runtime Exceptions: ${uncaughtExceptions.length}`);
         if (uncaughtExceptions.length > 0) {
             console.error("Uncaught exceptions detected:", uncaughtExceptions);

@@ -394,6 +394,53 @@ module.exports = async function (t, env) {
             t.eq(rec.status, "PARTIALLY CORRECTED", "…status reflects the auto-correct outcome");
         }
 
+        // ── Home Page Target & Template Upload + Execute Grid tests ─
+        t.group("stdn/grid-compare (Target & Template)");
+        t.ok(typeof SC.executeGridComparison === "function", "SC.executeGridComparison exposed");
+        t.ok(typeof SC.loadDemoPair === "function", "SC.loadDemoPair exposed");
+        t.ok(typeof SC.resetGridUI === "function", "SC.resetGridUI exposed");
+
+        // Load demo pair
+        SC.loadDemoPair(noToast);
+        t.ok(SC.gridState.targetFile && SC.gridState.targetFile.name, "demo loaded target file");
+        t.ok(SC.gridState.templateFile && SC.gridState.templateFile.name, "demo loaded template file");
+
+        // Execute grid comparison
+        SC.executeGridComparison(noToast);
+        t.gt(SC.gridState.results.length, 0, "executeGridComparison evaluated items");
+        const matchItem = SC.gridState.results.find(r => r.status === "MATCH");
+        t.ok(matchItem, "grid has MATCH items");
+        const mismatchItem = SC.gridState.results.find(r => r.status === "MISMATCH");
+        t.ok(mismatchItem, "grid has MISMATCH items");
+        const missingItem = SC.gridState.results.find(r => r.status === "MISSING");
+        t.ok(missingItem, "grid has MISSING items");
+
+        // Check grid HTML rendering
+        const gridBody = H("compare-results-tbody");
+        t.match(gridBody, /MATCH/, "grid table renders MATCH badge");
+        t.match(gridBody, /MISMATCH/, "grid table renders MISMATCH badge");
+        t.match(gridBody, /MISSING/, "grid table renders MISSING badge");
+        t.match(gridBody, /WALLS/, "grid table includes WALLS layer");
+
+        // Filter testing
+        SC.gridState.activeFilter = "mismatch";
+        SC.renderResultsGrid();
+        const mismOnly = H("compare-results-tbody");
+        t.match(mismOnly, /MISMATCH/, "mismatch filter displays MISMATCH rows");
+
+        // Search testing
+        SC.gridState.activeFilter = "all";
+        SC.gridState.searchTerm = "WALLS";
+        SC.renderResultsGrid();
+        const wallsOnly = H("compare-results-tbody");
+        t.match(wallsOnly, /WALLS/, "search filter displays matching items");
+
+        // Reset
+        SC.resetGridUI(noToast);
+        t.eq(SC.gridState.results.length, 0, "resetGridUI clears results");
+        t.eq(SC.gridState.targetFile, null, "resetGridUI clears targetFile");
+        t.eq(SC.gridState.templateFile, null, "resetGridUI clears templateFile");
+
         // guardrails
         SC.state.files = { target: null, reference: null, master: null, standard: null };
         let toasted = "";

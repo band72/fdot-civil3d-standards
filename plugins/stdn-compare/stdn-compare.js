@@ -481,22 +481,744 @@
         ctx.showToast(`Exported ${filename} & stored in Reports Hub.`);
     }
 
+    // ── Target & Template Grid Comparison Engine ───────────────────────────
+
+    const gridState = {
+        targetFile: null,      // { name, text, size }
+        templateFile: null,    // { name, text, size }
+        results: [],           // items evaluated: { id, category, name, status, targetVal, templateVal, severity, details }
+        activeFilter: "all",   // "all" | "mismatch" | "missing" | "match"
+        searchTerm: "",
+        lastHealedDxf: null,
+    };
+
+    function formatFileSize(bytes) {
+        if (!bytes || bytes <= 0) return "0 B";
+        const k = 1024;
+        const units = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + units[i];
+    }
+
+    function setTargetFile(name, text, size) {
+        const byteSize = size || (text ? text.length : 0);
+        gridState.targetFile = { name, text, size: byteSize };
+        state.files.target = { name, text };
+
+        const textInput = $("target-file-text");
+        if (textInput) textInput.value = `${name} (${formatFileSize(byteSize)})`;
+
+        const meta = $("target-file-meta");
+        if (meta) {
+            let info = `Loaded • ${formatFileSize(byteSize)}`;
+            const lower = name.toLowerCase();
+            if (lower.endsWith(".dxf") || lower.endsWith(".dwt")) {
+                try {
+                    const p = E().parseDxf(text);
+                    info = `DXF • ${Object.keys(p.layers || {}).length} layers, ${(p.entities || []).length} entities, ${p.units || "units unspec"}`;
+                } catch (_) {}
+            } else if (lower.endsWith(".json")) {
+                info = `JSON Standard • ${formatFileSize(byteSize)}`;
+            } else if (lower.endsWith(".csv") || lower.endsWith(".txt") || lower.endsWith(".pts")) {
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0).length;
+                info = `Point/Text file • ${lines} lines`;
+            }
+            meta.textContent = info;
+        }
+
+        const statusMsg = $("compare-status-msg");
+        if (statusMsg && !gridState.templateFile) {
+            statusMsg.textContent = "Target file loaded. Now select or drop a Template file.";
+        }
+    }
+
+    function setTemplateFile(name, text, size) {
+        const byteSize = size || (text ? text.length : 0);
+        gridState.templateFile = { name, text, size: byteSize };
+        state.files.master = { name, text };
+
+        const textInput = $("template-file-text");
+        if (textInput) textInput.value = `${name} (${formatFileSize(byteSize)})`;
+
+        const meta = $("template-file-meta");
+        if (meta) {
+            let info = `Loaded • ${formatFileSize(byteSize)}`;
+            const lower = name.toLowerCase();
+            if (lower.endsWith(".dxf") || lower.endsWith(".dwt")) {
+                try {
+                    const p = E().parseDxf(text);
+                    info = `DXF Template • ${Object.keys(p.layers || {}).length} layers, ${Object.keys(p.linetypes || {}).length} linetypes, ${Object.keys(p.styles || {}).length} styles`;
+                } catch (_) {}
+            } else if (lower.endsWith(".json")) {
+                try {
+                    const js = JSON.parse(text);
+                    info = `JSON Standard • ${js.name || "Custom Spec"} (${(js.layers || []).length} layer rules)`;
+                } catch (_) {
+                    info = `JSON Standard • ${formatFileSize(byteSize)}`;
+                }
+            }
+            meta.textContent = info;
+        }
+
+        const statusMsg = $("compare-status-msg");
+        if (statusMsg) {
+            if (gridState.targetFile) {
+                statusMsg.textContent = "Both Target and Template files loaded. Click Execute to compare.";
+            } else {
+                statusMsg.textContent = "Template file loaded. Now select or drop a Target file.";
+            }
+        }
+    }
+
+    function handleFileInput(type, file, ctx) {
+        if (!file) return;
+        if (file.size > MAX_DXF_CHARS) {
+            ctx.showToast(`${file.name} is larger than ${MAX_DXF_CHARS / 1048576} MB limit.`, true);
+            return;
+        }
+        const rdr = new FileReader();
+        rdr.onload = ev => {
+            const text = String(ev.target.result || "");
+            if (type === "target") {
+                setTargetFile(file.name, text, file.size);
+            } else {
+                setTemplateFile(file.name, text, file.size);
+            }
+        };
+        rdr.readAsText(file);
+    }
+
+    function statusBadgeHtml(status) {
+        const st = String(status || "MATCH").toUpperCase();
+        if (st === "MATCH") {
+            return `<span class="badge" style="background:rgba(40,167,69,0.18); color:var(--success, #28a745); font-weight:700; border:1px solid rgba(40,167,69,0.35);"><i class="fa-solid fa-check"></i> MATCH</span>`;
+        }
+        if (st === "MISMATCH") {
+            return `<span class="badge" style="background:rgba(255,193,7,0.18); color:var(--warning, #ffc107); font-weight:700; border:1px solid rgba(255,193,7,0.35);"><i class="fa-solid fa-triangle-exclamation"></i> MISMATCH</span>`;
+        }
+        if (st === "MISSING") {
+            return `<span class="badge" style="background:rgba(220,53,69,0.18); color:var(--danger, #dc3545); font-weight:700; border:1px solid rgba(220,53,69,0.35);"><i class="fa-solid fa-xmark"></i> MISSING</span>`;
+        }
+        return `<span class="badge" style="background:rgba(23,162,184,0.18); color:var(--info, #17a2b8); font-weight:700; border:1px solid rgba(23,162,184,0.35);"><i class="fa-solid fa-circle-info"></i> ${clean(st)}</span>`;
+    }
+
+    function severityHtml(sev) {
+        const s = String(sev || "pass").toLowerCase();
+        if (s === "pass") return `<span style="color:var(--success, #28a745); font-weight:600;"><i class="fa-solid fa-circle-check"></i> Pass</span>`;
+        if (s === "warning") return `<span style="color:var(--warning, #ffc107); font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Warning</span>`;
+        if (s === "error") return `<span style="color:var(--danger, #dc3545); font-weight:600;"><i class="fa-solid fa-circle-xmark"></i> Error</span>`;
+        return `<span style="color:var(--info, #17a2b8); font-weight:600;"><i class="fa-solid fa-circle-info"></i> Info</span>`;
+    }
+
+    function renderResultsGrid() {
+        const tbody = $("compare-results-tbody");
+        if (!tbody) return;
+
+        const all = gridState.results || [];
+        const matches = all.filter(r => r.status === "MATCH").length;
+        const mismatches = all.filter(r => r.status === "MISMATCH").length;
+        const missing = all.filter(r => r.status === "MISSING").length;
+        const score = all.length > 0 ? Math.round((matches / all.length) * 100) : 100;
+
+        // Update stats
+        const totalEl = $("grid-stat-total");
+        if (totalEl) totalEl.textContent = String(all.length);
+        const matchEl = $("grid-stat-matches");
+        if (matchEl) matchEl.textContent = String(matches);
+        const mismatchEl = $("grid-stat-mismatches");
+        if (mismatchEl) mismatchEl.textContent = String(mismatches);
+        const missingEl = $("grid-stat-missing");
+        if (missingEl) missingEl.textContent = String(missing);
+        const scoreEl = $("grid-stat-score");
+        if (scoreEl) scoreEl.textContent = `${score}%`;
+
+        // Update pill counts
+        const pillAll = $("pill-cnt-all");
+        if (pillAll) pillAll.textContent = String(all.length);
+        const pillMis = $("pill-cnt-mismatch");
+        if (pillMis) pillMis.textContent = String(mismatches);
+        const pillMiss = $("pill-cnt-missing");
+        if (pillMiss) pillMiss.textContent = String(missing);
+        const pillMatch = $("pill-cnt-match");
+        if (pillMatch) pillMatch.textContent = String(matches);
+
+        // Filter items
+        let filtered = all;
+        if (gridState.activeFilter === "mismatch") {
+            filtered = all.filter(r => r.status === "MISMATCH");
+        } else if (gridState.activeFilter === "missing") {
+            filtered = all.filter(r => r.status === "MISSING");
+        } else if (gridState.activeFilter === "match") {
+            filtered = all.filter(r => r.status === "MATCH");
+        }
+
+        if (gridState.searchTerm && gridState.searchTerm.trim() !== "") {
+            const q = gridState.searchTerm.toLowerCase().trim();
+            filtered = filtered.filter(r =>
+                r.category.toLowerCase().includes(q) ||
+                r.name.toLowerCase().includes(q) ||
+                r.details.toLowerCase().includes(q) ||
+                r.targetVal.toLowerCase().includes(q) ||
+                r.templateVal.toLowerCase().includes(q)
+            );
+        }
+
+        const counterEl = $("grid-row-counter");
+        if (counterEl) {
+            counterEl.textContent = `Showing ${filtered.length} of ${all.length} records`;
+        }
+
+        if (filtered.length === 0) {
+            const emptyHtml = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-filter-circle-xmark" style="font-size:1.5rem; display:block; margin-bottom:0.5rem;"></i> No records match the current filter or search criteria.</td></tr>`;
+            if (window.setSafeRows) window.setSafeRows(tbody, emptyHtml);
+            if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = emptyHtml;
+            return;
+        }
+
+        const rowsHtml = filtered.map((r, idx) => `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05); transition:background var(--transition);">
+                <td style="padding:0.5rem 0.6rem; color:var(--text-muted); font-family:var(--font-mono); font-size:0.75rem;">${idx + 1}</td>
+                <td style="padding:0.5rem 0.6rem;"><span class="badge" style="background:rgba(255,255,255,0.07); font-size:0.7rem; font-weight:600;">${clean(r.category)}</span></td>
+                <td style="padding:0.5rem 0.6rem; font-family:var(--font-mono); font-weight:700; font-size:0.8rem; color:var(--text-primary);">${clean(r.name)}</td>
+                <td style="padding:0.5rem 0.6rem;">${statusBadgeHtml(r.status)}</td>
+                <td style="padding:0.5rem 0.6rem; font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${clean(r.targetVal)}">${clean(r.targetVal)}</td>
+                <td style="padding:0.5rem 0.6rem; font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${clean(r.templateVal)}">${clean(r.templateVal)}</td>
+                <td style="padding:0.5rem 0.6rem;">${severityHtml(r.severity)}</td>
+                <td style="padding:0.5rem 0.6rem; font-size:0.75rem; color:var(--text-primary); line-height:1.35;">${clean(r.details)}</td>
+            </tr>
+        `).join("");
+
+        if (window.setSafeRows) window.setSafeRows(tbody, rowsHtml);
+        if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = rowsHtml;
+    }
+
+    function executeGridComparison(ctx) {
+        ctx = ctx || { showToast() {} };
+        const statusMsg = $("compare-status-msg");
+
+        // Sync fallback from state.files if gridState has not been populated
+        if (!gridState.targetFile && state.files.target) {
+            setTargetFile(state.files.target.name, state.files.target.text);
+        }
+        if (!gridState.templateFile && (state.files.master || state.files.standard)) {
+            const tpl = state.files.master || state.files.standard;
+            setTemplateFile(tpl.name, tpl.text);
+        }
+
+        if (!gridState.targetFile || !gridState.targetFile.text) {
+            const msg = "Please upload or select a Target file.";
+            if (statusMsg) statusMsg.textContent = msg;
+            ctx.showToast(msg, true);
+            return;
+        }
+        if (!gridState.templateFile || !gridState.templateFile.text) {
+            const msg = "Please upload or select a Template file.";
+            if (statusMsg) statusMsg.textContent = msg;
+            ctx.showToast(msg, true);
+            return;
+        }
+
+        if (statusMsg) statusMsg.textContent = "Analyzing Target and Template standards...";
+
+        const items = [];
+        let idCounter = 1;
+        const addRow = (category, name, status, targetVal, templateVal, severity, details) => {
+            items.push({
+                id: idCounter++,
+                category: String(category || "General"),
+                name: String(name || "—"),
+                status: String(status || "MATCH").toUpperCase(),
+                targetVal: String(targetVal ?? "—"),
+                templateVal: String(templateVal ?? "—"),
+                severity: String(severity || "pass").toLowerCase(),
+                details: String(details || "")
+            });
+        };
+
+        const targetText = gridState.targetFile.text;
+        const templateText = gridState.templateFile.text;
+
+        let targetParsed = null;
+        let templateParsed = null;
+        let isTargetDxf = false;
+        let isTemplateDxf = false;
+
+        try {
+            targetParsed = E().parseDxf(targetText);
+            isTargetDxf = true;
+        } catch (_) {}
+
+        try {
+            templateParsed = E().parseDxf(templateText);
+            isTemplateDxf = true;
+        } catch (_) {}
+
+        if (isTargetDxf && isTemplateDxf) {
+            // 1. Drawing Units / Header comparison
+            const tgtUnits = targetParsed.units || (targetParsed.header && targetParsed.header.$INSUNITS) || "Unspecified";
+            const tplUnits = templateParsed.units || (templateParsed.header && templateParsed.header.$INSUNITS) || "Unspecified";
+            const unitsMatch = String(tgtUnits).toLowerCase() === String(tplUnits).toLowerCase();
+            addRow(
+                "Header",
+                "$INSUNITS (Units)",
+                unitsMatch ? "MATCH" : "MISMATCH",
+                tgtUnits,
+                tplUnits,
+                unitsMatch ? "pass" : "warning",
+                unitsMatch ? "Drawing units match template specification." : "Drawing units differ from template standard."
+            );
+
+            // 2. Layer Table comparison
+            const tplLayers = templateParsed.layers || {};
+            const tgtLayers = targetParsed.layers || {};
+
+            for (const [layerName, l] of Object.entries(tplLayers)) {
+                const tgtL = tgtLayers[layerName];
+                if (!tgtL) {
+                    addRow(
+                        "Layer",
+                        layerName,
+                        "MISSING",
+                        "— (Missing in Target)",
+                        `Color: ${l.color}, Ltype: ${l.linetype || "CONTINUOUS"}, Lw: ${l.lineweight ?? "ByLayer"}`,
+                        "error",
+                        `Required template layer "${layerName}" is missing from target drawing.`
+                    );
+                } else {
+                    const colorMatch = tgtL.color === l.color;
+                    const ltypeMatch = (tgtL.linetype || "CONTINUOUS").toUpperCase() === (l.linetype || "CONTINUOUS").toUpperCase();
+                    const lwMatch = l.lineweight == null || tgtL.lineweight === l.lineweight;
+
+                    if (colorMatch && ltypeMatch && lwMatch) {
+                        addRow(
+                            "Layer",
+                            layerName,
+                            "MATCH",
+                            `Color: ${tgtL.color}, Ltype: ${tgtL.linetype || "CONTINUOUS"}, Lw: ${tgtL.lineweight ?? "ByLayer"}`,
+                            `Color: ${l.color}, Ltype: ${l.linetype || "CONTINUOUS"}, Lw: ${l.lineweight ?? "ByLayer"}`,
+                            "pass",
+                            "Layer properties fully conform to template standard."
+                        );
+                    } else {
+                        const diffs = [];
+                        if (!colorMatch) diffs.push(`Color: Target has ${tgtL.color}, Template has ${l.color}`);
+                        if (!ltypeMatch) diffs.push(`Linetype: Target has ${tgtL.linetype}, Template has ${l.linetype}`);
+                        if (!lwMatch) diffs.push(`Lineweight: Target has ${tgtL.lineweight}, Template has ${l.lineweight}`);
+                        addRow(
+                            "Layer",
+                            layerName,
+                            "MISMATCH",
+                            `Color: ${tgtL.color}, Ltype: ${tgtL.linetype || "CONTINUOUS"}, Lw: ${tgtL.lineweight ?? "ByLayer"}`,
+                            `Color: ${l.color}, Ltype: ${l.linetype || "CONTINUOUS"}, Lw: ${l.lineweight ?? "ByLayer"}`,
+                            "warning",
+                            `${diffs.join("; ")}. Safe to auto-correct.`
+                        );
+                    }
+                }
+            }
+
+            for (const [layerName, tgtL] of Object.entries(tgtLayers)) {
+                if (!tplLayers[layerName]) {
+                    addRow(
+                        "Layer",
+                        layerName,
+                        "MISMATCH",
+                        `Color: ${tgtL.color}, Ltype: ${tgtL.linetype || "CONTINUOUS"}, Lw: ${tgtL.lineweight ?? "ByLayer"}`,
+                        "— (Not in Template)",
+                        "info",
+                        `Unrecognized or custom layer "${layerName}" present in target submittal.`
+                    );
+                }
+            }
+
+            // 3. Linetypes comparison
+            const tplLtypes = templateParsed.linetypes || {};
+            const tgtLtypes = targetParsed.linetypes || {};
+            for (const [ltypeName, lt] of Object.entries(tplLtypes)) {
+                const hasLt = !!tgtLtypes[ltypeName];
+                addRow(
+                    "Linetype",
+                    ltypeName,
+                    hasLt ? "MATCH" : "MISSING",
+                    hasLt ? `Defined (${tgtLtypes[ltypeName]?.description || "Solid"})` : "— (Missing in Target)",
+                    `Defined (${lt.description || "Solid"})`,
+                    hasLt ? "pass" : "warning",
+                    hasLt ? "Standard linetype definition exists in target." : `Template linetype "${ltypeName}" definition missing.`
+                );
+            }
+
+            // 4. Text Styles comparison
+            const tplStyles = templateParsed.styles || {};
+            const tgtStyles = targetParsed.styles || {};
+            for (const [styleName, st] of Object.entries(tplStyles)) {
+                const tgtSt = tgtStyles[styleName];
+                if (!tgtSt) {
+                    addRow(
+                        "Text Style",
+                        styleName,
+                        "MISSING",
+                        "— (Missing in Target)",
+                        `Font: ${st.font || "Standard"}`,
+                        "warning",
+                        `Template text style "${styleName}" is missing from target drawing.`
+                    );
+                } else {
+                    const fontMatch = !st.font || (tgtSt.font || "").toLowerCase() === (st.font || "").toLowerCase();
+                    addRow(
+                        "Text Style",
+                        styleName,
+                        fontMatch ? "MATCH" : "MISMATCH",
+                        `Font: ${tgtSt.font || "Standard"}`,
+                        `Font: ${st.font || "Standard"}`,
+                        fontMatch ? "pass" : "warning",
+                        fontMatch ? "Text style font and properties conform." : `Font difference (Target: ${tgtSt.font}, Template: ${st.font}).`
+                    );
+                }
+            }
+
+            // 5. Blocks comparison
+            const tplBlocks = templateParsed.blocks || {};
+            const tgtBlocks = targetParsed.blocks || {};
+            for (const blockName of Object.keys(tplBlocks)) {
+                const hasBlk = !!tgtBlocks[blockName];
+                addRow(
+                    "Block",
+                    blockName,
+                    hasBlk ? "MATCH" : "MISSING",
+                    hasBlk ? "Defined in Target" : "— (Missing in Target)",
+                    "Defined in Template",
+                    hasBlk ? "pass" : "info",
+                    hasBlk ? "Template block definition present in target." : `Template block definition "${blockName}" missing.`
+                );
+            }
+
+            // 6. Geometry diff check
+            if ((targetParsed.entities || []).length > 0 && (templateParsed.entities || []).length > 0) {
+                try {
+                    const gdiff = E().diffGeometry(templateParsed, targetParsed);
+                    if (gdiff.modified && gdiff.modified.length > 0) {
+                        gdiff.modified.slice(0, 15).forEach(m => {
+                            const changeDetails = m.changes.map(c => `${c.field}: ${c.from} -> ${c.to}`).join("; ");
+                            addRow(
+                                "Geometry",
+                                `${m.type} on ${m.layer}`,
+                                "MISMATCH",
+                                "Modified Entity",
+                                "Reference Geometry",
+                                "warning",
+                                changeDetails || "Entity coordinates or geometry parameters shifted."
+                            );
+                        });
+                    }
+                    if (gdiff.added && gdiff.added.length > 0) {
+                        gdiff.added.slice(0, 15).forEach(a => {
+                            addRow(
+                                "Geometry",
+                                `${a.type} on ${a.layer}`,
+                                "MISMATCH",
+                                "Added entity",
+                                "—",
+                                "info",
+                                `New entity found on layer "${a.layer}".`
+                            );
+                        });
+                    }
+                    if (gdiff.summary && gdiff.summary.identical) {
+                        addRow(
+                            "Geometry",
+                            "All Entities",
+                            "MATCH",
+                            `${(targetParsed.entities || []).length} entities`,
+                            `${(templateParsed.entities || []).length} entities`,
+                            "pass",
+                            "Drawing geometry matches template reference identically."
+                        );
+                    }
+                } catch (_) {}
+            }
+
+            // 7. Auto-correct check
+            try {
+                const healed = E().healDxf(targetText, templateText);
+                if (healed && healed.healedDxf) {
+                    gridState.lastHealedDxf = healed.healedDxf;
+                    const autoFixBtn = $("btn-grid-auto-fix");
+                    if (autoFixBtn) {
+                        autoFixBtn.style.display = "inline-flex";
+                        window.setSafeHTML(autoFixBtn, `<i class="fa-solid fa-wand-magic-sparkles"></i> Download Auto-Corrected DXF (${healed.summary.healed} fixed)`);
+                    }
+                }
+            } catch (_) {}
+
+        } else {
+            let isJsonTemplate = false;
+            let jsonStd = null;
+            try {
+                jsonStd = JSON.parse(templateText);
+                if (jsonStd && (jsonStd.layers || jsonStd.name)) isJsonTemplate = true;
+            } catch (_) {}
+
+            if (isTargetDxf && isJsonTemplate) {
+                try {
+                    const checkResult = E().checkStandards(targetParsed, jsonStd);
+                    (checkResult.violations || []).forEach(v => {
+                        const isMissing = v.code.includes("MISSING");
+                        addRow(
+                            "Standard Check",
+                            v.layer || v.rule || v.code,
+                            isMissing ? "MISSING" : "MISMATCH",
+                            v.actual != null ? String(v.actual) : "Violated",
+                            v.expected != null ? String(v.expected) : "Standard Spec",
+                            v.severity || (isMissing ? "error" : "warning"),
+                            v.message || `Standard check violation: ${v.code}`
+                        );
+                    });
+                    if (checkResult.summary?.passed) {
+                        addRow("Standard Check", jsonStd.name || "JSON Standard", "MATCH", "Passed", "Standard Spec", "pass", "Drawing passed all standard checks.");
+                    }
+                } catch (e) {
+                    addRow("Standard Check", "JSON Validation", "MISMATCH", "Error", "Standard Spec", "error", e.message);
+                }
+            } else {
+                const tgtLines = targetText.split(/\r?\n/).filter(l => l.trim().length > 0);
+                const tplLines = templateText.split(/\r?\n/).filter(l => l.trim().length > 0);
+                const lineCountMatch = tgtLines.length === tplLines.length;
+                addRow(
+                    "Text Structure",
+                    "Line Count",
+                    lineCountMatch ? "MATCH" : "MISMATCH",
+                    `${tgtLines.length} lines`,
+                    `${tplLines.length} lines`,
+                    lineCountMatch ? "pass" : "warning",
+                    lineCountMatch ? "Line count matches." : "Target line count differs from Template standard."
+                );
+
+                const sampleLimit = Math.min(10, Math.max(tgtLines.length, tplLines.length));
+                for (let i = 0; i < sampleLimit; i++) {
+                    const tl = tgtLines[i] || "";
+                    const pl = tplLines[i] || "";
+                    const m = tl === pl;
+                    addRow(
+                        "Line Record",
+                        `Line #${i + 1}`,
+                        m ? "MATCH" : "MISMATCH",
+                        tl || "— (Missing)",
+                        pl || "— (Missing)",
+                        m ? "pass" : "warning",
+                        m ? "Line matches template." : "Content difference at line."
+                    );
+                }
+            }
+        }
+
+        gridState.results = items;
+        renderResultsGrid();
+
+        const gridCard = $("compare-grid-card");
+        if (gridCard) {
+            gridCard.style.display = "block";
+            gridCard.scrollIntoView?.({ behavior: "smooth" });
+        }
+
+        const matches = items.filter(r => r.status === "MATCH").length;
+        const mismatches = items.filter(r => r.status === "MISMATCH").length;
+        const missing = items.filter(r => r.status === "MISSING").length;
+
+        if (statusMsg) {
+            statusMsg.textContent = `Comparison complete: ${items.length} items evaluated (${matches} matches, ${mismatches} mismatches, ${missing} missing).`;
+        }
+        ctx.showToast(`Comparison complete: ${items.length} items evaluated.`);
+    }
+
+    function loadDemoPair(ctx) {
+        ctx = ctx || { showToast() {} };
+        setTargetFile("Demo_Target_Corridor.dxf", SAMPLES.target);
+        setTemplateFile("Demo_FDOT_Master_Template.dxf", SAMPLES.master);
+        const statusMsg = $("compare-status-msg");
+        if (statusMsg) statusMsg.textContent = "Demo Target and Template files loaded. Click Execute to compare.";
+        ctx.showToast("Demo Target and Template loaded. Click Execute.");
+    }
+
+    function resetGridUI(ctx) {
+        ctx = ctx || { showToast() {} };
+        gridState.targetFile = null;
+        gridState.templateFile = null;
+        gridState.results = [];
+        gridState.activeFilter = "all";
+        gridState.searchTerm = "";
+        gridState.lastHealedDxf = null;
+
+        const targetText = $("target-file-text");
+        if (targetText) targetText.value = "";
+        const targetInput = $("target-file-input");
+        if (targetInput) targetInput.value = "";
+        const targetMeta = $("target-file-meta");
+        if (targetMeta) targetMeta.textContent = "";
+
+        const templateText = $("template-file-text");
+        if (templateText) templateText.value = "";
+        const templateInput = $("template-file-input");
+        if (templateInput) templateInput.value = "";
+        const templateMeta = $("template-file-meta");
+        if (templateMeta) templateMeta.textContent = "";
+
+        const statusMsg = $("compare-status-msg");
+        if (statusMsg) statusMsg.textContent = "Ready. Select Target and Template files, then click Execute.";
+
+        const gridCard = $("compare-grid-card");
+        if (gridCard) gridCard.style.display = "none";
+
+        const autoFixBtn = $("btn-grid-auto-fix");
+        if (autoFixBtn) autoFixBtn.style.display = "none";
+
+        ctx.showToast("Comparison inputs reset.");
+    }
+
+    function exportGridCsv(ctx) {
+        ctx = ctx || { showToast() {} };
+        if (!gridState.results || gridState.results.length === 0) {
+            ctx.showToast("No comparison records to export.", true);
+            return;
+        }
+        const headers = ["Index", "Category", "Item_Name", "Status", "Target_Value", "Template_Value", "Severity", "Diagnostic_Details"];
+        const escapeCsv = val => `"${String(val ?? "").replace(/"/g, '""')}"`;
+        const rows = [headers.join(",")];
+        gridState.results.forEach((r, idx) => {
+            rows.push([
+                idx + 1,
+                escapeCsv(r.category),
+                escapeCsv(r.name),
+                escapeCsv(r.status),
+                escapeCsv(r.targetVal),
+                escapeCsv(r.templateVal),
+                escapeCsv(r.severity),
+                escapeCsv(r.details)
+            ].join(","));
+        });
+        const csvData = rows.join("\r\n");
+        const filename = `Comparison_${(gridState.targetFile?.name || "target").replace(/\.[^.]+$/, "")}_vs_${(gridState.templateFile?.name || "template").replace(/\.[^.]+$/, "")}.csv`;
+        if (window.COGO && window.COGO.downloadText) {
+            window.COGO.downloadText(filename, csvData, "text/csv");
+        } else {
+            const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        ctx.showToast(`Exported ${gridState.results.length} rows to ${filename}.`);
+    }
+
+    function sendGridToReports(ctx) {
+        ctx = ctx || { showToast() {} };
+        if (!gridState.results || gridState.results.length === 0) {
+            ctx.showToast("No comparison results to send.", true);
+            return;
+        }
+        const summary = {
+            total: gridState.results.length,
+            matches: gridState.results.filter(r => r.status === "MATCH").length,
+            mismatches: gridState.results.filter(r => r.status === "MISMATCH").length,
+            missing: gridState.results.filter(r => r.status === "MISSING").length,
+            score: $("grid-stat-score")?.textContent || "100%",
+        };
+        const repName = `Comparison: ${gridState.targetFile?.name || "Target"} vs ${gridState.templateFile?.name || "Template"}`;
+        if (window.Reports && typeof window.Reports.addReport === "function") {
+            window.Reports.addReport({
+                id: "cmp-" + Date.now(),
+                type: "standards-compare",
+                category: "standards",
+                title: repName,
+                date: new Date().toISOString(),
+                status: summary.mismatches > 0 || summary.missing > 0 ? "Flagged" : "Compliant",
+                score: summary.score,
+                details: `Evaluated ${summary.total} items (${summary.matches} matches, ${summary.mismatches} mismatches, ${summary.missing} missing).`,
+                items: gridState.results
+            });
+            ctx.showToast("Comparison report saved to Reports Hub.");
+        } else {
+            ctx.showToast("Comparison report captured.");
+        }
+    }
+
+    function downloadAutoCorrectedDxf(ctx) {
+        ctx = ctx || { showToast() {} };
+        if (!gridState.lastHealedDxf) {
+            if (gridState.targetFile?.text && gridState.templateFile?.text) {
+                try {
+                    const healed = E().healDxf(gridState.targetFile.text, gridState.templateFile.text);
+                    gridState.lastHealedDxf = healed.healedDxf;
+                } catch (err) {
+                    ctx.showToast("Auto-correct failed: " + err.message, true);
+                    return;
+                }
+            }
+        }
+        if (gridState.lastHealedDxf) {
+            const outName = (gridState.targetFile?.name || "drawing").replace(/\.dxf$/i, "") + ".corrected.dxf";
+            if (window.COGO && window.COGO.downloadText) {
+                window.COGO.downloadText(outName, gridState.lastHealedDxf, "application/dxf");
+            }
+            ctx.showToast(`Downloaded auto-corrected drawing: ${outName}.`);
+        } else {
+            ctx.showToast("No corrected drawing available.", true);
+        }
+    }
+
     // ── Plugin ──────────────────────────────────────────────────────────────
 
     const Plugin = {
-        init() { renderControls(); },
-        onTabActivate() { renderControls(); if (state.lastReport || state.lastHeal) renderResults({ showToast() {} }); },
+        init() {
+            renderControls();
+            if ($("target-file-text") && !gridState.targetFile && state.files.target) {
+                setTargetFile(state.files.target.name, state.files.target.text);
+            }
+            if ($("template-file-text") && !gridState.templateFile && (state.files.master || state.files.standard)) {
+                const tpl = state.files.master || state.files.standard;
+                setTemplateFile(tpl.name, tpl.text);
+            }
+        },
+        onTabActivate() {
+            renderControls();
+            if (state.lastReport || state.lastHeal) renderResults({ showToast() {} });
+            if (gridState.results && gridState.results.length > 0) renderResultsGrid();
+        },
 
         setupEvents(ctx) {
             const root = $("tab-stdn-compare");
             if (!root) return;
 
-            // Delegated clicks for the dynamically-rendered controls + results.
+            // Delegated clicks for the dynamically-rendered controls + results + grid.
             root.addEventListener("click", e => {
+                if (e.target.id === "target-file-text") { $("target-file-input")?.click(); return; }
+                if (e.target.id === "template-file-text") { $("template-file-input")?.click(); return; }
+
+                const filterBtn = e.target.closest("[data-grid-filter]");
+                if (filterBtn) {
+                    const f = filterBtn.getAttribute("data-grid-filter");
+                    gridState.activeFilter = f;
+                    root.querySelectorAll("#grid-filter-pills .pill-btn").forEach(b => b.classList.toggle("active", b === filterBtn));
+                    renderResultsGrid();
+                    return;
+                }
+
                 const t = e.target.closest("button, [data-slot]");
                 if (!t) return;
                 const id = t.id;
 
+                // Home Page Target & Template Execute & Grid actions
+                if (id === "btn-compare-demo") { loadDemoPair(ctx); return; }
+                if (id === "btn-compare-clear") { resetGridUI(ctx); return; }
+                if (id === "btn-compare-execute") { executeGridComparison(ctx); return; }
+                if (id === "btn-browse-target") { $("target-file-input")?.click(); return; }
+                if (id === "btn-browse-template") { $("template-file-input")?.click(); return; }
+                if (id === "btn-grid-export-csv") { exportGridCsv(ctx); return; }
+                if (id === "btn-grid-to-reports") { sendGridToReports(ctx); return; }
+                if (id === "btn-grid-auto-fix") { downloadAutoCorrectedDxf(ctx); return; }
+
+                // Existing engine actions
                 if (id === "stdn-mode-check" && state.mode !== "check") { state.mode = "check"; renderControls(); return; }
                 if (id === "stdn-mode-heal" && state.mode !== "heal") { state.mode = "heal"; renderControls(); return; }
                 if (id === "stdn-run") { state.mode === "heal" ? runHeal(ctx) : runCheck(ctx); return; }
@@ -513,7 +1235,7 @@
                     state.files.reference = { name: "reference.dxf", text: SAMPLES.reference };
                     state.files.master = { name: "master.dxf", text: SAMPLES.master };
                     state.files.standard = null; state.useCustomStandard = false;
-                    state.standardId = "example-standard";   // the samples are architectural (WALLS/DIMS), not FDOT layers
+                    state.standardId = "example-standard";
                     renderControls(); ctx.showToast("Loaded the check sample (target + reference + master).");
                     return;
                 }
@@ -536,7 +1258,7 @@
                     state.standardId = "fdot-2026";
                     renderControls();
                     runCheck(ctx);
-                    $("stdn-results")?.scrollIntoView({ behavior: "smooth" });
+                    $("stdn-results")?.scrollIntoView?.({ behavior: "smooth" });
                     return;
                 }
                 if (id === "stdn-hero-sr50-demo") {
@@ -551,7 +1273,7 @@
                     state.standardId = "fdot-2026";
                     renderControls();
                     runCheck(ctx);
-                    $("stdn-results")?.scrollIntoView({ behavior: "smooth" });
+                    $("stdn-results")?.scrollIntoView?.({ behavior: "smooth" });
                     return;
                 }
                 if (id === "stdn-cert-btn") {
@@ -621,12 +1343,52 @@
                     fi.value = "";
                     return;
                 }
+                if (e.target.id === "target-file-input") {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) handleFileInput("target", f, ctx);
+                    e.target.value = "";
+                    return;
+                }
+                if (e.target.id === "template-file-input") {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) handleFileInput("template", f, ctx);
+                    e.target.value = "";
+                    return;
+                }
                 if (e.target.id === "stdn-use-custom") { state.useCustomStandard = e.target.checked; renderControls(); return; }
                 if (e.target.id === "stdn-std-select") { state.standardId = e.target.value; return; }
                 if (e.target.id === "stdn-heal-blocks") { state.healBlocks = e.target.checked; return; }
             });
 
-            // Drag & drop onto a slot.
+            // Search filter input for grid
+            const searchInp = $("grid-search-input");
+            if (searchInp) {
+                searchInp.addEventListener("input", e => {
+                    gridState.searchTerm = e.target.value;
+                    renderResultsGrid();
+                });
+            }
+
+            // Drag & drop onto a slot or Target/Template textboxes.
+            const setupDrop = (el, type) => {
+                if (!el) return;
+                el.addEventListener("dragover", e => {
+                    e.preventDefault();
+                    el.style.borderColor = "var(--primary)";
+                });
+                el.addEventListener("dragleave", () => {
+                    el.style.borderColor = "var(--border-subtle)";
+                });
+                el.addEventListener("drop", e => {
+                    e.preventDefault();
+                    el.style.borderColor = "var(--border-subtle)";
+                    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (f) handleFileInput(type, f, ctx);
+                });
+            };
+            setupDrop($("target-file-text"), "target");
+            setupDrop($("template-file-text"), "template");
+
             root.addEventListener("dragover", e => { const s = e.target.closest("[data-slot]"); if (s) { e.preventDefault(); s.style.borderColor = "var(--primary)"; } });
             root.addEventListener("dragleave", e => { const s = e.target.closest("[data-slot]"); if (s) s.style.borderColor = "var(--border-accent)"; });
             root.addEventListener("drop", e => {
@@ -643,5 +1405,17 @@
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);
 
     // Exposed for console debugging / tests.
-    window.StdnCompare = { state, SAMPLES, runCheck, runHeal };
+    window.StdnCompare = {
+        state,
+        gridState,
+        SAMPLES,
+        runCheck,
+        runHeal,
+        executeGridComparison,
+        renderResultsGrid,
+        loadDemoPair,
+        resetGridUI,
+        setTargetFile,
+        setTemplateFile,
+    };
 })();
