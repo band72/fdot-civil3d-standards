@@ -258,6 +258,32 @@
                 </ul>`
         },
         {
+            id: "landxml-doc",
+            title: "3.13  LandXML Studio & Interop",
+            html: `
+                <p><em>Purpose:</em> ingest, validate, visualize, and generate schema-compliant <strong>LandXML 1.0, 1.1, 1.2, and 2.0</strong> geometry files for parcels, alignments, surfaces, and survey points without requiring Autodesk Civil 3D.</p>
+                <h4>Capabilities</h4>
+                <ul>
+                    <li><strong>Parsing:</strong> Extracts coordinate metadata (EPSG 2236 Florida State Plane, US Survey Feet), <code>&lt;CgPoints&gt;</code>, <code>&lt;Parcels&gt;</code> (with line and circular curve geometry, computed vs stated acreage), <code>&lt;Alignments&gt;</code> (centerline curves and tangents), and <code>&lt;Surfaces&gt;</code> (TIN vertices and faces).</li>
+                    <li><strong>2D Interactive Canvas:</strong> Renders boundary parcel polylines (blue), highway alignment centerlines (amber), and survey points (red) in real-time with state plane coordinate bounding boxes.</li>
+                    <li><strong>Linework Editor Bridge:</strong> Click <em>Send to Linework Editor</em> to instantly convert LandXML parcels into editable survey figures with preserved point names and circular arc bulges.</li>
+                    <li><strong>Export:</strong> Generate strict LandXML 1.2 XML files directly from Linework Editor models, EFB chains, or imported survey traverses.</li>
+                </ul>`
+        },
+        {
+            id: "batchprocess-doc",
+            title: "3.14  Multi-Sheet Batch Project Auditor",
+            html: `
+                <p><em>Purpose:</em> audit entire electronic submittal packages of 10 to 100+ DXF and LandXML drawings simultaneously against FDOT CADD standards.</p>
+                <h4>Batch Workflow</h4>
+                <ul>
+                    <li><strong>Multi-File Ingestion:</strong> Drag and drop multiple drawing files simultaneously, or browse an entire submittal folder tree. Click <em>Load Demo Project Batch</em> for an instant 4-sheet sample audit.</li>
+                    <li><strong>Compliance Matrix:</strong> Evaluates every sheet in parallel for layer naming/color compliance, zero-length entities, unclosed boundary gaps, bow-tie self-intersections, and off-grid coordinates. Categorizes sheets into <strong>PASS</strong>, <strong>WARN</strong>, or <strong>FAIL</strong>.</li>
+                    <li><strong>Project Grade &amp; Verdict:</strong> Aggregates sheet metrics into an overall project compliance score (%) with readiness verdicts (<em>SUBMITTAL READY</em>, <em>REVISION REQUIRED</em>, or <em>SUBMITTAL BLOCKED</em>).</li>
+                    <li><strong>Consolidated Deliverables:</strong> Download a master AutoCAD batch script (<code>fdot_batch_fix.scr</code>) that automatically executes <code>AUDIT</code>, layer color normalization, <code>PURGE</code>, and <code>OVERKILL</code> across all project drawings, plus printable HTML and Markdown Master Submittal Reports.</li>
+                </ul>`
+        },
+        {
             id: "accounts",
             title: "4. Accounts, sign-in & client templates (CMS tab)",
             html: `
@@ -326,6 +352,9 @@
                         <tr><td><code>parcel_boundary.dxf / efbk.dxf</code></td><td>Parcel → DXF, EFB</td><td>Closed LWPOLYLINE + labels on AI-PROP-BNDY / AI-NODE-TEXT or EFB figure layers</td></tr>
                         <tr><td><code>parcel_cogo.scr</code></td><td>Parcel → DXF</td><td>AutoCAD PLINE script from the calls</td></tr>
                         <tr><td><code>plss_breakdown_report.log</code></td><td>PLSS</td><td>Per-parcel dimensions, acreage, courses, coordinates</td></tr>
+                        <tr><td><code>export.xml / *.landxml</code></td><td>LandXML Studio</td><td>Schema-compliant LandXML 1.2 geometry with <code>&lt;Parcels&gt;</code>, <code>&lt;Alignments&gt;</code>, and <code>&lt;CgPoints&gt;</code></td></tr>
+                        <tr><td><code>fdot_batch_fix.scr</code></td><td>Batch Auditor</td><td>Consolidated AutoCAD batch script running AUDIT, color resets, PURGE, and OVERKILL across all project drawings</td></tr>
+                        <tr><td><code>fdot_master_submittal_report.html / .md</code></td><td>Batch Auditor</td><td>Consolidated project QA/QC submittal scorecard and sheet compliance matrix</td></tr>
                     </tbody>
                 </table>`
         },

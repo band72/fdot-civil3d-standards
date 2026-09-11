@@ -56,6 +56,10 @@
                         <i class="fa-solid fa-book-open"></i>
                         <span>Electronic Field Book</span>
                     </button>
+                    <button class="nav-btn" data-tab="tab-batchprocess">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        <span>Batch Project Auditor</span>
+                    </button>
                 </div>
 
                 <div class="nav-section">
@@ -71,6 +75,10 @@
                     <button class="nav-btn" data-tab="tab-plat2dxf">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>Plat &rarr; DXF / Points</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-landxml">
+                        <i class="fa-solid fa-code-fork"></i>
+                        <span>LandXML Studio</span>
                     </button>
                 </div>
 
@@ -702,6 +710,15 @@
                 </div>
             </section>
 
+            <!-- Multi-Sheet Batch Project Auditor -->
+            <section id="tab-batchprocess" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-boxes-stacked" style="color:var(--primary);"></i> Multi-Sheet Batch Project Auditor</h2>
+                    <p class="subtitle">Audit entire submittal packages of DXF and LandXML drawings simultaneously against FDOT CADD standards. Evaluates layer conformance, unclosed boundary gaps, bow-ties, and generates consolidated project scorecards and batch auto-fix scripts.</p>
+                    <div id="batchprocess-controls" style="margin-top:1rem;"></div>
+                </div>
+            </section>
+
             <!-- Legal Description QC (ported from BoundaryQC desktop app) -->
             <section id="tab-legal-desc" class="tab-pane">
                 <div class="glass-panel" style="padding:1.5rem;">
@@ -736,6 +753,15 @@
                         <button class="btn btn-secondary" id="btn-plss-report"><i class="fa-solid fa-file-invoice"></i> Breakdown Report</button>
                     </div>
                     <div id="plss-results" class="results-box hidden" style="margin-top:1rem;"></div>
+                </div>
+            </section>
+
+            <!-- LandXML Studio & Interop -->
+            <section id="tab-landxml" class="tab-pane">
+                <div class="glass-panel" style="padding:1.5rem;">
+                    <h2><i class="fa-solid fa-code-fork" style="color:var(--primary);"></i> LandXML Studio &amp; Interop</h2>
+                    <p class="subtitle">Parse, inspect, 2D preview, and export schema-compliant LandXML 1.2/2.0 parcels, alignments, surfaces, and survey points. Bridges directly with the Linework Editor and Electronic Field Book.</p>
+                    <div id="landxml-controls" style="margin-top:1rem;"></div>
                 </div>
             </section>
 
@@ -1397,6 +1423,8 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/plat2dxf/plat2dxf.js"></script>
     <script src="plugins/linework/linework.js"></script>
     <script src="plugins/efbk/efbk.js"></script>
+    <script src="plugins/landxml/landxml.js"></script>
+    <script src="plugins/batchprocess/batchprocess.js"></script>
     <script src="plugins/help/help.js"></script>
 
     <!-- Core App Coordinator -->

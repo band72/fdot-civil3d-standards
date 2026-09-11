@@ -104,6 +104,8 @@ function load() {
         "plugins/plat2dxf/plat2dxf.js",
         "plugins/linework/linework.js",
         "plugins/efbk/efbk.js",
+        "plugins/landxml/landxml.js",
+        "plugins/batchprocess/batchprocess.js",
         "plugins/help/help.js"
     ];
 
