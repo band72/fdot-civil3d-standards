@@ -767,7 +767,36 @@
             this._applyView();
             this.render();
         },
-        _applyView() { this.svg.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.w} ${this.view.h}`); },
+        zoom(factor, centerPt) {
+            const k = Number.isFinite(factor) && factor > 0 ? factor : 1;
+            let cx, cy;
+            if (centerPt && Number.isFinite(centerPt.x) && Number.isFinite(centerPt.y)) {
+                cx = centerPt.x;
+                cy = centerPt.y;
+            } else {
+                cx = this.view.x + this.view.w / 2;
+                cy = this.view.y + this.view.h / 2;
+            }
+            const newW = Math.max(0.5, Math.min(1e7, this.view.w * k));
+            const newH = Math.max(0.5, Math.min(1e7, this.view.h * k));
+            const fx = (cx - this.view.x) / (this.view.w || 1);
+            const fy = (cy - this.view.y) / (this.view.h || 1);
+            this.view.w = newW;
+            this.view.h = newH;
+            this.view.x = cx - fx * newW;
+            this.view.y = cy - fy * newH;
+            this._applyView();
+            this.render();
+        },
+        zoomIn(factor = 0.8) {
+            this.zoom(factor);
+            if (this._hud) this._hud(`Zoom In (${Math.round((1 / factor) * 100)}%)`);
+        },
+        zoomOut(factor = 1.25) {
+            this.zoom(factor);
+            if (this._hud) this._hud(`Zoom Out (${Math.round(100 / factor)}%)`);
+        },
+        _applyView() { if (this.svg && typeof this.svg.setAttribute === "function") this.svg.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.w} ${this.view.h}`); },
         _mk(tag, attrs) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; },
 
         render() {
@@ -1655,6 +1684,11 @@
             }));
             ["lw-closetol", "lw-snaptol"].forEach(id => document.getElementById(id)?.addEventListener("change", () => Ed._afterChange()));
 
+            document.getElementById("btn-lw-zoom-in")?.addEventListener("click", () => Ed.zoomIn());
+            document.getElementById("btn-lw-zoom-out")?.addEventListener("click", () => Ed.zoomOut());
+            document.getElementById("btn-lw-float-zoom-in")?.addEventListener("click", () => Ed.zoomIn());
+            document.getElementById("btn-lw-float-zoom-out")?.addEventListener("click", () => Ed.zoomOut());
+            document.getElementById("btn-lw-float-fit")?.addEventListener("click", () => Ed.fit());
             document.getElementById("btn-lw-fit")?.addEventListener("click", () => Ed.fit());
             document.getElementById("btn-lw-undo")?.addEventListener("click", () => Ed.undo());
             document.getElementById("btn-lw-redo")?.addEventListener("click", () => Ed.redo());
@@ -1755,6 +1789,9 @@
                 else if (e.key === "ArrowRight") { e.preventDefault(); Ed.playStep(1); }
                 else if (e.key === "ArrowLeft") { e.preventDefault(); Ed.playStep(-1); }
                 else if (e.key === " ") { e.preventDefault(); Ed.playToggle(); }
+                else if (e.key === "+" || e.key === "=") { e.preventDefault(); Ed.zoomIn(); }
+                else if (e.key === "-" || e.key === "_") { e.preventDefault(); Ed.zoomOut(); }
+                else if ((e.key.toLowerCase() === "f" || e.key === "Home") && !e.ctrlKey && !e.metaKey) { e.preventDefault(); Ed.fit(); }
                 else if ((e.key === "Delete" || e.key === "Backspace") && Ed.sel && Ed.sel.kind === "vert") {
                     e.preventDefault(); Ed.deleteVertex(Ed.sel.figId, Ed.sel.idx);
                 }

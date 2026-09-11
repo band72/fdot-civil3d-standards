@@ -206,6 +206,7 @@ class BillingPortalEngine {
         await this.setTier("Free");
         if (window.BoundaryQCCMS && window.BoundaryQCCMS.processStripeWebhook) {
             window.BoundaryQCCMS.processStripeWebhook({
+                id: "sub_del_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
                 type: "customer.subscription.deleted",
                 plan: "free",
                 amount: 0

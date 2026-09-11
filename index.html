@@ -830,8 +830,10 @@
 
                 <div style="display:grid; grid-template-columns: minmax(0,2.2fr) minmax(260px,1fr); gap:1rem; align-items:start;">
                     <div class="glass-panel" style="padding:0.75rem;">
-                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem;">
-                            <button class="btn btn-secondary btn-sm" id="btn-lw-fit" title="Zoom to fit"><i class="fa-solid fa-expand"></i> Fit</button>
+                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem; align-items:center;">
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-zoom-in" title="Zoom In (+)"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-zoom-out" title="Zoom Out (-)"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                            <button class="btn btn-secondary btn-sm" id="btn-lw-fit" title="Zoom to fit (F)"><i class="fa-solid fa-expand"></i> Fit</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-undo" title="Undo (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-redo" title="Redo (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
                             <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:0.3rem; margin-left:0.5rem;">
@@ -844,7 +846,22 @@
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-calls">Calls</button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-exp-report">Map Check</button>
                         </div>
-                        <div id="lw-editor" style="width:100%; height:440px; background:#0b1220; border:1px solid var(--glass-border); border-radius:var(--radius-sm); overflow:hidden; position:relative;"></div>
+                        <div style="position:relative; width:100%; height:440px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--glass-border);">
+                            <div id="lw-editor" style="width:100%; height:100%; background:#0b1220;"></div>
+                            <!-- Floating On-Canvas Zoom & Navigation Controls -->
+                            <div class="lw-floating-zoom" style="position:absolute; top:12px; right:12px; z-index:5; display:flex; flex-direction:column; gap:4px; background:rgba(11,18,32,0.85); padding:4px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 4px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);">
+                                <button type="button" class="btn btn-secondary btn-sm icon-btn" id="btn-lw-float-zoom-in" title="Zoom In (+)" style="width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; border:none; background:rgba(255,255,255,0.06); color:var(--text-primary); border-radius:4px; cursor:pointer;">
+                                    <i class="fa-solid fa-plus" style="font-size:0.8rem;"></i>
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm icon-btn" id="btn-lw-float-zoom-out" title="Zoom Out (-)" style="width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; border:none; background:rgba(255,255,255,0.06); color:var(--text-primary); border-radius:4px; cursor:pointer;">
+                                    <i class="fa-solid fa-minus" style="font-size:0.8rem;"></i>
+                                </button>
+                                <div style="height:1px; background:rgba(255,255,255,0.1); margin:2px 0;"></div>
+                                <button type="button" class="btn btn-secondary btn-sm icon-btn" id="btn-lw-float-fit" title="Zoom to Fit (F)" style="width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; border:none; background:rgba(255,255,255,0.06); color:var(--text-primary); border-radius:4px; cursor:pointer;">
+                                    <i class="fa-solid fa-expand" style="font-size:0.75rem;"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div id="lw-play" style="display:flex; align-items:center; gap:0.5rem; margin-top:0.4rem;">
                             <button class="btn btn-secondary btn-sm" id="btn-lw-play-back" title="Previous shot"><i class="fa-solid fa-backward-step"></i></button>
                             <button class="btn btn-secondary btn-sm" id="btn-lw-play" title="Play / pause the field shots in order"><i class="fa-solid fa-play"></i></button>

@@ -130,6 +130,14 @@ module.exports = function (t, env) {
     const bt2 = m2.figures.find(f => f.name === "BT");
 
     t.eq(sq.pts.length, 4, "SQ starts with 4 pts");
+    // zoom in & out controls
+    Ed.view = { x: -50, y: -50, w: 100, h: 100 };
+    t.ok(typeof Ed.zoomIn === "function", "Ed.zoomIn exists");
+    t.ok(typeof Ed.zoomOut === "function", "Ed.zoomOut exists");
+    Ed.zoomIn();
+    t.close(Ed.view.w, 80, 1e-4, "zoomIn reduces view dimensions (0.8x)");
+    Ed.zoomOut();
+    t.close(Ed.view.w, 100, 1e-4, "zoomOut scales back up (1.25x)");
     Ed.deleteVertex(sq.id, 0);
     t.eq(Ed._fig(sq.id).pts.length, 3, "deleteVertex removed one");
     Ed.undo();

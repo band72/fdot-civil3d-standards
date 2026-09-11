@@ -173,6 +173,27 @@ async function main() {
         console.log(`  ✓ Diagnostics rendered: ${diagVisible} | Contains skipped row alert: ${diagContent.includes("skipped")}`);
         if (!diagVisible || !diagContent.includes("skipped")) throw new Error("Linework diagnostics failed to render skipped row warning");
 
+        // Test Zoom In, Zoom Out, and Fit controls
+        const wInitial = await evaluate("window.Linework._Ed.view.w");
+        await evaluate("document.getElementById('btn-lw-zoom-in').click()");
+        const wAfterZoomIn = await evaluate("window.Linework._Ed.view.w");
+        console.log(`  ✓ Zoom In: initial width = ${wInitial.toFixed(1)}, after zoom in = ${wAfterZoomIn.toFixed(1)}`);
+        if (wAfterZoomIn >= wInitial) throw new Error("Zoom in did not reduce view width");
+
+        await evaluate("document.getElementById('btn-lw-zoom-out').click()");
+        const wAfterZoomOut = await evaluate("window.Linework._Ed.view.w");
+        console.log(`  ✓ Zoom Out: after zoom out = ${wAfterZoomOut.toFixed(1)}`);
+        if (wAfterZoomOut <= wAfterZoomIn) throw new Error("Zoom out did not increase view width");
+
+        // Test floating on-canvas zoom buttons
+        await evaluate("document.getElementById('btn-lw-float-zoom-in').click()");
+        const wFloatZoomIn = await evaluate("window.Linework._Ed.view.w");
+        if (wFloatZoomIn >= wAfterZoomOut) throw new Error("Floating zoom in failed");
+
+        await evaluate("document.getElementById('btn-lw-float-fit').click()");
+        const wAfterFit = await evaluate("window.Linework._Ed.view.w");
+        console.log(`  ✓ Fit reset view width: ${wAfterFit.toFixed(1)}`);
+
         // 8. System Logs Viewer & Verification
         console.log("\n[TEST 8] System Logs Viewer & Error Audit Stream");
         await evaluate("document.querySelector('[data-tab=\"tab-logging\"]').click()");
