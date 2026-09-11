@@ -20,7 +20,10 @@
         tab: "tab-landxml",
         icon: "fa-code-fork",
         tier: "Free",
-        dependencies: ["cogo"]
+        // Uses window.COGO, but that's core/cogo.js (a <script> loaded before any plugin,
+        // not a registered plugin) — "cogo" isn't a name any plugin registers under, so this
+        // would be a silent no-op in _resolveDependencyOrder(). No dependency to declare.
+        dependencies: []
     };
 
     const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");

@@ -16,9 +16,9 @@ const SUITES = ["cogo", "data", "dxf", "linework", "efbk", "landxml", "batchproc
     t.group("env/load");
     t.eq(loadRes.errors.length, 0, "all source files eval without error" +
         (loadRes.errors.length ? " — " + loadRes.errors.join("; ") : ""));
-    t.eq(loadRes.loaded.length, 26, "26 source files loaded");
+    t.eq(loadRes.loaded.length, 28, "28 source files loaded");
     ["COGO", "FDOT_DATA", "FDOTDXFInspector", "PluginRegistry", "BoundaryQCSecurity",
-        "BoundaryQCBilling", "BoundaryQCCMS", "Linework", "EFBK", "LandXML", "BatchProcess", "Reports", "Logging", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows"]
+        "BoundaryQCBilling", "BoundaryQCCMS", "Security", "Dashboard", "Linework", "EFBK", "LandXML", "BatchProcess", "Reports", "Logging", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows"]
         .forEach(g => t.ok(typeof loadRes.win[g] !== "undefined", "global " + g + " present"));
 
     const want = process.argv.slice(2).filter(a => SUITES.includes(a));

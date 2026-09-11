@@ -494,7 +494,7 @@ if (window.PluginRegistry) {
                 const submitBtn = document.getElementById("checkout-submit-btn");
                 if (submitBtn) {
                     submitBtn.disabled = true;
-                    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing Stripe Payment...`;
+                    window.setSafeHTML(submitBtn, `<i class="fa-solid fa-spinner fa-spin"></i> Processing Stripe Payment...`);
                 }
 
                 try {
@@ -512,7 +512,7 @@ if (window.PluginRegistry) {
                 } finally {
                     if (submitBtn) {
                         submitBtn.disabled = false;
-                        submitBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Confirm &amp; Activate Plan`;
+                        window.setSafeHTML(submitBtn, `<i class="fa-solid fa-lock"></i> Confirm &amp; Activate Plan`);
                     }
                 }
             });

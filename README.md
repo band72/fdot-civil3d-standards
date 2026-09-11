@@ -81,7 +81,9 @@ and exposes the site globals; `tests/README.md` maps each suite.
 | `plat2dxf` | Parcel → DXF / Points / COGO | Bearing/distance call list → ASCII DXF, PNEZD, AutoCAD COGO script. |
 | `spatial-engine` | — | Recursive Guttman R-tree 2D index + Euler-spiral (Fresnel) solver. |
 | `security-pki` | — | Pure-JS FIPS 180-4 SHA-256, F.A.C. PKI/TSA gate checks, hash-chain verifier, WebAuthn (fail-closed). |
-| `cms-engine` / `billing` | CMS / Commercial | **Demo** PBKDF2 sign-in + sessions + per-user templates + audit chain; tier UI + ephemeral ECDSA JWTs. Not a security boundary. |
+| `cms-engine` / `billing` | — | **Demo** data/auth layer (`window.BoundaryQCCMS`): PBKDF2 sign-in + sessions + per-user templates + audit chain; tier limits + ephemeral ECDSA JWTs. No UI of its own — not a security boundary. |
+| `security` | Account menu (modal) | The sign-in / register modal, header account indicator, change-password, sign-out, WebAuthn. UI split out of `cms-engine`. Not the same plugin as `security-pki` (the crypto/PKI engine). |
+| `dashboard` | Admin Dashboard | Client master templates, DOT projects & submittal vault, transaction ledger, team directory / user management (RBAC), hash-chained audit log viewer. UI split out of `cms-engine`. |
 | `help` | Help & User Manual | Per-tab usage, input formats, limits. |
 
 There is also a Civil 3D C# ribbon add-in scaffold under

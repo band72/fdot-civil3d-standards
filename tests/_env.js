@@ -93,6 +93,8 @@ function load() {
         "plugins/security-pki/security-pki.js",
         "plugins/billing/billing.js",
         "plugins/cms-engine/cms-engine.js",
+        "plugins/security/security.js",
+        "plugins/dashboard/dashboard.js",
         "plugins/dxf-auditor/dxf-parser.js",
         "plugins/dxf-auditor/dxf-auditor.js",
         "plugins/stdn-compare/stdn-engine.js",

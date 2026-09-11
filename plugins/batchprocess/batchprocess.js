@@ -639,7 +639,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             `;
         }).join("");
 
-        window.setSafeHTML(tbody, rows);
+        window.setSafeRows(tbody, rows);
     }
 
     // ── Plugin Object & Public API ──────────────────────────────────────────

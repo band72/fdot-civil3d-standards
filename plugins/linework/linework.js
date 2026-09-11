@@ -1402,8 +1402,7 @@
 
             if (!f.pts || f.pts.length === 0) {
                 const emptyRow = `<tr><td colspan="8" style="text-align:center; padding:1.2rem; color:var(--text-muted);">No points in figure "${clean(f.name)}". Click "Add Point" above to add one.</td></tr>`;
-                if (window.setSafeRows) window.setSafeRows(tbody, emptyRow);
-                else tbody.innerHTML = emptyRow;
+                window.setSafeRows(tbody, emptyRow);
                 return;
             }
 
@@ -1465,8 +1464,7 @@
                 </tr>`;
             }).join("");
 
-            if (window.setSafeRows) window.setSafeRows(tbody, rowsHtml);
-            if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = rowsHtml;
+            window.setSafeRows(tbody, rowsHtml);
         },
 
         _renderChecks() {
@@ -1811,7 +1809,7 @@ ${cgXml}
                 `;
             }
             html += `</div>`;
-            box.innerHTML = html;
+            window.setSafeHTML(box, html);
 
             document.getElementById("btn-lw-toggle-errors")?.addEventListener("click", () => {
                 const list = document.getElementById("lw-skipped-rows-list");
@@ -1823,7 +1821,7 @@ ${cgXml}
                 }
             });
         } else if (res.type === "calls") {
-            box.innerHTML = `
+            window.setSafeHTML(box, `
                 <div style="border:1px solid var(--primary, #0284c7); background:rgba(2,132,199,0.08); border-radius:6px; padding:0.75rem 1rem; font-size:0.85rem; display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <i class="fa-solid fa-compass-drafting" style="color:var(--primary); margin-right:0.4rem;"></i>
@@ -1831,14 +1829,14 @@ ${cgXml}
                     </div>
                     <button class="btn btn-secondary btn-sm" id="btn-lw-goto-logs2" style="font-size:0.75rem;"><i class="fa-solid fa-terminal"></i> View Logs</button>
                 </div>
-            `;
+            `);
             document.getElementById("btn-lw-goto-logs2")?.addEventListener("click", () => {
                 if (window.PluginRegistry && window.PluginRegistry.activateTab) {
                     window.PluginRegistry.activateTab("tab-logging");
                 }
             });
         } else if (res.type === "error") {
-            box.innerHTML = `
+            window.setSafeHTML(box, `
                 <div style="border:1px solid var(--danger, #ef4444); background:rgba(239,68,68,0.08); border-radius:6px; padding:0.75rem 1rem; font-size:0.85rem; display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <i class="fa-solid fa-circle-xmark" style="color:var(--danger, #ef4444); margin-right:0.4rem;"></i>
@@ -1846,7 +1844,7 @@ ${cgXml}
                     </div>
                     <button class="btn btn-secondary btn-sm" id="btn-lw-goto-logs3" style="font-size:0.75rem;"><i class="fa-solid fa-terminal"></i> View Logs</button>
                 </div>
-            `;
+            `);
             document.getElementById("btn-lw-goto-logs3")?.addEventListener("click", () => {
                 if (window.PluginRegistry && window.PluginRegistry.activateTab) {
                     window.PluginRegistry.activateTab("tab-logging");

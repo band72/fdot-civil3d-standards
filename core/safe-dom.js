@@ -14,10 +14,12 @@
 
     const PURIFY_CONFIG = {
         USE_PROFILES: { html: true },
+        ALLOW_DATA_ATTR: true,
         // Form controls are used by the modal helpers in core/app.js
         ADD_TAGS: ["input", "button", "textarea", "select", "option"],
         ADD_ATTR: ["target", "data-plan", "data-price", "data-tab", "data-layer",
-                   "data-email", "data-id", "data-discipline", "value", "readonly", "rows", "type"],
+                   "data-email", "data-id", "data-discipline", "data-lw", "data-fig", "data-idx", "data-prop",
+                   "value", "readonly", "rows", "type", "step", "placeholder", "title", "colspan", "aria-label", "aria-hidden"],
         FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onanimationstart"]
     };
 
@@ -60,10 +62,15 @@
         const clean = safeHTML("<table><tbody>" + (rowsHtml || "") + "</tbody></table>");
         const tpl = document.createElement("template");
         tpl.innerHTML = clean; // already sanitized; parsed here in valid table context
-        const tb = tpl.content.querySelector("tbody");
+        const tb = tpl.content && typeof tpl.content.querySelector === "function" ? tpl.content.querySelector("tbody") : null;
         const rows = tb ? Array.prototype.filter.call(tb.childNodes, function (n) { return n.nodeType === 1; }) : [];
-        if (el.replaceChildren) el.replaceChildren.apply(el, rows);
-        else { el.innerHTML = ""; rows.forEach(function (n) { el.appendChild(n); }); }
+        if (rows.length > 0) {
+            if (el.replaceChildren) el.replaceChildren.apply(el, rows);
+            else { el.innerHTML = ""; rows.forEach(function (n) { el.appendChild(n); }); }
+        } else {
+            // Environment fallback (e.g. headless mock DOM where <template> querySelector does not simulate DOM tree)
+            el.innerHTML = rowsHtml || "";
+        }
     }
 
     window.safeHTML = safeHTML;

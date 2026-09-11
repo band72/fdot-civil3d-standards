@@ -356,7 +356,7 @@
         const filtered = getReports({ category: _currentFilter, query: _searchQuery });
 
         if (filtered.length === 0) {
-            window.setSafeHTML(tbody, `
+            window.setSafeRows(tbody, `
                 <tr>
                     <td colspan="6" style="padding:2.5rem; text-align:center; color:var(--text-muted);">
                         <i class="fa-solid fa-clipboard" style="font-size:2rem; margin-bottom:0.5rem; opacity:0.3; display:block;"></i>
@@ -395,7 +395,7 @@
             `;
         }).join("");
 
-        window.setSafeHTML(tbody, rows);
+        window.setSafeRows(tbody, rows);
 
         // Bind row action buttons
         tbody.querySelectorAll(".btn-report-view").forEach(b => {
@@ -450,17 +450,17 @@
             }
             if (toggleBtn) {
                 toggleBtn.style.display = "inline-flex";
-                toggleBtn.innerHTML = `<i class="fa-solid fa-code"></i> View Source`;
+                window.setSafeHTML(toggleBtn, `<i class="fa-solid fa-code"></i> View Source`);
                 toggleBtn.onclick = () => {
                     _showingHtmlFrame = !_showingHtmlFrame;
                     if (_showingHtmlFrame) {
                         frame.style.display = "block";
                         body.style.display = "none";
-                        toggleBtn.innerHTML = `<i class="fa-solid fa-code"></i> View Source`;
+                        window.setSafeHTML(toggleBtn, `<i class="fa-solid fa-code"></i> View Source`);
                     } else {
                         frame.style.display = "none";
                         body.style.display = "block";
-                        toggleBtn.innerHTML = `<i class="fa-solid fa-browser"></i> View Rendered`;
+                        window.setSafeHTML(toggleBtn, `<i class="fa-solid fa-browser"></i> View Rendered`);
                     }
                 };
             }

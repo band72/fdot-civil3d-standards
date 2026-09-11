@@ -670,8 +670,7 @@
 
         if (filtered.length === 0) {
             const emptyHtml = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.9rem;"><i class="fa-solid fa-filter-circle-xmark" style="font-size:1.5rem; display:block; margin-bottom:0.5rem;"></i> No records match the current filter or search criteria.</td></tr>`;
-            if (window.setSafeRows) window.setSafeRows(tbody, emptyHtml);
-            if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = emptyHtml;
+            window.setSafeRows(tbody, emptyHtml);
             return;
         }
 
@@ -688,8 +687,7 @@
             </tr>
         `).join("");
 
-        if (window.setSafeRows) window.setSafeRows(tbody, rowsHtml);
-        if (!tbody.children?.length && !tbody.innerHTML) tbody.innerHTML = rowsHtml;
+        window.setSafeRows(tbody, rowsHtml);
     }
 
     function executeGridComparison(ctx) {
