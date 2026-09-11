@@ -149,8 +149,8 @@ module.exports = async function (t, env) {
     const polySvg = E.buildSvgOverlay(polyRef, polyTgt, polyDiff);
     t.match(polySvg, /<polyline class="modified" points="0,0 10,0 10,-15"/, "POLYLINE renders points into svg overlay");
 
-    // ── standardFromDxf + dxfMender (self-heal) ─────────────────
-    t.group("stdn/self-heal");
+    // ── standardFromDxf + dxfMender (auto-correct) ───────────────
+    t.group("stdn/auto-correct");
     const derived = E.standardFromMasterDxf(masterModel);
     t.eq(derived.units, "millimeters", "derived units");
     t.eq(derived.layers.find(l => l.name === "WALLS").color, 1, "derived WALLS colour");
@@ -283,7 +283,7 @@ module.exports = async function (t, env) {
     // hand-edited / concatenated DXF still heals
     const blanked = S.messy.replace("0\nSECTION\n2\nENTITIES", "\n\n0\nSECTION\n\n2\nENTITIES\n");
     const healBlanked = E.healDxf(S.master, blanked);
-    t.gt(healBlanked.actions.length, 0, "self-heal runs on a blank-line-riddled target");
+    t.gt(healBlanked.actions.length, 0, "auto-correct runs on a blank-line-riddled target");
     t.ok(E.parseDxf(healBlanked.healedDxf).layers.WALLS.color === 1, "…and still corrects the WALLS colour");
     // an empty group-1 value (empty TEXT string) is a value, not a stray blank — kept
     const emptyText = "0\nSECTION\n2\nENTITIES\n0\nTEXT\n8\nDIMS\n1\n\n10\n5\n20\n6\n0\nENDSEC\n0\nEOF";
@@ -303,13 +303,13 @@ module.exports = async function (t, env) {
     t.match(md, /LAYER_COLOR_MISMATCH/, "…includes the violation code");
     const healModel = E.buildReportModel({ source: "heal", data: { ...healBlocks, meta: { targetFile: "messy.dxf", masterFile: "master.dxf" } } });
     const healHtml = E.renderHtml(healModel);
-    t.match(healHtml, /DXF Self-Heal Report/, "heal HTML report title");
+    t.match(healHtml, /DXF Auto-Correct Report/, "heal HTML report title");
     t.match(healHtml, /Applied automatically/, "…fixed section");
     t.match(healHtml, /Needs manual review/, "…unresolved section");
     t.match(healHtml, /MISSING_REQUIRED_STYLE/, "…the still-unresolved STYLE issue");
     const cleanHeal = E.buildReportModel({ source: "heal", data: { ...noop, meta: {} } });
     t.eq(cleanHeal.overallPassed, true, "master-vs-self heal model → passed");
-    t.eq(cleanHeal.statusLabel, "Fully healed", "…labelled Fully healed");
+    t.eq(cleanHeal.statusLabel, "Fully corrected", "…labelled Fully corrected");
     t.match(E.renderHtml(cleanHeal), /status-pass/, "…renders the pass banner");
 
     // ── stdn-compare UI render path (self-contained DOM shim) ───
@@ -383,7 +383,7 @@ module.exports = async function (t, env) {
         SC.state.healBlocks = true;
         await SC.runHeal(noToast);
         const hres = H("stdn-results");
-        t.match(hres, /Partially healed/, "runHeal → verdict");
+        t.match(hres, /Partially corrected/, "runHeal → verdict");
         t.match(hres, /Applied automatically \(\d+\)/, "runHeal → actions section");
         t.match(hres, /Download corrected DXF/, "runHeal → download button");
         t.match(hres, /MISSING_REQUIRED_STYLE/, "runHeal → the item left for manual review");
@@ -391,7 +391,7 @@ module.exports = async function (t, env) {
         if (subsBefore !== null) {
             const rec = CMS.getSubmittals()[0];
             t.eq(rec.fileName, "messy.dxf", "runHeal also records a CMS submittal, for the healed file");
-            t.eq(rec.status, "PARTIALLY HEALED", "…status reflects the heal outcome");
+            t.eq(rec.status, "PARTIALLY CORRECTED", "…status reflects the auto-correct outcome");
         }
 
         // guardrails

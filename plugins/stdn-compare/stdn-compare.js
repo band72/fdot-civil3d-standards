@@ -1,20 +1,20 @@
 /**
- * Plugin: stdn-compare (Standards Compare — refined DXF comparer + self-heal)
+ * Plugin: stdn-compare (Standards Compare — refined DXF comparer + auto-correct)
  * plugins/stdn-compare/stdn-compare.js
  *
  * The tab UI over window.StdnEngine (see stdn-engine.js). Two modes:
  *
- *   Check     — validate a drawing against a JSON standard and/or a master
- *               template DXF (its LAYER/LTYPE/STYLE tables + BLOCKS become the
- *               rules), and/or geometry-diff it against a reference drawing.
- *               Renders a severity-filtered violations table, an added/removed/
- *               modified geometry breakdown, and an SVG diff overlay.
+ *   Check        — validate a drawing against a JSON standard and/or a master
+ *                  template DXF (its LAYER/LTYPE/STYLE tables + BLOCKS become the
+ *                  rules), and/or geometry-diff it against a reference drawing.
+ *                  Renders a severity-filtered violations table, an added/removed/
+ *                  modified geometry breakdown, and an SVG diff overlay.
  *
- *   Self-heal — given a target + a master template, auto-correct the deficiencies
- *               that are safe to fix (layer colours/linetypes/lineweights,
- *               missing layers/linetypes/styles, stray colour overrides →
- *               ByLayer) and hand back a corrected .dxf, flagging renames /
- *               deletions / unit changes / (opt-in) blocks for manual review.
+ *   Auto-correct — given a target + a master template, fix the deficiencies
+ *                  that are safe to fix (layer colours/linetypes/lineweights,
+ *                  missing layers/linetypes/styles, stray colour overrides →
+ *                  ByLayer) and hand back a corrected .dxf, flagging renames /
+ *                  deletions / unit changes / (opt-in) blocks for manual review.
  *
  * Ported from the `standardcompare-plugin` React + Express project. The server
  * half (HTTP router, multer, CORS, rate limiter, filesystem standards dir) is
@@ -27,7 +27,7 @@
     const MANIFEST = {
         name: "stdn-compare",
         version: "1.0.0",
-        description: "Refined DXF standards comparer: JSON-standard + master-template checks, tolerance geometry diff with SVG overlay, and safe self-healing to a corrected .dxf.",
+        description: "Refined DXF standards comparer: JSON-standard + master-template checks, tolerance geometry diff with SVG overlay, and safe auto-correction to a corrected .dxf.",
         tab: "tab-stdn-compare",
         icon: "fa-code-branch",
         tier: "Pro",
@@ -123,7 +123,7 @@
               <i class="fa-solid fa-flask" style="color:var(--text-muted);"></i> Try it with a bundled sample
             </div>
             <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.7rem; line-height:1.4;">
-              Run the standards check, geometry diff and self-heal against a sample FDOT drawing — no upload needed.
+              Run the standards check, geometry diff and auto-correct against a sample FDOT drawing — no upload needed.
             </p>
             <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
               <button class="btn btn-secondary btn-sm" id="stdn-hero-drainage-demo">
@@ -136,18 +136,18 @@
           </div>
           <div style="display:inline-flex; border:1px solid var(--border-subtle); border-radius:var(--radius-md); overflow:hidden; margin-bottom:0.9rem;">
             <button class="btn btn-sm ${heal ? "btn-secondary" : "btn-primary"}" id="stdn-mode-check" style="border-radius:0;">Check</button>
-            <button class="btn btn-sm ${heal ? "btn-primary" : "btn-secondary"}" id="stdn-mode-heal" style="border-radius:0;">Self-heal</button>
+            <button class="btn btn-sm ${heal ? "btn-primary" : "btn-secondary"}" id="stdn-mode-heal" style="border-radius:0;">Auto-correct</button>
           </div>
           <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:0.85rem;">${slots}</div>
           ${stdRow}
           ${healRow}
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin-top:0.9rem;">
-            <button class="btn btn-primary" id="stdn-run">${heal ? "Heal drawing" : "Run comparison"}</button>
+            <button class="btn btn-primary" id="stdn-run">${heal ? "Auto-correct drawing" : "Run comparison"}</button>
             <button class="btn btn-secondary btn-sm" id="stdn-clear">Clear</button>
             <span style="width:1px; height:22px; background:var(--border-subtle); margin:0 0.25rem;"></span>
             <span style="font-size:0.75rem; color:var(--text-muted);">Samples:</span>
             <button class="btn btn-secondary btn-sm" id="stdn-sample-check">Load check sample</button>
-            <button class="btn btn-secondary btn-sm" id="stdn-sample-heal">Load heal sample</button>
+            <button class="btn btn-secondary btn-sm" id="stdn-sample-heal">Load auto-correct sample</button>
           </div>`);
     }
 
@@ -248,21 +248,21 @@
 
     async function runHeal(ctx) {
         const { target, master } = state.files;
-        if (!target || !master) { ctx.showToast("Self-heal needs both a target drawing and a master template.", true); return; }
+        if (!target || !master) { ctx.showToast("Auto-correct needs both a target drawing and a master template.", true); return; }
         let result;
         try {
             result = E().healDxf(master.text, target.text, { healBlocks: state.healBlocks });
         } catch (err) {
-            ctx.showToast(err.message || "Healing failed.", true);
+            ctx.showToast(err.message || "Auto-correct failed.", true);
             return;
         }
         state.lastHeal = { source: "heal", data: result, targetName: target.name };
         state.lastReport = null;
         renderResults(ctx);
-        ctx.showToast(result.summary.fullyHealed ? "Fully healed." : `${result.summary.actionsApplied} fix(es) applied, ${result.summary.unresolved} for manual review.`, !result.summary.fullyHealed);
+        ctx.showToast(result.summary.fullyHealed ? "Fully corrected." : `${result.summary.actionsApplied} fix(es) applied, ${result.summary.unresolved} for manual review.`, !result.summary.fullyHealed);
         await recordSubmittal({
             filename: target.name, dxfText: target.text,
-            score: deriveHealScore(result), status: result.summary.fullyHealed ? "HEALED" : "PARTIALLY HEALED",
+            score: deriveHealScore(result), status: result.summary.fullyHealed ? "CORRECTED" : "PARTIALLY CORRECTED",
         });
     }
 
@@ -411,14 +411,14 @@
                 <button class="btn btn-primary btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-clipboard-check"></i> Generate self-check summary</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-html"><i class="fa-solid fa-file-code"></i> Export HTML report</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-md"><i class="fa-solid fa-file-lines"></i> Export Markdown report</button>
-                ${r.standardsCheck && !r.overall.standardsPassed ? `<span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Tip: switch to Self-heal with a master template to auto-correct these.</span>` : ""}
+                ${r.standardsCheck && !r.overall.standardsPassed ? `<span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Tip: switch to Auto-correct with a master template to fix these.</span>` : ""}
               </div>`);
 
             overlaySection(r.overlaySvg, $("stdn-overlay"));
             return;
         }
 
-        // ── Heal result ────────────────────────────────────────────────────
+        // ── Auto-correct result ─────────────────────────────────────────────
         if (state.lastHeal) {
             const h = state.lastHeal.data;
             const s = h.summary;
@@ -432,7 +432,7 @@
 
             window.setSafeHTML(box, `
               <div class="results-box" style="border-left-color:${s.fullyHealed ? "var(--success)" : "var(--warning)"};">
-                <strong style="font-size:1rem; color:${s.fullyHealed ? "var(--success)" : "var(--warning)"};">${s.fullyHealed ? "Fully healed" : "Partially healed"}</strong>
+                <strong style="font-size:1rem; color:${s.fullyHealed ? "var(--success)" : "var(--warning)"};">${s.fullyHealed ? "Fully corrected" : "Partially corrected"}</strong>
                 <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:0.2rem;">
                   ${s.actionsApplied} fix${s.actionsApplied === 1 ? "" : "es"} applied automatically.${s.unresolved > 0 ? ` ${s.unresolved} item${s.unresolved === 1 ? "" : "s"} need${s.unresolved === 1 ? "s" : ""} manual review.` : ""}
                 </div>
@@ -460,7 +460,7 @@
 
     function exportReport(format, ctx) {
         const src = state.lastReport || state.lastHeal;
-        if (!src) { ctx.showToast("Run a comparison or heal first.", true); return; }
+        if (!src) { ctx.showToast("Run a comparison or auto-correct first.", true); return; }
         const meta = src.source === "heal"
             ? { targetFile: state.lastHeal.targetName, masterFile: state.files.master && state.files.master.name }
             : {};
@@ -511,7 +511,7 @@
                     state.mode = "heal";
                     state.files.target = { name: "messy.dxf", text: SAMPLES.messy };
                     state.files.master = { name: "master.dxf", text: SAMPLES.master };
-                    renderControls(); ctx.showToast("Loaded the heal sample (messy target + master template).");
+                    renderControls(); ctx.showToast("Loaded the auto-correct sample (messy target + master template).");
                     return;
                 }
                 if (id === "stdn-hero-drainage-demo") {
@@ -576,7 +576,7 @@
                 if (id === "stdn-report-html") { exportReport("html", ctx); return; }
                 if (id === "stdn-report-md") { exportReport("markdown", ctx); return; }
                 if (id === "stdn-download-healed" && state.lastHeal) {
-                    const out = (state.lastHeal.targetName || "drawing").replace(/\.dxf$/i, "") + ".healed.dxf";
+                    const out = (state.lastHeal.targetName || "drawing").replace(/\.dxf$/i, "") + ".corrected.dxf";
                     window.COGO.downloadText(out, state.lastHeal.data.healedDxf, "application/dxf");
                     ctx.showToast(`Downloaded ${out}.`);
                     return;

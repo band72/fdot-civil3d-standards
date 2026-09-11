@@ -58,7 +58,7 @@
         },
         {
             id: "stdn-compare",
-            title: "3.1  Start page — Standards Compare + Heal",
+            title: "3.1  Start page — Standards Compare + Auto-Correct",
             html: `
                 <p><em>Purpose:</em> check a drawing against a drafting standard, diff its geometry against a reference drawing, and auto-correct the deficiencies that are safe to fix. Runs entirely in the browser — nothing is uploaded. (This replaces the older layer-table-only "Template Compare".)</p>
                 <h4>Check mode</h4>
@@ -69,7 +69,7 @@
                     <li><strong>A reference drawing DXF</strong> — a drawing with real design content to tolerance-diff the geometry against (added / removed / modified entities, with a pan/zoom SVG overlay: gray = unchanged, blue = added, red = removed, orange = modified).</li>
                 </ul>
                 <p>The result shows a pass/fail verdict, a severity-filtered <strong>violations</strong> table, a geometry <strong>diff</strong> breakdown, and a downloadable <strong>HTML</strong> or <strong>Markdown</strong> report.</p>
-                <h4>Self-heal mode</h4>
+                <h4>Auto-correct mode</h4>
                 <p>Give a <strong>target</strong> + a <strong>master template</strong>. The tool auto-fixes what's safe — wrong layer colours / linetypes / lineweights, missing layers / linetypes / styles copied from the master, stray entity colour overrides reverted to ByLayer — and hands back a corrected <code>.dxf</code>. Renames, prohibited-layer removal, unit changes and (opt-in) missing blocks are listed for manual review, never guessed. ByBlock colour (code 0) is left untouched — it's a legitimate mode, not an error.</p>`
         },
         {

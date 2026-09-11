@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Per-tab header text. [title, subtitle]
     const PAGE_TITLES = {
         "tab-dxf-inspector":  ["DXF Project Auditor", "Upload an FDOT project DXF to score CADD-standards compliance, flag geometry errors, and export an auto-fix script."],
-        "tab-stdn-compare":   ["Standards Compare + Heal", "Check a DXF against a standard, tolerance-diff its geometry against a reference drawing, and self-heal the safe-to-fix deficiencies into a corrected .dxf — all in the browser."],
+        "tab-stdn-compare":   ["Standards Compare + Auto-Correct", "Check a DXF against a standard, tolerance-diff its geometry against a reference drawing, and auto-correct the safe-to-fix deficiencies into a corrected .dxf — all in the browser."],
         "tab-layers":         ["FDOT 2026 Layer Standards", "Browse the discipline layer list with color, linetype, lineweight, and plot status. Filter by discipline or plot status; copy names."],
         "tab-signs":          ["Sign Assemblies & QTO", "FDOT sign assembly catalog and a MUTCD surface-area calculator that resolves the pay item from sign width x height."],
         "tab-ssa":            ["SSA Hydrology & IDF Zones", "Rational Method peak discharge (Q = CiA) from the 11 FDOT IDF zones, and a Drainage Manual Ch. 7 exfiltration trench sizer."],
@@ -209,7 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <tr><th>Generated:</th><td>${clean(cert.timestamp)}</td></tr>
                                 ${sigRows}
                                 <tr><th>Drawing contents:</th><td>${cert.layersCount} layers / ${cert.entitiesCount} entities</td></tr>
-                                <tr><th>Issues flagged:</th><td>${cert.violationsCount} (${cert.violationsCount === 0 ? "none" : (cert.autoHealReady ? "self-heal available" : "manual review needed")})</td></tr>
+                                <tr><th>Issues flagged:</th><td>${cert.violationsCount} (${cert.violationsCount === 0 ? "none" : (cert.autoHealReady ? "auto-correct available" : "manual review needed")})</td></tr>
                             </tbody>
                         </table>
                     </div>

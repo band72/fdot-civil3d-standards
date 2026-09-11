@@ -1,7 +1,7 @@
 /**
  * plugins/stdn-compare/stdn-engine.js
  *
- * The comparison + self-heal engine for the "Standards Compare" tool, ported
+ * The comparison + auto-correct engine for the "Standards Compare" tool, ported
  * to dependency-free browser JS from the `standardcompare-plugin` project
  * (an Express + React app). Everything that needed a server — the HTTP
  * router, multer upload handling, CORS, the in-memory rate limiter, the
@@ -14,7 +14,7 @@
  *   geometryDiff              — tolerance-based entity diff vs. a reference drawing (spatial-grid indexed)
  *   standardFromDxf           — derive a standard from a master template's tables + merge a JSON standard on top
  *   regexSafety               — reject catastrophic-backtracking naming-pattern regexes before they run
- *   dxfDocument + dxfMender   — line-indexed raw-DXF editor + the safe auto-heal orchestration
+ *   dxfDocument + dxfMender   — line-indexed raw-DXF editor + the safe auto-correct orchestration
  *   svgOverlay                — diff result → standalone SVG string
  *   reportBuilder             — combine the above into one report object
  *   compareOrchestrator       — the pure "which standard wins / validation order" decision logic
@@ -816,7 +816,7 @@
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    //  dxfDocument — line-indexed raw-DXF editor (the self-heal write path)
+    //  dxfDocument — line-indexed raw-DXF editor (the auto-correct write path)
     // ═════════════════════════════════════════════════════════════════════════
 
     function splitLines(text) { return text.split(/\r\n|\r|\n/); }
@@ -853,7 +853,7 @@
             const codeTok = lines[i] === undefined ? "" : lines[i].trim();
             if (!/^-?\d{1,4}$/.test(codeTok)) {
                 throw new CompareError(400,
-                    `Self-heal needs a well-formed ASCII DXF — alternating group-code / value lines. ` +
+                    `Auto-correct needs a well-formed ASCII DXF — alternating group-code / value lines. ` +
                     `Line ${i + 1} reads "${codeTok.slice(0, 40)}", which is not a group code. Re-export the drawing from your CAD application and try again.`);
             }
         }
@@ -1071,7 +1071,7 @@
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    //  dxfMender — the safe auto-heal orchestration
+    //  dxfMender — the safe auto-correct orchestration
     // ═════════════════════════════════════════════════════════════════════════
 
     const HEAL_DEFAULT_OPTIONS = {
@@ -1181,7 +1181,7 @@
                         alreadyInserted.BLOCK.add(v.block);
                         actions.push({ code: v.code, block: v.block, action: "Copied block definition from master template", caveat: "Verify the BLOCK_RECORD table and any cross-references in your CAD application before distributing." });
                     } else {
-                        unresolved.push({ ...v, reason: opts.healBlocks ? "Block not found in master, or target has no BLOCKS section to insert into." : "Block healing is off by default — enable options.healBlocks and verify the result in your CAD application." });
+                        unresolved.push({ ...v, reason: opts.healBlocks ? "Block not found in master, or target has no BLOCKS section to insert into." : "Block auto-correct is off by default — enable options.healBlocks and verify the result in your CAD application." });
                     }
                     break;
                 }
@@ -1527,7 +1527,7 @@
             model.violationsAfter = data.violationsAfter || [];
             model.summary = data.summary || {};
             model.overallPassed = !!(data.summary && data.summary.fullyHealed);
-            model.statusLabel = model.overallPassed ? "Fully healed" : "Partially healed";
+            model.statusLabel = model.overallPassed ? "Fully corrected" : "Partially corrected";
         }
         return model;
     }
@@ -1612,7 +1612,7 @@
 
     function renderHtml(model) {
         const dateStr = new Date(model.generatedAt).toLocaleString();
-        const title = model.source === "heal" ? "DXF Self-Heal Report" : "DXF Standards Compliance Report";
+        const title = model.source === "heal" ? "DXF Auto-Correct Report" : "DXF Standards Compliance Report";
         const metaRows = [
             ["Drawing", model.meta.targetFile],
             ["Standard", model.standardName || model.meta.standardName],
@@ -1672,7 +1672,7 @@
 
     function renderMarkdown(model) {
         const dateStr = new Date(model.generatedAt).toLocaleString();
-        const title = model.source === "heal" ? "DXF Self-Heal Report" : "DXF Standards Compliance Report";
+        const title = model.source === "heal" ? "DXF Auto-Correct Report" : "DXF Standards Compliance Report";
         const lines = [];
         lines.push(`# ${title}`, "");
         if (model.meta.targetFile) lines.push(`**Drawing:** ${model.meta.targetFile}`);
@@ -1714,7 +1714,7 @@
 
     function suggestFilename(model, format) {
         const base = (model.meta.targetFile || "drawing").replace(/\.dxf$/i, "");
-        const kind = model.source === "heal" ? "heal-report" : "defect-report";
+        const kind = model.source === "heal" ? "correction-report" : "defect-report";
         const ext = format === "markdown" ? "md" : "html";
         return `${base}.${kind}.${ext}`;
     }

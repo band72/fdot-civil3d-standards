@@ -274,10 +274,10 @@
                 </div>
             </section>
 
-            <!-- Start page: Standards Compare + Self-Heal (ported from the standardcompare-plugin project) -->
+            <!-- Start page: Standards Compare + Auto-Correct (ported from the standardcompare-plugin project) -->
             <section id="tab-stdn-compare" class="tab-pane active">
                 <div class="glass-panel" style="padding:1.5rem;">
-                    <h2><i class="fa-solid fa-code-branch" style="color:var(--accent);"></i> Standards Compare &amp; Self-Heal</h2>
+                    <h2><i class="fa-solid fa-code-branch" style="color:var(--accent);"></i> Standards Compare &amp; Auto-Correct</h2>
                     <p class="subtitle">Check a DXF against a JSON standard and/or a master-template DXF (its LAYER / LTYPE / STYLE tables and BLOCKS become the rules), tolerance-diff its geometry against a reference drawing, then auto-correct the deficiencies that are safe to fix and download a corrected <code>.dxf</code>. Runs entirely in the browser — no upload.</p>
                     <div id="stdn-controls" style="margin-top:1rem;"></div>
                     <div id="stdn-results" class="hidden" style="margin-top:1.25rem;"></div>
@@ -775,7 +775,7 @@
                             <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: Solo Surveyors &amp; Roadway Design Engineers ($49/mo expensed on corporate card).</p>
                             <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
                                 <li><strong>1-Click Auto-Fix (.scr) Export</strong></li>
-                                <li><strong>Self-Healing Corrected DXF Export</strong></li>
+                                <li><strong>Auto-Corrected DXF Export</strong></li>
                                 <li><strong>Printable CADD self-check summary (PDF)</strong></li>
                                 <li>Bowditch Traverse &amp; Map Check Solver</li>
                             </ul>
@@ -1237,7 +1237,7 @@ public class CmdBoundaryQC : IExternalCommand {
                 <button class="icon-btn" id="btn-close-privacy"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.55; margin-bottom:1.25rem;">
-                A drawing you open here is parsed, compared, healed and hashed <strong>in this browser tab</strong> — it is never uploaded. The app's own JavaScript can't send it anywhere either: the page's Content Security Policy (<code>connect-src 'self'</code>) blocks every cross-origin request from the app's code. The page still loads a few static assets (DOMPurify, Font Awesome, web fonts) from CDNs when it first opens — those are listed below.
+                A drawing you open here is parsed, compared, auto-corrected and hashed <strong>in this browser tab</strong> — it is never uploaded. The app's own JavaScript can't send it anywhere either: the page's Content Security Policy (<code>connect-src 'self'</code>) blocks every cross-origin request from the app's code. The page still loads a few static assets (DOMPurify, Font Awesome, web fonts) from CDNs when it first opens — those are listed below.
             </p>
             <div style="background:var(--bg-secondary); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:1rem; margin-bottom:1.25rem;">
                 <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;"><i class="fa-solid fa-laptop-code"></i> This browser session</div>

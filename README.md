@@ -68,7 +68,7 @@ and exposes the site globals; `tests/README.md` maps each suite.
 
 | Plugin | Tab | Does |
 |---|---|---|
-| `stdn-compare` | **Start** · Standards Compare + Heal | The landing tab. Check a DXF against the built-in **FDOT 2026 layer standard**, an uploaded JSON standard, and/or a master-template DXF (its LAYER/LTYPE/STYLE tables + BLOCKS); tolerance geometry diff vs. a reference drawing with a pan/zoom SVG overlay; safe **self-healing** to a corrected `.dxf`; HTML / Markdown reports. Ported from the `standardcompare-plugin` project (server half dropped). Supersedes the old layer-table-only "Template Compare". |
+| `stdn-compare` | **Start** · Standards Compare + Auto-Correct | The landing tab. Check a DXF against the built-in **FDOT 2026 layer standard**, an uploaded JSON standard, and/or a master-template DXF (its LAYER/LTYPE/STYLE tables + BLOCKS); tolerance geometry diff vs. a reference drawing with a pan/zoom SVG overlay; safe **auto-correction** to a corrected `.dxf`; HTML / Markdown reports. Ported from the `standardcompare-plugin` project (server half dropped). Supersedes the old layer-table-only "Template Compare". |
 | `dxf-auditor` | DXF Project Auditor | Parse an FDOT DXF, score CADD-standards compliance, flag geometry errors (bow-tie, zero-length, out-of-envelope), export an auto-fix `.scr`; canvas renderer + spatial-index telemetry. |
 | `layer-stds` | Layer Standards / Pay Items / Survey Keys | Filterable reference tables. |
 | `sign-qto` | Sign Assemblies & QTO | Sign catalog + MUTCD surface-area → pay-item solver. |

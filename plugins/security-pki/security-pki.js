@@ -424,7 +424,7 @@ class BoundaryQCSecurityEngine {
      * Report how this app handles a drawing you open — stated accurately, not
      * marketed. The real property worth knowing: the app's own code cannot send
      * an opened drawing anywhere (CSP `connect-src 'self'` blocks every
-     * cross-origin fetch/XHR/WebSocket), and all parsing/diffing/healing/hashing
+     * cross-origin fetch/XHR/WebSocket), and all parsing/diffing/auto-correcting/hashing
      * happens in this tab. It is NOT "air-gapped" — the page still loads static
      * assets (DOMPurify, Font Awesome, web fonts) from CDNs, which is disclosed
      * here rather than hidden behind a "0 packets" claim.
@@ -433,7 +433,7 @@ class BoundaryQCSecurityEngine {
         const hasSubtle = Boolean(window.crypto && window.crypto.subtle);
         return {
             clientSideExecution: true,
-            drawingProcessing: "In-page only — drawings are parsed, diffed, healed and hashed in this browser tab. Nothing is uploaded.",
+            drawingProcessing: "In-page only — drawings are parsed, diffed, auto-corrected and hashed in this browser tab. Nothing is uploaded.",
             appNetworkAccess: "Blocked to third parties by CSP connect-src 'self' — this app's JavaScript cannot fetch, XHR or open a WebSocket to any other origin, so an opened drawing cannot be transmitted by it.",
             staticAssetHosts: [
                 "cdnjs.cloudflare.com — DOMPurify + Font Awesome (loaded once at page start)",
