@@ -202,6 +202,14 @@
         }
     }
 
+    function notify(ctx, msg, isWarn = false) {
+        if (ctx && typeof ctx.showToast === "function") {
+            ctx.showToast(msg, isWarn);
+        } else if (window.App && typeof window.App.showToast === "function") {
+            window.App.showToast(msg, isWarn);
+        }
+    }
+
     // ── UI Controller & Views ───────────────────────────────────────────────
 
     let _currentFilter = "all";
@@ -263,19 +271,23 @@
 
             <!-- Report Preview Modal -->
             <div id="modal-report-preview" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:99999;">
-                <div class="glass-panel" style="width:92%; max-width:860px; max-height:90vh; display:flex; flex-direction:column; padding:1.5rem; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-lg);">
+                <div class="glass-panel" style="width:92%; max-width:900px; height:85vh; display:flex; flex-direction:column; padding:1.5rem; background:var(--bg-primary); border:1px solid var(--border-subtle); border-radius:var(--radius-lg);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--glass-border); padding-bottom:0.75rem;">
                         <div>
                             <h3 id="preview-report-title" style="margin:0; font-size:1.1rem; color:var(--primary);"><i class="fa-solid fa-file-lines"></i> Report Preview</h3>
                             <div id="preview-report-meta" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;"></div>
                         </div>
-                        <button class="icon-btn" id="btn-close-report-preview"><i class="fa-solid fa-xmark"></i></button>
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <button class="btn btn-secondary btn-sm" id="btn-preview-toggle-fmt" style="display:none; font-size:0.75rem;"><i class="fa-solid fa-code"></i> View Source</button>
+                            <button class="icon-btn" id="btn-close-report-preview"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
                     </div>
 
                     <div id="preview-report-body" style="flex:1; overflow-y:auto; padding:1rem; background:#0b1120; border-radius:var(--radius-sm); border:1px solid var(--glass-border); font-family:var(--font-mono); font-size:0.8rem; white-space:pre-wrap; color:#e2e8f0; line-height:1.6;">
                     </div>
+                    <iframe id="preview-report-frame" style="display:none; flex:1; width:100%; border:1px solid var(--glass-border); border-radius:var(--radius-sm); background:#fff;"></iframe>
 
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; pt:0.5rem; border-top:1px solid var(--glass-border);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--glass-border);">
                         <button class="btn btn-secondary btn-sm" id="btn-preview-copy"><i class="fa-solid fa-copy"></i> Copy Content</button>
                         <div style="display:flex; gap:0.5rem;">
                             <button class="btn btn-secondary btn-sm" id="btn-preview-print"><i class="fa-solid fa-print"></i> Print</button>
@@ -319,7 +331,7 @@
         // Master Bundle
         root.querySelector("#btn-reports-bundle")?.addEventListener("click", () => {
             downloadBundle();
-            ctx.showToast("Exported master reports bundle.");
+            notify(ctx, "Exported master reports bundle.");
         });
 
         // Clear All
@@ -327,7 +339,7 @@
             if (_reports.length === 0) return;
             if (confirm("Are you sure you want to clear all stored reports?")) {
                 clearAll();
-                ctx.showToast("All reports cleared.");
+                notify(ctx, "All reports cleared.");
             }
         });
 
@@ -409,6 +421,7 @@
     }
 
     let _activePreviewReport = null;
+    let _showingHtmlFrame = false;
 
     function showPreview(id) {
         const rep = getReport(id);
@@ -422,17 +435,71 @@
         document.getElementById("preview-report-meta").textContent = `Filename: ${rep.filename} | Format: ${rep.format.toUpperCase()} | Generated: ${new Date(rep.timestamp).toLocaleString()}`;
         
         const body = document.getElementById("preview-report-body");
-        if (body) {
-            body.textContent = rep.content;
+        const frame = document.getElementById("preview-report-frame");
+        const toggleBtn = document.getElementById("btn-preview-toggle-fmt");
+
+        if (rep.format === "html") {
+            _showingHtmlFrame = true;
+            if (frame) {
+                frame.style.display = "block";
+                frame.srcdoc = rep.content;
+            }
+            if (body) {
+                body.style.display = "none";
+                body.textContent = rep.content;
+            }
+            if (toggleBtn) {
+                toggleBtn.style.display = "inline-flex";
+                toggleBtn.innerHTML = `<i class="fa-solid fa-code"></i> View Source`;
+                toggleBtn.onclick = () => {
+                    _showingHtmlFrame = !_showingHtmlFrame;
+                    if (_showingHtmlFrame) {
+                        frame.style.display = "block";
+                        body.style.display = "none";
+                        toggleBtn.innerHTML = `<i class="fa-solid fa-code"></i> View Source`;
+                    } else {
+                        frame.style.display = "none";
+                        body.style.display = "block";
+                        toggleBtn.innerHTML = `<i class="fa-solid fa-browser"></i> View Rendered`;
+                    }
+                };
+            }
+        } else {
+            _showingHtmlFrame = false;
+            if (frame) frame.style.display = "none";
+            if (body) {
+                body.style.display = "block";
+                body.textContent = rep.content;
+            }
+            if (toggleBtn) toggleBtn.style.display = "none";
         }
 
         modal.classList.remove("hidden");
 
-        modal.querySelector("#btn-preview-copy")?.replaceWith(cloneButton("btn-preview-copy", () => {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(rep.content);
-                alert("Report copied to clipboard.");
+        modal.querySelector("#btn-preview-copy")?.replaceWith(cloneButton("btn-preview-copy", async () => {
+            let copied = false;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(rep.content);
+                    copied = true;
+                }
+            } catch (e) {
+                copied = false;
             }
+            if (!copied) {
+                const ta = document.createElement("textarea");
+                ta.value = rep.content;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand("copy");
+                    copied = true;
+                } catch (e) {}
+                document.body.removeChild(ta);
+            }
+            alert(copied ? "Report copied to clipboard." : "Could not copy automatically. Please select text manually.");
         }));
 
         modal.querySelector("#btn-preview-download")?.replaceWith(cloneButton("btn-preview-download", () => {
@@ -442,7 +509,11 @@
         modal.querySelector("#btn-preview-print")?.replaceWith(cloneButton("btn-preview-print", () => {
             const printWin = window.open("", "_blank");
             if (printWin) {
-                printWin.document.write(`<pre style="font-family:monospace; white-space:pre-wrap;">${clean(rep.content)}</pre>`);
+                if (rep.format === "html") {
+                    printWin.document.write(rep.content);
+                } else {
+                    printWin.document.write(`<pre style="font-family:monospace; white-space:pre-wrap;">${clean(rep.content)}</pre>`);
+                }
                 printWin.document.close();
                 printWin.print();
             }
@@ -451,6 +522,7 @@
 
     function cloneButton(id, handler) {
         const old = document.getElementById(id);
+        if (!old) return document.createElement("button");
         const nw = old.cloneNode(true);
         nw.addEventListener("click", handler);
         return nw;

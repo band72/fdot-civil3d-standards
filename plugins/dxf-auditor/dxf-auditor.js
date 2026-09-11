@@ -27,11 +27,12 @@
 
     async function auditDXFText(dxfText, filename) {
         if (!_inspector) return;
-        _ctx.showToast(`Auditing DXF file: ${filename}...`);
+        if (_ctx?.showToast) _ctx.showToast(`Auditing DXF file: ${filename}...`);
+        else if (window.App?.showToast) window.App.showToast(`Auditing DXF file: ${filename}...`);
 
         const parsed = _inspector.parseDXF(dxfText);
         const audit  = _inspector.inspectProject(parsed);
-        _ctx.state.currentDXFAudit = { filename, parsed, audit, rawContent: dxfText };
+        if (_ctx && _ctx.state) _ctx.state.currentDXFAudit = { filename, parsed, audit, rawContent: dxfText };
 
         // Feed entities into spatial engine
         if (window.BoundaryQCWASM?.processDXFSpatialStream) {
@@ -311,7 +312,6 @@
                         [{ fileName: audit.filename, content: audit.rawContent || "DXF Content", category: "roadway" }],
                         { name: "Jane Doe, PE", license: "PE12345", rule: "61G15-23.004" }
                     );
-                    if (ctx.state.currentDXFAudit) ctx.state.currentDXFAudit.rawContent = null;
                     const blob = new Blob([manifest.manifestJson], { type: "application/json" });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");

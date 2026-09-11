@@ -23,6 +23,14 @@
 
     const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
 
+    function notify(ctx, msg, isWarn = false) {
+        if (ctx && typeof ctx.showToast === "function") {
+            ctx.showToast(msg, isWarn);
+        } else if (window.App && typeof window.App.showToast === "function") {
+            window.App.showToast(msg, isWarn);
+        }
+    }
+
     let _inspector = null;
     let _lastBatchResult = null;
 
@@ -502,7 +510,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             const scr = generateBatchFixScript(_lastBatchResult);
             if (window.COGO?.downloadText) {
                 window.COGO.downloadText("fdot_batch_fix.scr", scr, "text/plain");
-                ctx.showToast("Downloaded master consolidated batch-fix script.");
+                notify(ctx, "Downloaded master consolidated batch-fix script.");
             }
         });
 
@@ -511,7 +519,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             const html = generateMasterReport(_lastBatchResult, "html");
             if (window.COGO?.downloadText) {
                 window.COGO.downloadText("fdot_master_submittal_report.html", html, "text/html");
-                ctx.showToast("Downloaded Master Submittal Report (HTML).");
+                notify(ctx, "Downloaded Master Submittal Report (HTML).");
             }
         });
 
@@ -520,7 +528,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             const md = generateMasterReport(_lastBatchResult, "markdown");
             if (window.COGO?.downloadText) {
                 window.COGO.downloadText("fdot_master_submittal_report.md", md, "text/markdown");
-                ctx.showToast("Downloaded Master Submittal Report (Markdown).");
+                notify(ctx, "Downloaded Master Submittal Report (Markdown).");
             }
         });
     }
@@ -540,7 +548,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
 
     function runBatch(files, ctx) {
         if (!files.length) return;
-        ctx.showToast(`Starting batch audit of ${files.length} drawing(s)...`);
+        notify(ctx, `Starting batch audit of ${files.length} drawing(s)...`);
 
         const pWrap = document.getElementById("batch-progress-wrap");
         const pBar = document.getElementById("batch-progress-bar");
@@ -581,7 +589,7 @@ th { background: #f8fafc; text-align: left; padding: 10px 12px; border-bottom: 2
             setTimeout(() => {
                 if (pWrap) pWrap.classList.add("hidden");
                 renderResults(batchResult);
-                ctx.showToast(`Batch audit complete: Average score ${batchResult.summary.averageScore}%. Stored in Reports Hub.`);
+                notify(ctx, `Batch audit complete: Average score ${batchResult.summary.averageScore}%. Stored in Reports Hub.`);
             }, 250);
         }, 50);
     }

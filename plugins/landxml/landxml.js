@@ -25,6 +25,14 @@
 
     const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
 
+    function notify(ctx, msg, isWarn = false) {
+        if (ctx && typeof ctx.showToast === "function") {
+            ctx.showToast(msg, isWarn);
+        } else if (window.App && typeof window.App.showToast === "function") {
+            window.App.showToast(msg, isWarn);
+        }
+    }
+
     // ── XML Parsing Engine ──────────────────────────────────────────────────
 
     /**
@@ -242,8 +250,12 @@
         if (vm) res.version = vm[1];
 
         // Units
-        const um = txt.match(/<Units[^>]*linearUnit=["']([^"']+)["']/i);
+        const um = txt.match(/<(?:Units|Imperial|Metric)[^>]*linearUnit=["']([^"']+)["']/i);
         if (um) res.units.linearUnit = um[1];
+        const am = txt.match(/<(?:Units|Imperial|Metric)[^>]*angularUnit=["']([^"']+)["']/i);
+        if (am) res.units.angularUnit = am[1];
+        const arm = txt.match(/<(?:Units|Imperial|Metric)[^>]*areaUnit=["']([^"']+)["']/i);
+        if (arm) res.units.areaUnit = arm[1];
 
         // CoordinateSystem
         const csm = txt.match(/<CoordinateSystem[^>]*desc=["']([^"']+)["'][^>]*epsgCode=["']([^"']+)["']/i);
@@ -732,16 +744,16 @@
 
         root.querySelector("#btn-landxml-send")?.addEventListener("click", () => {
             if (!_lastParsed || !_lastParsed.parcels.length) {
-                ctx.showToast("Parse a LandXML file with parcels first.", true);
+                notify(ctx, "Parse a LandXML file with parcels first.", true);
                 return;
             }
             const figModel = toFiguresModel(_lastParsed);
             if (window.Linework?._Ed?.setModel) {
                 window.Linework._Ed.setModel(figModel);
-                ctx.showToast(`Sent ${figModel.figures.length} LandXML parcel(s) to Linework Editor.`);
+                notify(ctx, `Sent ${figModel.figures.length} LandXML parcel(s) to Linework Editor.`);
                 document.querySelector('.nav-btn[data-tab="tab-linework"]')?.click();
             } else {
-                ctx.showToast("Linework Editor is not available.", true);
+                notify(ctx, "Linework Editor is not available.", true);
             }
         });
 
@@ -749,7 +761,7 @@
             const ta = root.querySelector("#landxml-input");
             const content = ta ? ta.value.trim() : "";
             if (!content) {
-                ctx.showToast("No LandXML content to download.", true);
+                notify(ctx, "No LandXML content to download.", true);
                 return;
             }
             if (window.COGO?.downloadText) {
@@ -779,9 +791,9 @@
             // Draw canvas
             drawCanvas(parsed);
 
-            ctx.showToast(`Parsed LandXML: ${parsed.parcels.length} parcel(s), ${parsed.points.length} point(s).`);
+            notify(ctx, `Parsed LandXML: ${parsed.parcels.length} parcel(s), ${parsed.points.length} point(s).`);
         } catch (err) {
-            ctx.showToast(`LandXML parse error: ${err.message}`, true);
+            notify(ctx, `LandXML parse error: ${err.message}`, true);
         }
     }
 
