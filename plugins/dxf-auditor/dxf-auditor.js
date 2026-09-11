@@ -188,6 +188,9 @@
     // a Defpoints layer, a zero-length line, and coordinates outside the Florida State Plane envelope.
     const NONCOMPLIANT_DXF = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1032\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n4\n0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nDEFPOINTS\n70\n0\n62\n7\n6\nCONTINUOUS\n0\nLAYER\n2\nBASIN_STUFF\n70\n0\n62\n42\n6\nCONTINUOUS\n0\nLAYER\n2\nDRAIN_PIPE_PR\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n0\n43\n0.0\n10\n10.00\n20\n20.00\n10\n480.00\n20\n20.00\n10\n480.00\n20\n900.00\n10\n10.00\n20\n900.00\n0\nLINE\n8\nBASIN_STUFF\n10\n250.00\n20\n250.00\n11\n250.00\n21\n250.00\n0\nLINE\n8\nDRAIN_PIPE_PR\n10\n100.00\n20\n100.00\n11\n300.00\n21\n140.00\n0\nENDSEC\n0\nEOF`;
 
+    // Expose DXF samples globally for other plugins and tests
+    window.__dxfSamples = { SR50_DXF, BOWTIE_DXF, NONCOMPLIANT_DXF };
+
     // ── Plugin API ───────────────────────────────────────────────────────────
 
     const Plugin = {
@@ -196,7 +199,6 @@
             _inspector = window.FDOTDXFInspector ? new window.FDOTDXFInspector(window.FDOT_DATA) : null;
             // Expose auditDXFText globally so the core app can call it from sample buttons
             window.__dxfAudit = auditDXFText;
-            window.__dxfSamples = { SR50_DXF, BOWTIE_DXF, NONCOMPLIANT_DXF };
         },
 
         setupEvents(ctx) {
@@ -275,6 +277,32 @@
                     ctx.showToast(`Generated Signed Manifest (SHA-256: ${manifest.masterHash.substring(0, 12)}...)`);
                 } else {
                     ctx.showToast("Exported FDOT Rules!");
+                }
+            });
+
+            // Submittal Compliance Certificate generator
+            document.getElementById("btn-dxf-submittal-cert")?.addEventListener("click", async () => {
+                const audit = ctx.state.currentDXFAudit;
+                if (!audit) {
+                    ctx.showToast("Run or load a DXF audit first.", true);
+                    return;
+                }
+                if (window.BoundaryQCSecurity) {
+                    const cert = await window.BoundaryQCSecurity.generateSubmittalCertificate({
+                        filename: audit.filename,
+                        content: audit.rawContent || "",
+                        score: audit.audit.score,
+                        violationsCount: audit.audit.issues.length,
+                        layersCount: audit.audit.layersCount,
+                        entitiesCount: audit.audit.entitiesCount,
+                        standardName: "FDOT 2026 CADD State Kit Standard",
+                        autoHealReady: audit.audit.issues.length > 0
+                    });
+                    if (ctx.showSubmittalCertificateModal) {
+                        ctx.showSubmittalCertificateModal(cert);
+                    } else if (window.showSubmittalCertificateModal) {
+                        window.showSubmittalCertificateModal(cert);
+                    }
                 }
             });
         }

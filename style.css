@@ -225,32 +225,55 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .nav-menu {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0;
     flex: 1;
     overflow-y: auto;
     margin: 0 -0.35rem;
-    padding: 0 0.35rem;
+    padding: 0.15rem 0.35rem 0.35rem;
 }
 .nav-menu::-webkit-scrollbar { width: 4px; }
 .nav-menu::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; border: 0; }
+
+.nav-section { display: flex; flex-direction: column; gap: 0.12rem; }
+.nav-section + .nav-section { margin-top: 0.95rem; }
+
+.nav-section-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #667488;
+    padding: 0 0.9rem;
+    margin: 0 0 0.32rem;
+    user-select: none;
+}
 
 .nav-btn {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.8rem;
-    padding: 0.68rem 0.9rem;
+    gap: 0.75rem;
+    padding: 0.6rem 0.9rem;
     border: 0;
     background: transparent;
     color: #939fb2;
     border-radius: var(--radius-md);
     cursor: pointer;
-    font-size: 0.86rem;
+    font-size: 0.84rem;
     font-weight: 500;
     font-family: inherit;
     transition: background var(--transition), color var(--transition);
     text-align: left;
     width: 100%;
+}
+
+/* the label span — one line, ellipsis if it can't fit (never wraps) */
+.nav-btn > span:not(.badge) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .nav-btn::before {
@@ -912,9 +935,11 @@ body:not(.dark-theme) .tag-discipline { color: #7c3aed; }
 @media (max-width: 1024px) {
     .sidebar { width: 74px; padding: 1.25rem 0.6rem; }
     .sidebar .brand-info,
-    .nav-btn span:not(.badge),
+    .nav-btn > span:not(.badge),
+    .nav-section-label,
     .status-text { display: none; }
     .brand-header { justify-content: center; }
+    .nav-section + .nav-section { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(255, 255, 255, 0.07); }
     .sidebar-footer { flex-direction: column; gap: 0.6rem; }
     .nav-btn { justify-content: center; padding: 0.7rem; gap: 0; }
     .nav-btn .badge { position: absolute; top: 3px; right: 3px; margin: 0; padding: 1px 5px; font-size: 0.58rem; }
@@ -937,4 +962,170 @@ body:not(.dark-theme) .tag-discipline { color: #7c3aed; }
     .search-box, .search-box input { width: 100%; max-width: none; }
     .toast-container { left: 1rem; right: 1rem; bottom: 1rem; }
     .toast { max-width: none; }
+    .privacy-btn-text { display: none; }
 }
+
+/* ── Marketing & Conversion Refinements ──────────────────────────────────── */
+
+/* Hero Demo Card on Start Tab */
+.hero-demo-card {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.14) 0%, rgba(16, 185, 129, 0.08) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    position: relative;
+    overflow: hidden;
+}
+.hero-demo-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--success), var(--accent));
+}
+
+/* Submittal Compliance Certificate Styles */
+.cert-sheet {
+    background: #ffffff;
+    color: #0f172a;
+    border: 2px double #334155;
+    border-radius: 4px;
+    padding: 2.25rem 2.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    font-family: var(--font-sans);
+    position: relative;
+}
+.cert-header {
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+}
+.cert-header h2 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
+}
+.cert-header h4 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #475569;
+    text-transform: uppercase;
+}
+.cert-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin: 1.25rem 0;
+}
+.cert-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.cert-table th, .cert-table td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+.cert-table th {
+    color: #64748b;
+    font-weight: 600;
+    width: 40%;
+}
+.cert-table td {
+    color: #0f172a;
+    font-family: var(--font-mono);
+}
+.cert-badge-box {
+    border: 2px solid #cbd5e1;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: #f8fafc;
+    text-align: center;
+}
+.cert-grade {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+.cert-stat-notice {
+    font-size: 0.75rem;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #0284c7;
+    background: #f0f9ff;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    line-height: 1.45;
+}
+.cert-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 1.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+.cert-sig-line {
+    border-top: 1px solid #0f172a;
+    width: 220px;
+    margin-top: 2rem;
+    padding-top: 0.35rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* Print Stylesheet for Submittal Certificate */
+@media print {
+    @page {
+        size: letter portrait;
+        margin: 0.4in;
+    }
+    body, html {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    .app-container, .sidebar, .top-header, .no-print, #toast-container,
+    .modal-overlay:not(#modal-certificate) {
+        display: none !important;
+    }
+    #modal-certificate {
+        position: static !important;
+        inset: auto !important;
+        background: transparent !important;
+        display: block !important;
+        padding: 0 !important;
+        z-index: auto !important;
+    }
+    .cert-modal-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    .cert-sheet {
+        box-shadow: none !important;
+        border: 2px solid #000000 !important;
+        padding: 1.5rem !important;
+    }
+}
+

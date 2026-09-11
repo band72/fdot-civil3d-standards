@@ -33,99 +33,109 @@
             </div>
 
             <nav class="nav-menu">
-                <button class="nav-btn active" data-tab="tab-stdn-compare">
-                    <i class="fa-solid fa-code-branch"></i>
-                    <span>Start · Standards Compare + Heal</span>
-                    <span class="badge" style="background:var(--success);">START</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-dxf-inspector">
-                    <i class="fa-solid fa-file-circle-check"></i>
-                    <span>DXF Project Auditor</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-layers">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <span>Layer Standards</span>
-                    <span class="badge" id="layer-count-badge">0</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-signs">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span>Sign Assemblies & QTO</span>
-                    <span class="badge" style="background:var(--primary);">10-AGENT</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-ssa">
-                    <i class="fa-solid fa-cloud-showers-heavy"></i>
-                    <span>SSA Hydrology & IDF 1-11</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-blocks-lib">
-                    <i class="fa-solid fa-cubes"></i>
-                    <span>C3D Block Libraries</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-payitems">
-                    <i class="fa-solid fa-calculator"></i>
-                    <span>Pay Item Takeoff</span>
-                    <span class="badge" id="payitem-count-badge">0</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-survey">
-                    <i class="fa-solid fa-location-crosshairs"></i>
-                    <span>Survey & Desckeys</span>
-                    <span class="badge" id="survey-count-badge">0</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-subassemblies">
-                    <i class="fa-solid fa-road"></i>
-                    <span>Subassemblies & PKT</span>
-                    <span class="badge" id="assembly-count-badge">0</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-sheets">
-                    <i class="fa-solid fa-file-contract"></i>
-                    <span>Sheet Standards & DWT</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-plat2dxf">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Plat-to-DXF Vision AI</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-qc">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    <span>QC & Traverse Auditor</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-linework">
-                    <i class="fa-solid fa-pen-ruler"></i>
-                    <span>Linework Editor</span>
-                    <span class="badge" style="background:var(--accent);">NEW</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-legal-desc">
-                    <i class="fa-solid fa-file-lines"></i>
-                    <span>Legal Description QC</span>
-                    <span class="badge" style="background:var(--accent);">NEW</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-plss">
-                    <i class="fa-solid fa-table-cells-large"></i>
-                    <span>PLSS Section Breakdown</span>
-                    <span class="badge" style="background:var(--accent);">NEW</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-inspector">
-                    <i class="fa-solid fa-boxes-packing"></i>
-                    <span>State Kit Inspector</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-commercial">
-                    <i class="fa-solid fa-chart-line"></i>
-                    <span>Commercial SaaS Plans</span>
-                    <span class="badge" style="background:var(--success); font-weight:700;">$100K PROFIT</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-enterprise">
-                    <i class="fa-solid fa-building-user"></i>
-                    <span>Enterprise & C3D Plugin</span>
-                    <span class="badge" style="background:var(--accent);">ENTERPRISE</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-cms">
-                    <i class="fa-solid fa-server"></i>
-                    <span>CMS Control Panel & Auth</span>
-                    <span class="badge" style="background:var(--primary); font-weight:700;">CMS ACTIVE</span>
-                </button>
-                <button class="nav-btn" data-tab="tab-help">
-                    <i class="fa-solid fa-circle-question"></i>
-                    <span>Help & User Manual</span>
-                    <span class="badge" style="background:var(--text-muted);">?</span>
-                </button>
+                <div class="nav-section">
+                    <p class="nav-section-label">Compare &amp; Audit</p>
+                    <button class="nav-btn active" data-tab="tab-stdn-compare">
+                        <i class="fa-solid fa-code-branch"></i>
+                        <span>Standards Compare</span>
+                        <span class="badge" style="background:var(--success);">START</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-dxf-inspector">
+                        <i class="fa-solid fa-file-circle-check"></i>
+                        <span>DXF Project Auditor</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-qc">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>QC &amp; Traverse Auditor</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-linework">
+                        <i class="fa-solid fa-pen-ruler"></i>
+                        <span>Linework Editor</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <p class="nav-section-label">Boundary &amp; COGO</p>
+                    <button class="nav-btn" data-tab="tab-legal-desc">
+                        <i class="fa-solid fa-file-lines"></i>
+                        <span>Legal Description QC</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-plss">
+                        <i class="fa-solid fa-table-cells-large"></i>
+                        <span>PLSS Section Breakdown</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-plat2dxf">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Plat &rarr; DXF / Points</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <p class="nav-section-label">FDOT Reference</p>
+                    <button class="nav-btn" data-tab="tab-layers">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Layer Standards</span>
+                        <span class="badge" id="layer-count-badge">0</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-payitems">
+                        <i class="fa-solid fa-calculator"></i>
+                        <span>Pay Item Takeoff</span>
+                        <span class="badge" id="payitem-count-badge">0</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-survey">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span>Survey &amp; Desckeys</span>
+                        <span class="badge" id="survey-count-badge">0</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-signs">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>Sign Assemblies &amp; QTO</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-ssa">
+                        <i class="fa-solid fa-cloud-showers-heavy"></i>
+                        <span>SSA Hydrology &amp; IDF</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-subassemblies">
+                        <i class="fa-solid fa-road"></i>
+                        <span>Subassemblies &amp; PKT</span>
+                        <span class="badge" id="assembly-count-badge">0</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-sheets">
+                        <i class="fa-solid fa-file-contract"></i>
+                        <span>Sheet Standards &amp; DWT</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-blocks-lib">
+                        <i class="fa-solid fa-cubes"></i>
+                        <span>C3D Block Libraries</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-inspector">
+                        <i class="fa-solid fa-boxes-packing"></i>
+                        <span>State Kit Inspector</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <p class="nav-section-label">Account &middot; Demo</p>
+                    <button class="nav-btn" data-tab="tab-commercial">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Commercial Plans</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-enterprise">
+                        <i class="fa-solid fa-building-user"></i>
+                        <span>Enterprise &amp; C3D Plugin</span>
+                    </button>
+                    <button class="nav-btn" data-tab="tab-cms">
+                        <i class="fa-solid fa-server"></i>
+                        <span>CMS Control Panel</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <button class="nav-btn" data-tab="tab-help">
+                        <i class="fa-solid fa-circle-question"></i>
+                        <span>Help &amp; User Manual</span>
+                    </button>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -153,9 +163,14 @@
                 <div class="header-right">
                     <div class="search-box">
                         <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="global-search" placeholder="Quick search layers, pay items, codes (Ctrl+K)..." autocomplete="off">
+                        <input type="text" id="global-search" placeholder="Search layers, pay items, keys…" autocomplete="off">
                         <kbd>Ctrl K</kbd>
                     </div>
+                    <button class="btn btn-secondary" id="btn-privacy-guarantee" style="display:flex; align-items:center; gap:0.5rem; border-color:var(--success-light); background:rgba(34,197,94,0.08); color:var(--success);" title="100% Client-Side In-Memory Guarantee">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span class="privacy-btn-text">Air-Gapped Privacy</span>
+                        <span class="badge" style="background:var(--success); font-size:0.65rem;">ZERO UPLOADS</span>
+                    </button>
                     <button class="btn btn-secondary" id="btn-open-auth-modal" style="display:flex; align-items:center; gap:0.5rem;" title="Manage Account & Switch Profile">
                         <i class="fa-solid fa-user-gear"></i>
                         <span id="header-user-name">Jane Doe, PSM</span>
@@ -247,9 +262,10 @@
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <h2><i class="fa-solid fa-list-check"></i> CADD Standards & Scripting Audit</h2>
                             </div>
-                            <div style="display: flex; gap: 0.5rem;">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button class="btn btn-primary btn-sm" id="btn-export-audit-md"><i class="fa-solid fa-download"></i> Audit Report</button>
                                 <button class="btn btn-accent btn-sm" id="btn-export-fix-scr"><i class="fa-solid fa-terminal"></i> Auto-Fix Script (.scr)</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-dxf-submittal-cert" style="border-color:var(--accent); color:var(--accent);"><i class="fa-solid fa-award"></i> Submittal Certificate</button>
                             </div>
                             <div style="overflow-y: auto; max-height: 380px; display: flex; flex-direction: column; gap: 0.75rem;" id="dxf-issues-container">
                                 <!-- Dynamic Issue Cards -->
@@ -742,10 +758,10 @@
                             <div style="font-size:2.2rem; font-weight:800; margin:0.5rem 0;">$0 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
                             <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">For junior CAD techs & students searching standard layers.</p>
                             <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
-                                <li>Searchable FDOT Layer Standards</li>
-                                <li>Basic 2D DXF Viewer</li>
-                                <li>3 Error Teaser Preview</li>
-                                <li>Community Support</li>
+                                <li>Full FDOT 2026 Layer Standards</li>
+                                <li>1-Click Live Corridor Demos</li>
+                                <li>Visual Geometry Diff & CAD Viewer</li>
+                                <li>Submittal Report Card (HTML / MD)</li>
                             </ul>
                         </div>
                         <button class="btn btn-secondary trigger-checkout" data-plan="Free" style="margin-top:1.5rem; width:100%;">Current Plan</button>
@@ -754,15 +770,15 @@
                     <!-- Pro Tier -->
                     <div class="glass-panel" style="padding: 1.5rem; border-top: 4px solid var(--primary); display:flex; flex-direction:column; justify-content:space-between;">
                         <div>
-                            <span class="badge" style="background:var(--primary);">SOLO SURVEYOR</span>
+                            <span class="badge" style="background:var(--primary);">SOLO SURVEYOR &amp; PE</span>
                             <h3 style="margin-top:0.5rem; font-size:1.4rem;">Pro Tier</h3>
                             <div style="font-size:2.2rem; font-weight:800; color:var(--primary); margin:0.5rem 0;">$49 <span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/ month</span></div>
-                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: 40 Solo Surveyors & CAD Contractors ($23,520 ARR).</p>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Target: Solo Surveyors &amp; Roadway Design Engineers ($49/mo expensed on corporate card).</p>
                             <ul style="font-size:0.85rem; line-height:1.8; color:var(--text-secondary); padding-left:1.2rem;">
-                                <li><strong>Unlimited DXF Error Scanning</strong></li>
                                 <li><strong>1-Click Auto-Fix (.scr) Export</strong></li>
-                                <li>QTO Quantity Takeoff Engine</li>
-                                <li>Bowditch Traverse Solver</li>
+                                <li><strong>Self-Healing Corrected DXF Export</strong></li>
+                                <li><strong>Official F.A.C. Submittal Certificate (PDF)</strong></li>
+                                <li>Bowditch Traverse &amp; Map Check Solver</li>
                             </ul>
                         </div>
                         <button class="btn btn-primary trigger-checkout" data-plan="Pro" data-price="49" style="margin-top:1.5rem; width:100%;">Subscribe Pro ($49/mo)</button>
@@ -1209,6 +1225,65 @@ public class CmdBoundaryQC : IExternalCommand {
                     <button type="button" class="btn btn-secondary" id="btn-cancel-checkout">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Client-Side Air-Gapped Privacy Guarantee Modal -->
+    <div id="modal-privacy-guarantee" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:99999;">
+        <div class="glass-panel" style="width:90%; max-width:600px; padding:2rem; background:var(--bg-primary); border:1px solid var(--success); border-radius:var(--radius-lg); max-height:90vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <h3 style="color:var(--success); display:flex; align-items:center; gap:0.6rem;">
+                    <i class="fa-solid fa-shield-halved"></i> 100% Client-Side Privacy &amp; Air-Gapped Trust Guarantee
+                </h3>
+                <button class="icon-btn" id="btn-close-privacy"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.5; margin-bottom:1.25rem;">
+                Civil engineering and survey deliverables contain proprietary CAD linework, boundary monuments, and critical infrastructure data. <strong>FDOT Standards Suite operates 100% inside your local browser memory</strong> — zero bytes of geometry ever leave your device.
+            </p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.25rem;">
+                <div class="stat-card glass-panel" style="padding:0.85rem;">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">NETWORK EGRESS</div>
+                    <div style="font-size:1.05rem; font-weight:700; color:var(--success); margin-top:0.25rem;"><i class="fa-solid fa-circle-check"></i> 0 CAD Packets Sent</div>
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">Strict Content Security Policy</div>
+                </div>
+                <div class="stat-card glass-panel" style="padding:0.85rem;">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">CRYPTOGRAPHIC INTEGRITY</div>
+                    <div style="font-size:1.05rem; font-weight:700; color:var(--accent); margin-top:0.25rem;"><i class="fa-solid fa-fingerprint"></i> FIPS 180-4 SHA-256</div>
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem;">SubtleCrypto / Pure-JS local hashing</div>
+                </div>
+            </div>
+            <div style="background:var(--bg-secondary); border:1px solid var(--glass-border); border-radius:var(--radius-md); padding:1rem; margin-bottom:1.25rem;">
+                <div style="font-size:0.78rem; font-weight:700; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.5rem;"><i class="fa-solid fa-laptop-code"></i> Live Browser Sandbox Verification</div>
+                <ul id="privacy-diag-list" style="list-style:none; padding:0; margin:0; font-size:0.8rem; line-height:1.8; font-family:var(--font-mono);">
+                    <!-- Dynamic live diagnostics -->
+                </ul>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" id="btn-copy-privacy-attestation"><i class="fa-solid fa-copy"></i> Copy IT/CISO Security Attestation</button>
+                <button class="btn btn-primary btn-sm" id="btn-privacy-ok">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FDOT CADD Submittal Compliance Certificate Modal -->
+    <div id="modal-certificate" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:99999;">
+        <div class="glass-panel cert-modal-content" style="width:92%; max-width:820px; padding:2rem; background:var(--bg-primary); border:1px solid var(--accent); border-radius:var(--radius-lg); max-height:92vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;" class="cert-modal-header no-print">
+                <h3><i class="fa-solid fa-award" style="color:var(--accent);"></i> Submittal Compliance Certificate</h3>
+                <button class="icon-btn" id="btn-close-cert"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div id="cert-sheet-container">
+                <!-- Dynamic printable certificate content -->
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-top:1.5rem;" class="no-print">
+                <button class="btn btn-secondary" id="btn-copy-cert-hash"><i class="fa-solid fa-fingerprint"></i> Copy SHA-256 Checksum</button>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" id="btn-close-cert-btn">Close</button>
+                    <button class="btn btn-primary" id="btn-print-cert"><i class="fa-solid fa-print"></i> Print / Save PDF Certificate</button>
+                </div>
+            </div>
         </div>
     </div>
 

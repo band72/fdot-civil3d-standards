@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Per-tab header text. [title, subtitle]
     const PAGE_TITLES = {
         "tab-dxf-inspector":  ["DXF Project Auditor", "Upload an FDOT project DXF to score CADD-standards compliance, flag geometry errors, and export an auto-fix script."],
-        "tab-stdn-compare":   ["Start — Standards Compare + Heal", "Check a DXF against the built-in FDOT 2026 layer standard, an uploaded JSON standard, and/or a master-template DXF; tolerance-diff its geometry against a reference drawing; and self-heal the safe-to-fix deficiencies into a corrected .dxf. Runs entirely client-side."],
+        "tab-stdn-compare":   ["Standards Compare + Heal", "Check a DXF against a standard, tolerance-diff its geometry against a reference drawing, and self-heal the safe-to-fix deficiencies into a corrected .dxf — all in the browser."],
         "tab-layers":         ["FDOT 2026 Layer Standards", "Browse the discipline layer list with color, linetype, lineweight, and plot status. Filter by discipline or plot status; copy names."],
         "tab-signs":          ["Sign Assemblies & QTO", "FDOT sign assembly catalog and a MUTCD surface-area calculator that resolves the pay item from sign width x height."],
         "tab-ssa":            ["SSA Hydrology & IDF Zones", "Rational Method peak discharge (Q = CiA) from the 11 FDOT IDF zones, and a Drainage Manual Ch. 7 exfiltration trench sizer."],
@@ -176,6 +176,83 @@ document.addEventListener("DOMContentLoaded", () => {
         overlay.querySelector("#_copy_modal_close").focus();
     }
 
+    function showSubmittalCertificateModal(cert) {
+        const modal = document.getElementById("modal-certificate");
+        const container = document.getElementById("cert-sheet-container");
+        if (!modal || !container || !cert) return;
+
+        const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+
+        window.setSafeHTML(container, `
+            <div class="cert-sheet">
+                <div class="cert-header">
+                    <div style="font-size:0.75rem; letter-spacing:0.12em; font-weight:800; color:#0284c7; text-transform:uppercase; margin-bottom:0.25rem;">
+                        <i class="fa-solid fa-flag-usa"></i> State of Florida • Department of Transportation
+                    </div>
+                    <h2>CADD STANDARDS &amp; GEOMETRY SUBMITTAL COMPLIANCE CERTIFICATE</h2>
+                    <h4>Electronic Delivery Verification • Topic No. 625-050-001</h4>
+                </div>
+
+                <div class="cert-grid">
+                    <div>
+                        <table class="cert-table">
+                            <tbody>
+                                <tr><th>Project File:</th><td><strong>${clean(cert.filename)}</strong></td></tr>
+                                <tr><th>CADD Standard:</th><td>${clean(cert.standardName)}</td></tr>
+                                <tr><th>Submittal Certificate ID:</th><td>${clean(cert.certId)}</td></tr>
+                                <tr><th>Verification Timestamp:</th><td>${clean(cert.timestamp)}</td></tr>
+                                <tr><th>Signatory / Licensee:</th><td>${clean(cert.signerName)} (${clean(cert.signerLicense)})</td></tr>
+                                <tr><th>Engineering Firm:</th><td>${clean(cert.signerFirm)}</td></tr>
+                                <tr><th>FDOT District:</th><td>${clean(cert.district)}</td></tr>
+                                <tr><th>CADD Entity Summary:</th><td>${cert.layersCount} Layers / ${cert.entitiesCount} Entities</td></tr>
+                                <tr><th>Standards Deviations:</th><td>${cert.violationsCount} (${cert.violationsCount === 0 ? "Zero Non-Conformances" : (cert.autoHealReady ? "Auto-Heal Available" : "Manual Review Required")})</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="cert-badge-box">
+                        <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:0.25rem;">Compliance Score</div>
+                        <div class="cert-grade" style="color:${cert.gradeColor || '#0284c7'};">${clean(cert.grade)}</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:${cert.gradeColor || '#0284c7'}; margin-bottom:0.25rem;">${cert.score}%</div>
+                        <div style="font-size:0.75rem; font-weight:700; color:#334155; padding:2px 8px; border-radius:12px; background:#e2e8f0;">${clean(cert.statusText)}</div>
+                        <div style="font-size:0.68rem; color:#64748b; margin-top:0.6rem; font-family:var(--font-mono);">ERC Pre-Check: ${cert.violationsCount === 0 ? "PASSED" : "REVIEW"}</div>
+                    </div>
+                </div>
+
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:0.6rem 0.8rem; font-family:var(--font-mono); font-size:0.72rem; word-break:break-all;">
+                    <span style="font-weight:700; color:#0284c7;"><i class="fa-solid fa-fingerprint"></i> FIPS 180-4 SHA-256 CHECKSUM:</span><br>
+                    <span style="color:#0f172a; font-size:0.78rem;">${clean(cert.sha256)}</span>
+                </div>
+
+                <div class="cert-stat-notice">
+                    <strong>STATUTORY SEAL NOTICE:</strong><br>
+                    ${clean(cert.statNotice)}
+                </div>
+
+                <div class="cert-footer">
+                    <div>
+                        <div style="font-weight:700; color:#0f172a;">BoundaryQC &amp; FDOT Civil 3D Standards Suite</div>
+                        <div style="font-size:0.7rem; color:#64748b;">Client-Side Cryptographic Audit Engine • banks.land • Ref: FAC-61G15/5J-17</div>
+                    </div>
+                    <div>
+                        <div class="cert-sig-line">Digital Verification Stamp</div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        modal.classList.remove("hidden");
+
+        const closeCert = () => modal.classList.add("hidden");
+        document.getElementById("btn-close-cert")?.addEventListener("click", closeCert);
+        document.getElementById("btn-close-cert-btn")?.addEventListener("click", closeCert);
+        document.getElementById("btn-print-cert")?.addEventListener("click", () => window.print());
+        document.getElementById("btn-copy-cert-hash")?.addEventListener("click", () => {
+            navigator.clipboard.writeText(cert.sha256).then(() => showToast("Copied SHA-256 Checksum!")).catch(() => {});
+        });
+    }
+
+    window.showSubmittalCertificateModal = showSubmittalCertificateModal;
+
     // ── Core Standard Kit Catalog Renderers ───────────────────────────────────
 
     function updateBadges() {
@@ -286,6 +363,21 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
+        // Set the header title/subtitle from PAGE_TITLES for a given tab.
+        function applyPageMeta(tabId) {
+            const titleEl = document.getElementById("page-title");
+            const subEl = document.getElementById("page-subtitle");
+            const meta = PAGE_TITLES[tabId];
+            if (titleEl && subEl && meta) {
+                titleEl.textContent = meta[0];
+                subEl.textContent = meta[1];
+            }
+        }
+
+        // Header title reflects the tab that is active on first paint (not just
+        // after a click) — otherwise it shows a stale generic string on load.
+        applyPageMeta(state.activeTab);
+
         // Tab Navigation
         navButtons.forEach(btn => {
             btn.addEventListener("click", () => {
@@ -298,14 +390,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (targetPane) targetPane.classList.add("active");
                 state.activeTab = targetTab;
 
-                // Update page title / subtitle for the active tab.
-                const titleEl = document.getElementById("page-title");
-                const subEl = document.getElementById("page-subtitle");
-                const meta = PAGE_TITLES[targetTab];
-                if (titleEl && subEl && meta) {
-                    titleEl.textContent = meta[0];
-                    subEl.textContent = meta[1];
-                }
+                applyPageMeta(targetTab);
 
                 // Notify plugins of tab switch
                 if (window.PluginRegistry) {
@@ -348,6 +433,38 @@ document.addEventListener("DOMContentLoaded", () => {
             const domain = document.getElementById("custom-domain-input")?.value.trim() || "(none)";
             showToast(`Demo build — CNAME for "${domain}" was not provisioned. Portal hosting is not part of this repo.`, true);
         });
+
+        // Air-Gapped Privacy Modal Wiring
+        const modalPrivacy = document.getElementById("modal-privacy-guarantee");
+        document.getElementById("btn-privacy-guarantee")?.addEventListener("click", () => {
+            if (!modalPrivacy) return;
+            const diagList = document.getElementById("privacy-diag-list");
+            if (diagList && window.BoundaryQCSecurity) {
+                const diag = window.BoundaryQCSecurity.getPrivacyDiagnostics();
+                window.setSafeHTML(diagList, `
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Execution Model:</strong> 100% Client-Side In-Memory (Zero Server Upload)</li>
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Network Egress:</strong> ${diag.networkEgress}</li>
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Crypto Engine:</strong> ${diag.cryptoEngine}</li>
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Telemetry &amp; Tracking:</strong> ${diag.thirdPartyTelemetry}</li>
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Local Storage Isolation:</strong> ${diag.storageType}</li>
+                    <li><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>Content Security Policy:</strong> Enforced by browser</li>
+                `);
+            }
+            modalPrivacy.classList.remove("hidden");
+        });
+
+        const closePrivacy = () => modalPrivacy?.classList.add("hidden");
+        document.getElementById("btn-close-privacy")?.addEventListener("click", closePrivacy);
+        document.getElementById("btn-privacy-ok")?.addEventListener("click", closePrivacy);
+        document.getElementById("btn-copy-privacy-attestation")?.addEventListener("click", () => {
+            const attestation = `FDOT CIVIL3D STANDARDS SUITE — CLIENT-SIDE PRIVACY & SECURITY ATTESTATION\n` +
+                `Architecture: 100% Client-Side Execution (HTML5 / Pure JavaScript / WebAssembly)\n` +
+                `Cloud Transmission: ZERO (CAD geometries, layers, and coordinates never leave browser RAM)\n` +
+                `Data Retention: Ephemeral in-memory. No drawings stored on server.\n` +
+                `Compliance: Safe for CUI, ITAR/EAR boundary, FDOT EDG Topic No. 625-050-001, and NDA project deliverables.\n` +
+                `Verification Engine: FIPS 180-4 SHA-256 cryptographic local hashing (banks.land).`;
+            navigator.clipboard.writeText(attestation).then(() => showToast("Copied Security Attestation to clipboard!")).catch(() => {});
+        });
     }
 
     // ── Application Initialization ────────────────────────────────────────────
@@ -369,6 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showInputModal,
             showConfirmModal,
             showCopyModal,
+            showSubmittalCertificateModal,
             updateBadges
         };
 

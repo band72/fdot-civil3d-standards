@@ -7,7 +7,7 @@ const path = require("path");
 const { t, summary } = require("./_assert");
 const env = require("./_env");
 
-const SUITES = ["cogo", "data", "dxf", "linework", "stdn-cmp", "auth", "geo"];
+const SUITES = ["cogo", "data", "dxf", "linework", "stdn-cmp", "auth", "geo", "marketing"];
 
 (async () => {
     const started = Date.now();

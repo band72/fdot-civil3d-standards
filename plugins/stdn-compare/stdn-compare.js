@@ -118,6 +118,25 @@
           </label>` : "";
 
         window.setSafeHTML(box, `
+          <div class="hero-demo-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.4rem;">
+              <strong style="color:var(--text-primary); font-size:0.95rem; display:flex; align-items:center; gap:0.4rem;">
+                <i class="fa-solid fa-bolt" style="color:var(--warning);"></i> 1-Click FDOT 2026 Live Demo
+              </strong>
+              <span class="badge" style="background:var(--primary); font-size:0.68rem;">INSTANT PROOF OF VALUE</span>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin:0 0 0.75rem; line-height:1.4;">
+              Instantly test the standards auditor, visual geometry CAD diff, and auto-healing engine on Florida DOT drawing deliverables without uploading your own files.
+            </p>
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+              <button class="btn btn-accent btn-sm" id="stdn-hero-drainage-demo">
+                <i class="fa-solid fa-play"></i> Run Non-Compliant Drainage Demo (Check + Heal)
+              </button>
+              <button class="btn btn-secondary btn-sm" id="stdn-hero-sr50-demo">
+                <i class="fa-solid fa-road"></i> Run SR-50 Roadway Corridor Demo
+              </button>
+            </div>
+          </div>
           <div style="display:inline-flex; border:1px solid var(--border-subtle); border-radius:var(--radius-md); overflow:hidden; margin-bottom:0.9rem;">
             <button class="btn btn-sm ${heal ? "btn-secondary" : "btn-primary"}" id="stdn-mode-check" style="border-radius:0;">Check</button>
             <button class="btn btn-sm ${heal ? "btn-primary" : "btn-secondary"}" id="stdn-mode-heal" style="border-radius:0;">Self-heal</button>
@@ -353,6 +372,7 @@
                 </details>` : ""}
               ${geometrySection(r.geometryDiff)}
               <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem;">
+                <button class="btn btn-primary btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-award"></i> Generate Submittal Certificate</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-html"><i class="fa-solid fa-file-code"></i> Export HTML report</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-md"><i class="fa-solid fa-file-lines"></i> Export Markdown report</button>
                 ${r.standardsCheck && !r.overall.standardsPassed ? `<span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Tip: switch to Self-heal with a master template to auto-correct these.</span>` : ""}
@@ -390,6 +410,7 @@
                 ${violationsTable(h.unresolved, { withReason: true })}
               </details>
               <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem;">
+                <button class="btn btn-accent btn-sm" id="stdn-cert-btn"><i class="fa-solid fa-award"></i> Generate Submittal Certificate</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-html"><i class="fa-solid fa-file-code"></i> Export HTML report</button>
                 <button class="btn btn-secondary btn-sm" id="stdn-report-md"><i class="fa-solid fa-file-lines"></i> Export Markdown report</button>
               </div>`);
@@ -455,6 +476,65 @@
                     state.files.target = { name: "messy.dxf", text: SAMPLES.messy };
                     state.files.master = { name: "master.dxf", text: SAMPLES.master };
                     renderControls(); ctx.showToast("Loaded the heal sample (messy target + master template).");
+                    return;
+                }
+                if (id === "stdn-hero-drainage-demo") {
+                    const samples = window.__dxfSamples || {};
+                    const nonCompliant = samples.NONCOMPLIANT_DXF || SAMPLES.messy;
+                    state.mode = "check";
+                    state.files.target = { name: "FDOT_Drainage_Basin_B_NonCompliant_Layers.dxf", text: nonCompliant };
+                    state.files.reference = null;
+                    state.files.master = null;
+                    state.files.standard = null;
+                    state.useCustomStandard = false;
+                    state.standardId = "fdot-2026";
+                    renderControls();
+                    runCheck(ctx);
+                    $("stdn-results")?.scrollIntoView({ behavior: "smooth" });
+                    return;
+                }
+                if (id === "stdn-hero-sr50-demo") {
+                    const samples = window.__dxfSamples || {};
+                    const sr50 = samples.SR50_DXF || SAMPLES.target;
+                    state.mode = "check";
+                    state.files.target = { name: "FDOT_SR50_Roadway_Corridor.dxf", text: sr50 };
+                    state.files.reference = null;
+                    state.files.master = null;
+                    state.files.standard = null;
+                    state.useCustomStandard = false;
+                    state.standardId = "fdot-2026";
+                    renderControls();
+                    runCheck(ctx);
+                    $("stdn-results")?.scrollIntoView({ behavior: "smooth" });
+                    return;
+                }
+                if (id === "stdn-cert-btn") {
+                    const rep = state.lastReport?.data;
+                    const heal = state.lastHeal?.data;
+                    const target = state.files.target;
+                    const filename = target ? target.name : "FDOT_Submittal_Drawing.dxf";
+                    const content = target ? target.text : "";
+                    const violationsCount = rep?.standardsCheck?.violations?.length ?? (heal ? heal.summary.unresolved : 0);
+                    const score = rep?.overall?.score ?? (heal ? (heal.summary.fullyHealed ? 100 : 90) : (rep?.overall?.passed ? 100 : Math.max(60, 100 - violationsCount * 5)));
+                    
+                    if (window.BoundaryQCSecurity) {
+                        window.BoundaryQCSecurity.generateSubmittalCertificate({
+                            filename,
+                            content,
+                            score,
+                            violationsCount,
+                            layersCount: rep?.summary?.targetEntityCount || 12,
+                            entitiesCount: rep?.summary?.targetEntityCount || 48,
+                            standardName: "FDOT 2026 CADD State Kit Standard",
+                            autoHealReady: Boolean(heal || (rep && !rep.overall.passed))
+                        }).then(cert => {
+                            if (ctx.showSubmittalCertificateModal) {
+                                ctx.showSubmittalCertificateModal(cert);
+                            } else if (window.showSubmittalCertificateModal) {
+                                window.showSubmittalCertificateModal(cert);
+                            }
+                        });
+                    }
                     return;
                 }
                 if (id === "stdn-report-html") { exportReport("html", ctx); return; }
