@@ -759,10 +759,24 @@ class BoundaryQCCMSEngine {
         return t && t.settings && t.settings[key] != null ? t.settings[key] : fallback;
     }
 
+    /**
+     * Clamp/sanitize the FDOT roadway/survey settings fields every template shares, and pass
+     * everything else through unmodified. This engine is domain-agnostic — a plugin for a
+     * different discipline (e.g. plugins/tmplt-jea2024's utility settings: projection,
+     * eastingMin/Max, minClearanceInches, rulesVersion, ...) can extend a template's settings
+     * with its own fields without this class needing to know their names ahead of time. Only the
+     * 8 fields below are normalized/clamped; an unrecognized field rides through as given, same
+     * trust level as the known ones (both come from the authenticated owner, and every render of
+     * a template goes through setSafeHTML regardless of which fields it reads).
+     */
     _normalizeSettings(s) {
         s = s || {};
         const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+        const KNOWN = ["discipline", "idfZone", "sheetDwt", "precisionPass", "fpidPrefix", "county", "district", "notes"];
+        const passthrough = {};
+        Object.keys(s).forEach(k => { if (!KNOWN.includes(k)) passthrough[k] = s[k]; });
         return {
+            ...passthrough,
             discipline: String(s.discipline || "ALL").toUpperCase().slice(0, 8),
             idfZone: Math.min(11, Math.max(1, Math.round(num(s.idfZone, 7)))),
             sheetDwt: String(s.sheetDwt || "CombinedLayers.dwt").slice(0, 60),

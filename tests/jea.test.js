@@ -9,10 +9,13 @@
  *  - 18-inch pipe crossing clearance rule
  *  - JEA spreadsheet table export
  *  - Reports Hub integration
+ *  - "The 2024 JEA template" (CLIENT_TEMPLATE / addAsClientTemplate) — kept out of
+ *    cms-engine.js's own seed data on purpose; see that file's initStorageDefaults() comment
  */
-module.exports = function (t, env) {
+module.exports = async function (t, env) {
     const J = env.win.Jea24;
     const Rep = env.win.Reports;
+    const CMS = env.win.BoundaryQCCMS;
 
     // ── 1. Specification & Domain Verification ──────────────────────────
     t.group("jea/specifications + domains");
@@ -155,5 +158,40 @@ module.exports = function (t, env) {
         t.eq(latest.metadata.score, 100, "Report metadata contains audit score");
     } else {
         t.ok(true, "Reports hub mock fallback passed");
+    }
+
+    // ── 9. "The 2024 JEA Template" — local Client Master Templates ──────
+    // Regression coverage for a real bug: cms-engine.js used to hardcode a tpl_jea_2024 seed
+    // template owned by "usr_admin_01" — an id that matched none of its own seeded users
+    // (usr_psm_01/usr_pe_01/usr_adm_01), so the template silently never appeared for anyone.
+    // The template now lives only here, in the plugin that actually defines it, and is added on
+    // request through cms-engine's real createTemplate()/updateTemplate() API.
+    t.group("jea/client template — addAsClientTemplate()");
+    t.ok(typeof J.addAsClientTemplate === "function", "addAsClientTemplate method exists");
+    t.ok(J.CLIENT_TEMPLATE && J.CLIENT_TEMPLATE.id === "tpl_jea_2024", "CLIENT_TEMPLATE is the single source of truth");
+    t.eq(J.CLIENT_TEMPLATE.settings.eastingMin, J.BOUNDS.eastingMin, "CLIENT_TEMPLATE settings derive from BOUNDS, not a separate copy");
+
+    if (CMS && typeof CMS.logoutUser === "function") {
+        CMS.logoutUser();
+        const signedOutRes = J.addAsClientTemplate();
+        t.notOk(signedOutRes.success, "refuses to add a template with nobody signed in");
+
+        await CMS.loginUser("jane.doe@kimley-horn.com", CMS.AUTH.DEMO_PASSWORD);
+        const before = CMS.getTemplates().some(t2 => t2.id === "tpl_jea_2024" || t2.clientName === "JEA");
+        t.notOk(before, "not present until explicitly added (no longer auto-seeded by cms-engine)");
+
+        const created = J.addAsClientTemplate();
+        t.ok(created.success, "adds successfully once signed in");
+        t.eq(created.mode, "created", "first call creates a new template");
+        t.ok(CMS.getTemplates().some(t2 => t2.clientName === "JEA" && t2.label === "JEA As-Built Standards 2024"), "JEA template now in the signed-in user's Client Master Templates");
+        t.eq(CMS.getTemplates().find(t2 => t2.clientName === "JEA").settings.rulesVersion, "2024.1", "template settings match CLIENT_TEMPLATE");
+
+        const countAfterFirst = CMS.getTemplates().length;
+        const again = J.addAsClientTemplate();
+        t.ok(again.success, "calling it again still succeeds");
+        t.eq(again.mode, "updated", "second call updates the existing template instead of duplicating it");
+        t.eq(CMS.getTemplates().length, countAfterFirst, "template count unchanged — no duplicate created");
+    } else {
+        t.ok(true, "CMS engine mock fallback — addAsClientTemplate() sign-in flow skipped");
     }
 };

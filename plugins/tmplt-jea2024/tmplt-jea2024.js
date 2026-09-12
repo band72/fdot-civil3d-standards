@@ -3,7 +3,7 @@
  * plugins/tmplt-jea2024/tmplt-jea2024.js
  *
  * Implements JEA As-Built 2024 Standards for Civil 3D drawings:
- *  - 74 reference picklist domains (Materials, Sizes, Subtypes, Manufacturers, Classes, Linings);
+ *  - 45 reference picklist domains (Materials, Sizes, Subtypes, Manufacturers, Classes, Linings);
  *    the reverse-read audit engine actively checks attributes against 21 of them today (Water
  *    valves/manholes/hydrants/fittings/meters/crossings) — Sewer/Reclaimed/Chilled Water domains
  *    are fully defined in DOMAINS but not yet wired into auditDrawing()'s per-block checks.
@@ -29,7 +29,7 @@
     const MANIFEST = {
         name: "tmplt-jea2024",
         version: "1.0.0",
-        description: "JEA 2024 As-Built Standards: Civil 3D drawing builder, reverse-read DXF auditor, and validation against JEA picklist domains and State Plane East specs.",
+        description: "JEA 2024 As-Built Standards: Civil 3D drawing builder, reverse-read DXF auditor, and validation against 45 JEA domains and State Plane East specs.",
         tab: "tab-jea24",
         icon: "fa-faucet-drip",
         tier: "Pro",
@@ -3099,7 +3099,8 @@
      * Comprehensive QA/QC audit of a Civil 3D drawing or parsed model
      * against JEA As-Built 2024 standards:
      *   1. Bounding box & Florida State Plane East geodetic coordinates
-     *   2. Picklist domains (the block types this engine checks — see DOMAINS for the full set)
+     *   2. Picklist domains (21 of the 45 defined domains are checked below — Water block types;
+     *      Sewer/Reclaimed/Chilled Water domains are defined in DOMAINS but not yet wired in here)
      *   3. Layer naming & block schema conventions
      *   4. Mandatory attribute presence
      *   5. Pipe crossing minimum 18-inch (1.5 ft) vertical clearance
@@ -3469,7 +3470,7 @@
                   <i class="fa-solid fa-faucet-drip" style="color:var(--primary);"></i>
                   JEA As-Built Standards 2024
                 </h2>
-                <p class="subtitle" style="margin:0.25rem 0 0 0;">Civil 3D drawing builder, reverse-read DXF auditor, and validation against JEA picklist domains & 18-inch clearance rules.</p>
+                <p class="subtitle" style="margin:0.25rem 0 0 0;">Civil 3D drawing builder, reverse-read DXF auditor, and validation against 45 JEA domains & 18-inch clearance rules.</p>
               </div>
               <div style="display:flex; gap:0.5rem;">
                 <span class="badge" style="background:var(--card-bg); border:1px solid var(--border-color); font-size:0.8rem; padding:0.35rem 0.6rem; border-radius:4px;">
