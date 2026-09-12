@@ -24,7 +24,7 @@
 
     const SVGNS = "http://www.w3.org/2000/svg";
     const FL_ENV = { minE: 50000, maxE: 3500000, minN: 50000, maxN: 4500000 };
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
     const nz = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 
     // Realistic Florida State Plane East (US ft) coordinates. Field-coded per the

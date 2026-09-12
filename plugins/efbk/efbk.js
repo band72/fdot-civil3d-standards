@@ -43,7 +43,7 @@
         dependencies: ["linework"],
     };
 
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
 
     // ═════════════════════════════════════════════════════════════════════
     // Point naming — EFB User's Handbook, "(a) Point Naming"

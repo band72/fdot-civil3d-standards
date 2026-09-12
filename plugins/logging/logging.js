@@ -22,7 +22,7 @@
 
     const STORAGE_KEY = "fdot_system_logs_v1";
     const MAX_STORED_LOGS = 1000;
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
 
     // ── In-Memory Log Buffer & Persistence ───────────────────────────────────
 
@@ -264,9 +264,6 @@
                 content: logText,
                 metadata: { total: stats.total, errors: stats.errors, warnings: stats.warnings }
             });
-            if (window.App?.showToast) {
-                window.App.showToast("System Error Log successfully registered into Reports Hub.");
-            }
         }
         return rep;
     }
@@ -443,7 +440,10 @@
         });
 
         root.querySelector("#btn-logging-export-hub")?.addEventListener("click", () => {
-            exportToReportsHub();
+            const rep = exportToReportsHub();
+            if (ctx?.showToast) {
+                ctx.showToast(rep ? "System Error Log successfully registered into Reports Hub." : "No log events to export yet.", !rep);
+            }
         });
     }
 

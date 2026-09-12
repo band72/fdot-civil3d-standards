@@ -36,7 +36,7 @@
         dependencies: ["linework", "reports"]
     };
 
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
 
     // ═════════════════════════════════════════════════════════════════════
     // 1. JEA Standards Specifications & Reference Data

@@ -22,7 +22,7 @@
     };
 
     const STORAGE_KEY = "fdot_reports_hub_v1";
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
 
     // ── In-Memory Store & Persistence ───────────────────────────────────────
 
@@ -202,12 +202,10 @@
         }
     }
 
+    // window.App is never defined anywhere in this app — ctx.showToast (always real,
+    // threaded through from PluginRegistry.initAll()) is the only path that ever fires.
     function notify(ctx, msg, isWarn = false) {
-        if (ctx && typeof ctx.showToast === "function") {
-            ctx.showToast(msg, isWarn);
-        } else if (window.App && typeof window.App.showToast === "function") {
-            window.App.showToast(msg, isWarn);
-        }
+        if (ctx && typeof ctx.showToast === "function") ctx.showToast(msg, isWarn);
     }
 
     // ── UI Controller & Views ───────────────────────────────────────────────

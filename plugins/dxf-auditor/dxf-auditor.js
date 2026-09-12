@@ -27,8 +27,8 @@
 
     async function auditDXFText(dxfText, filename) {
         if (!_inspector) return;
+        // window.App is never defined anywhere in this app; _ctx.showToast is the real path.
         if (_ctx?.showToast) _ctx.showToast(`Auditing DXF file: ${filename}...`);
-        else if (window.App?.showToast) window.App.showToast(`Auditing DXF file: ${filename}...`);
 
         const parsed = _inspector.parseDXF(dxfText);
         const audit  = _inspector.inspectProject(parsed);

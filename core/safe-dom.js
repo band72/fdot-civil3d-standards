@@ -73,7 +73,22 @@
         }
     }
 
+    /**
+     * Sanitize a plain-text value for safe interpolation into an HTML template string (before it
+     * ever reaches setSafeHTML/setSafeRows — DOMPurify is a second, independent layer, not a
+     * reason to skip this). Delegates to security-pki's entity-escaper when that plugin has
+     * loaded; degrades to a plain string otherwise, same as every call site's own fallback used
+     * to. Was copy-pasted verbatim as a local `clean` const in 8+ plugin files — kept the same
+     * name and behavior at each call site, just pointed at one shared implementation.
+     * @param {*} s
+     * @returns {string}
+     */
+    function cleanText(s) {
+        return window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    }
+
     window.safeHTML = safeHTML;
     window.setSafeHTML = setSafeHTML;
     window.setSafeRows = setSafeRows;
+    window.cleanText = cleanText;
 })();

@@ -35,7 +35,7 @@
     };
 
     const E = () => window.StdnEngine;
-    const clean = s => window.BoundaryQCSecurity ? window.BoundaryQCSecurity.sanitizeString(String(s ?? "")) : String(s ?? "");
+    const clean = window.cleanText; // core/safe-dom.js — shared across every plugin that sanitizes text before interpolation
     const MAX_DXF_CHARS = 8 * 1024 * 1024;
 
     // ── Bundled samples (the standardcompare-plugin test fixtures) ────────────
