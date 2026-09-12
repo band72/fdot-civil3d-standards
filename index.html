@@ -826,6 +826,7 @@
                         <button class="btn btn-primary" id="btn-lw-parse-calls"><i class="fa-solid fa-compass-drafting"></i> Import as calls</button>
                         <button class="btn btn-secondary" id="btn-lw-from-efbk"><i class="fa-solid fa-book-open"></i> Load from EFB</button>
                         <button class="btn btn-secondary" id="btn-lw-load-saved" title="Restore last saved linework session"><i class="fa-solid fa-clock-rotate-left"></i> Restore Saved</button>
+                        <button class="btn btn-secondary" id="btn-lw-load-db" title="Load the last session saved to PostgreSQL"><i class="fa-solid fa-database"></i> Load from Database</button>
                     </div>
                 </div>
 
@@ -1301,6 +1302,58 @@ public class CmdBoundaryQC : IExternalCommand {
                         </div>
                     </div>
 
+                    <!-- PostgreSQL Relational Database & Multi-Tenant Cloud Sync Card -->
+                    <div class="glass-panel" id="cms-db-panel" style="margin-top:1.5rem; padding:1.25rem; border-left:4px solid #336791; background:linear-gradient(135deg, rgba(51,103,145,0.08) 0%, rgba(2,132,199,0.04) 100%);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                            <div>
+                                <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                                    <h3 style="margin:0;"><i class="fa-solid fa-database" style="color:#336791;"></i> PostgreSQL Relational Database</h3>
+                                    <span class="badge" id="db-status-badge" style="background:rgba(51,103,145,0.2); border:1px solid #336791; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-spinner fa-spin"></i> Checking Database...</span>
+                                </div>
+                                <small style="color:var(--text-secondary); display:block; margin-top:0.25rem;" id="db-connection-info">
+                                    ACID-compliant storage supporting local PostgreSQL and future remote cloud database instances (AWS RDS, Neon, Supabase, Azure).
+                                </small>
+                            </div>
+                            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                <button class="btn btn-primary btn-sm" id="btn-db-sync-push" title="Push local CMS state to PostgreSQL tables"><i class="fa-solid fa-cloud-arrow-up"></i> Sync to DB</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-db-sync-pull" title="Pull fresh records from PostgreSQL tables"><i class="fa-solid fa-cloud-arrow-down"></i> Pull from DB</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-db-configure" title="Configure local or remote PostgreSQL connection"><i class="fa-solid fa-gear"></i> Database Settings</button>
+                            </div>
+                        </div>
+
+                        <!-- Database Table Metric Counters -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.75rem; margin-top:1rem;" id="db-metrics-grid">
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">DOT Projects</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-projects">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Client Templates</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-templates">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Submittals</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-submittals">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Transactions</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-transactions">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Audit Blocks</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-audit">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Linework Sessions</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-linework">—</strong>
+                            </div>
+                            <div style="background:var(--bg-primary); padding:0.6rem 0.8rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
+                                <small style="color:var(--text-muted); display:block; font-size:0.7rem;">Survey Points</small>
+                                <strong style="font-size:1.1rem; color:var(--text-primary);" id="db-cnt-pts">—</strong>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Client Master Templates (license-gated) -->
                     <div class="glass-panel" style="padding:1.25rem; margin-top:1.5rem; border-left:4px solid var(--accent);">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
@@ -1648,6 +1701,50 @@ public class CmdBoundaryQC : IExternalCommand {
         </div>
     </div>
 
+    <!-- PostgreSQL Database Configuration Modal (Local & Remote) -->
+    <div id="modal-db-settings" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:99999;">
+        <div class="glass-panel" style="width:92%; max-width:620px; padding:2rem; background:var(--bg-primary); border:1px solid var(--glass-border); border-radius:var(--radius-lg);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+                <h3 style="margin:0;"><i class="fa-solid fa-database" style="color:#336791;"></i> PostgreSQL Database Settings</h3>
+                <button class="icon-btn" id="btn-close-db-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">
+                Connect to the <strong>local PostgreSQL instance</strong> or specify a connection string for a <strong>remote cloud database</strong> (e.g. AWS RDS, Neon, Supabase, Azure, or Google Cloud SQL).
+            </p>
+
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text-primary); margin-bottom:0.4rem;">Deployment Target:</label>
+                <div style="display:flex; gap:1.25rem; flex-wrap:wrap;">
+                    <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.85rem; color:var(--text-secondary); cursor:pointer;">
+                        <input type="radio" name="db-target-type" id="radio-db-local" value="local" checked> Local PostgreSQL Server
+                    </label>
+                    <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.85rem; color:var(--text-secondary); cursor:pointer;">
+                        <input type="radio" name="db-target-type" id="radio-db-remote" value="remote"> Remote / Cloud Database
+                    </label>
+                </div>
+            </div>
+
+            <div style="margin-bottom:1.25rem;">
+                <label for="input-db-url" style="display:block; font-size:0.8rem; font-weight:600; color:var(--text-primary); margin-bottom:0.4rem;">Database Connection URL (PostgreSQL DSN):</label>
+                <input type="text" id="input-db-url" value="postgresql://postgres@localhost:5432/fdot_survey_db" placeholder="postgresql://user:password@hostname:5432/dbname" style="width:100%; padding:0.6rem 0.75rem; font-family:var(--font-mono); font-size:0.8rem; background:var(--bg-secondary); border:1px solid var(--glass-border); border-radius:var(--radius-sm); color:var(--text-primary);">
+                <small style="display:block; font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">
+                    Default local URL: <code>postgresql://postgres@localhost:5432/fdot_survey_db</code>
+                </small>
+            </div>
+
+            <div id="db-test-feedback" style="display:none; padding:0.75rem 1rem; border-radius:var(--radius-sm); font-size:0.85rem; margin-bottom:1.25rem;"></div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" id="btn-db-reset-default"><i class="fa-solid fa-rotate-left"></i> Reset to Local</button>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary btn-sm" id="btn-db-test-conn"><i class="fa-solid fa-plug"></i> Test Connection</button>
+                    <button class="btn btn-primary btn-sm" id="btn-db-save-conn"><i class="fa-solid fa-check"></i> Save &amp; Connect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>
 
@@ -1664,6 +1761,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/cms-engine/cms-engine.js"></script>
     <script src="plugins/security/security.js"></script>
     <script src="plugins/dashboard/dashboard.js"></script>
+    <script src="plugins/db-sync/db-sync.js"></script>
     <script src="plugins/dxf-auditor/dxf-parser.js"></script>
     <script src="plugins/dxf-auditor/dxf-auditor.js"></script>
     <script src="plugins/stdn-compare/stdn-engine.js"></script>

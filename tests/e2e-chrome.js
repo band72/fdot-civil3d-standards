@@ -326,8 +326,30 @@ async function main() {
         const wallsRows = await evaluate("document.getElementById('compare-results-tbody').querySelectorAll('tr').length");
         console.log(`  ✓ Search for 'WALLS' -> Rows: ${wallsRows}`);
 
-        // 10. Check for Any Uncaught In-Page Exceptions
-        console.log("\n[TEST 10] Page Stability & Unhandled Exceptions Check");
+        // 10. PostgreSQL Database & Cloud Sync Bridge Workflow
+        console.log("\n[TEST 10] PostgreSQL Database Status & Cloud Sync Bridge");
+        await evaluate("document.querySelector('[data-tab=\"tab-cms\"]').click()");
+        const isCmsActive = await evaluate("document.getElementById('tab-cms').classList.contains('active')");
+        console.log(`  ✓ Tab switch to Admin Dashboard (tab-cms): ${isCmsActive}`);
+        if (!isCmsActive) throw new Error("tab-cms did not activate");
+
+        const hasDbPanel = await evaluate("!!document.getElementById('cms-db-panel')");
+        const dbStatusBadge = await evaluate("document.getElementById('db-status-badge')?.textContent.trim()");
+        const hasSyncPushBtn = await evaluate("!!document.getElementById('btn-db-sync-push')");
+        const hasSyncPullBtn = await evaluate("!!document.getElementById('btn-db-sync-pull')");
+        const hasConfigBtn = await evaluate("!!document.getElementById('btn-db-configure')");
+        console.log(`  ✓ Database Card Present: ${hasDbPanel} | Status: "${dbStatusBadge}"`);
+        console.log(`  ✓ Sync Controls: Push=${hasSyncPushBtn}, Pull=${hasSyncPullBtn}, Configure=${hasConfigBtn}`);
+        if (!hasDbPanel || !hasSyncPushBtn || !hasSyncPullBtn || !hasConfigBtn) throw new Error("Database UI controls missing from Admin Dashboard");
+
+        // Verify table counter chips
+        const prjCount = await evaluate("document.getElementById('db-cnt-projects')?.textContent.trim()");
+        const lwCount = await evaluate("document.getElementById('db-cnt-linework')?.textContent.trim()");
+        const ptCount = await evaluate("document.getElementById('db-cnt-pts')?.textContent.trim()");
+        console.log(`  ✓ Table Metric Chips -> Projects: ${prjCount}, Linework Sessions: ${lwCount}, Survey Points: ${ptCount}`);
+
+        // 11. Check for Any Uncaught In-Page Exceptions
+        console.log("\n[TEST 11] Page Stability & Unhandled Exceptions Check");
         console.log(`  ✓ Total Uncaught Runtime Exceptions: ${uncaughtExceptions.length}`);
         if (uncaughtExceptions.length > 0) {
             console.error("Uncaught exceptions detected:", uncaughtExceptions);

@@ -112,7 +112,8 @@ function load() {
         "plugins/batchprocess/batchprocess.js",
         "plugins/reports/reports.js",
         "plugins/logging/logging.js",
-        "plugins/help/help.js"
+        "plugins/help/help.js",
+        "plugins/db-sync/db-sync.js"
     ];
 
     const loaded = [], errors = [];

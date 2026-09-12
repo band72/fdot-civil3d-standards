@@ -1000,6 +1000,22 @@ class BoundaryQCCMSEngine {
         const tenantId = user ? user.orgId : "org_kh_01";
         const projects = this.getProjects().filter(p => p.orgId === tenantId);
         const projectIds = new Set(projects.map(p => p.id));
+        const tenantUserIds = new Set(this.getUsers().filter(u => u.orgId === tenantId).map(u => u.id));
+        // Templates carry no orgId of their own — they're scoped to their owner (ownerId), so a
+        // template belongs to this tenant iff its owner does. The wire/DB field is "userId" (see
+        // client_templates.user_id in db/schema.sql and server.py) — map ownerId -> userId here.
+        const templates = this._allTemplates()
+            .filter(t => tenantUserIds.has(t.ownerId))
+            .map(t => ({
+                id: t.id,
+                userId: t.ownerId,
+                orgId: tenantId,
+                clientName: t.clientName,
+                label: t.label,
+                settings: t.settings,
+                createdAt: t.createdAt,
+                updatedAt: t.updatedAt
+            }));
         return {
             schemaVersion: "2.5.0-PostgreSQL-RLS",
             tenantId,
@@ -1008,11 +1024,104 @@ class BoundaryQCCMSEngine {
                 organizations: this.getOrganizations().filter(o => o.id === tenantId),
                 users: this.getUsers().filter(u => u.orgId === tenantId),
                 projects,
+                client_templates: templates,
                 submittals: this.getSubmittals().filter(s => projectIds.has(s.projectId)),
                 transactions: this.getTransactions().filter(t => t.orgId === tenantId),
                 audit_chain: this.getAuditLogs()
             }
         };
+    }
+
+    // ── PostgreSQL pull ingestion ────────────────────────────────────────────
+    // Called by plugins/db-sync/db-sync.js after a successful pull from the local/remote
+    // Postgres bridge. Each import upserts DB rows (snake_case, as server.py returns them) into
+    // the same localStorage-backed collections the rest of this class reads/writes, translating
+    // field names back to this class's camelCase shape. Merge-by-id so a pull never drops a
+    // locally-created row the server doesn't know about yet.
+
+    /** Shared upsert-by-id helper: merges `incoming` into the array at `storageKey`, DB rows win. */
+    _mergeById(storageKey, incoming) {
+        const existing = this._readJSON(storageKey, []);
+        const byId = new Map(existing.map(r => [r.id, r]));
+        incoming.forEach(r => byId.set(r.id, r));
+        const merged = Array.from(byId.values());
+        this._writeJSON(storageKey, merged);
+        return merged;
+    }
+
+    importOrganizations(rows) {
+        return this._mergeById(this.STORAGE_KEYS.ORGS, (rows || []).map(o => ({
+            id: o.id, name: o.name, plan: o.tier, purchasedSeats: o.license_cap, createdAt: o.created_at
+        })));
+    }
+
+    importProjects(rows) {
+        return this._mergeById(this.STORAGE_KEYS.PROJECTS, (rows || []).map(p => ({
+            id: p.id, orgId: p.org_id, fpid: p.fpid, name: p.name, county: p.county,
+            district: p.district, status: p.status, metadata: p.metadata,
+            createdAt: p.created_at, updatedAt: p.updated_at
+        })));
+    }
+
+    /** Templates merge by id, but keep each row's `ownerId` (this class's field) from `user_id`. */
+    importTemplates(rows) {
+        return this._mergeById(this.STORAGE_KEYS.TEMPLATES, (rows || []).map(t => ({
+            id: t.id, ownerId: t.user_id, clientName: t.client_name, label: t.label,
+            settings: typeof t.settings === "string" ? JSON.parse(t.settings) : t.settings,
+            createdAt: t.created_at, updatedAt: t.updated_at
+        })));
+    }
+
+    importSubmittals(rows) {
+        return this._mergeById(this.STORAGE_KEYS.SUBMITTALS, (rows || []).map(s => ({
+            id: s.id, projectId: s.project_id, fileName: s.file_name, submittedBy: s.submitted_by,
+            sha256: s.sha256, precisionRatio: s.precision_ratio, status: s.status,
+            metadata: s.metadata, timestamp: s.created_at
+        })));
+    }
+
+    importTransactions(rows) {
+        return this._mergeById(this.STORAGE_KEYS.TRANSACTIONS, (rows || []).map(tx => ({
+            id: tx.id, orgId: tx.org_id, description: tx.description, amount: Number(tx.amount),
+            status: tx.status, receiptUrl: tx.ref_id, timestamp: tx.timestamp
+        })));
+    }
+
+    /**
+     * Audit log entries are hash-chained by `sequence` — unlike the other collections, a pull
+     * REPLACES the local chain with the server's (sorted by sequence) rather than merging by id,
+     * since two independently-extended chains can't be reconciled by an id-keyed union. Only
+     * replaces when the server actually has entries, and never on a network/parse failure.
+     */
+    importAuditChain(rows) {
+        if (!Array.isArray(rows) || !rows.length) return this.getAuditLogs();
+        const mapped = rows
+            .map(a => ({
+                sequence: a.sequence, prevHash: a.prev_hash, hash: a.hash,
+                actor: a.actor, action: a.action, details: a.details, timestamp: a.timestamp
+            }))
+            .sort((a, b) => a.sequence - b.sequence);
+        this._writeJSON(this.STORAGE_KEYS.AUDIT_LOGS, mapped);
+        return mapped;
+    }
+
+    /** Users merge by id; never touches `credentials` for a row that already exists locally, so a
+     *  pull can't clobber a real PBKDF2 credential with the server's demo/placeholder hash. */
+    importUsers(rows) {
+        const existing = this._readJSON(this.STORAGE_KEYS.USERS, []);
+        const byId = new Map(existing.map(u => [u.id, u]));
+        (rows || []).forEach(u => {
+            const prior = byId.get(u.id);
+            byId.set(u.id, {
+                id: u.id, orgId: u.org_id, email: u.email, fullName: u.full_name, role: u.role,
+                licenseNumber: u.license_number, licenseState: u.license_state, company: u.company,
+                credentials: prior ? prior.credentials : undefined,
+                createdAt: prior ? prior.createdAt : u.created_at
+            });
+        });
+        const merged = Array.from(byId.values());
+        this._writeJSON(this.STORAGE_KEYS.USERS, merged);
+        return merged;
     }
 }
 

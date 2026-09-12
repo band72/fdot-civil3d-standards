@@ -1163,10 +1163,20 @@
                 if (typeof window !== "undefined" && window.Logging?.info) {
                     window.Logging.info("Linework", `Saved linework session with ${this.model.figures.length} figure(s) and ${this._allPts().length} point(s).`);
                 }
+                if (typeof window !== "undefined" && window.DatabaseService && typeof window.DatabaseService.saveLinework === "function") {
+                    window.DatabaseService.saveLinework({
+                        id: "lw_session_active",
+                        name: `Linework Session (${this.model.figures.length} figures)`,
+                        model: this.model,
+                        view: this.view
+                    }).catch(e => {
+                        if (window.Logging?.warn) window.Logging.warn("Linework", "Database background save error: " + e.message);
+                    });
+                }
                 const nFigs = this.model.figures.length;
                 const nPts = this._allPts().length;
                 if (this.ctx && this.ctx.showToast) {
-                    this.ctx.showToast(`Saved session: ${nFigs} figure(s) · ${nPts} point(s)`);
+                    this.ctx.showToast(`Saved session: ${nFigs} figure(s) · ${nPts} point(s) (Storage + Database)`);
                 }
                 this._snapshot();
                 return true;
@@ -1177,27 +1187,53 @@
         },
         loadSavedSession() {
             try {
-                if (typeof window === "undefined" || !window.localStorage) return false;
-                const raw = window.localStorage.getItem("fdot_linework_saved_session");
-                if (!raw) {
-                    if (this.ctx && this.ctx.showToast) this.ctx.showToast("No saved linework session found in storage.", true);
-                    return false;
-                }
-                const payload = JSON.parse(raw);
-                if (payload && payload.model && Array.isArray(payload.model.figures)) {
-                    this.setModel(payload.model);
-                    if (payload.view) {
-                        this.view = payload.view;
-                        this._applyView();
+                if (typeof window !== "undefined" && window.localStorage) {
+                    const raw = window.localStorage.getItem("fdot_linework_saved_session");
+                    if (raw) {
+                        const payload = JSON.parse(raw);
+                        if (payload && payload.model && Array.isArray(payload.model.figures)) {
+                            this.setModel(payload.model);
+                            if (payload.view) {
+                                this.view = payload.view;
+                                this._applyView();
+                            }
+                            if (this.ctx && this.ctx.showToast) {
+                                const timeStr = payload.savedAt ? new Date(payload.savedAt).toLocaleTimeString() : "";
+                                this.ctx.showToast(`Restored saved session ${timeStr ? `from ${timeStr}` : ""} (${payload.model.figures.length} figures)`);
+                            }
+                            return true;
+                        }
                     }
-                    if (this.ctx && this.ctx.showToast) {
-                        const timeStr = payload.savedAt ? new Date(payload.savedAt).toLocaleTimeString() : "";
-                        this.ctx.showToast(`Restored saved session ${timeStr ? `from ${timeStr}` : ""} (${payload.model.figures.length} figures)`);
-                    }
-                    return true;
                 }
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("No saved linework session found in storage.", true);
             } catch (err) {
                 if (this.ctx && this.ctx.showToast) this.ctx.showToast("Failed to restore session: " + err.message, true);
+            }
+            return false;
+        },
+        async loadSavedSessionFromDb(sessionId = "lw_session_active") {
+            try {
+                if (typeof window !== "undefined" && window.DatabaseService && typeof window.DatabaseService.loadLinework === "function") {
+                    const res = await window.DatabaseService.loadLinework(sessionId);
+                    // server.py's /api/db/linework/load returns the row's columns directly on
+                    // `session` (id, name, figure_count, point_count, model, view, ...) — no
+                    // nested "session_data" wrapper.
+                    const payload = res && res.session;
+                    if (payload && payload.model && Array.isArray(payload.model.figures)) {
+                        this.setModel(payload.model);
+                        if (payload.view) {
+                            this.view = payload.view;
+                            this._applyView();
+                        }
+                        if (this.ctx && this.ctx.showToast) {
+                            this.ctx.showToast(`Restored session from database (${payload.model.figures.length} figures)`);
+                        }
+                        return true;
+                    }
+                }
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("No saved linework session found in the database.", true);
+            } catch (err) {
+                if (this.ctx && this.ctx.showToast) this.ctx.showToast("Failed to load session from database: " + err.message, true);
             }
             return false;
         },
@@ -2020,6 +2056,7 @@ ${cgXml}
             const dl = (name, txt, mime) => { if (!txt) { ctx.showToast("Nothing to export.", true); return; } window.COGO.downloadText(name, txt, mime); ctx.showToast("Exported " + name); };
             document.getElementById("btn-lw-save")?.addEventListener("click", () => Ed.saveSession());
             document.getElementById("btn-lw-load-saved")?.addEventListener("click", () => Ed.loadSavedSession());
+            document.getElementById("btn-lw-load-db")?.addEventListener("click", () => Ed.loadSavedSessionFromDb());
             document.getElementById("btn-lw-exp-csv")?.addEventListener("click", () => dl("linework_points.csv", exportCSV(), "text/csv"));
             document.getElementById("btn-lw-exp-landxml")?.addEventListener("click", () => dl("linework_model.xml", exportLandXML(), "application/xml"));
             document.getElementById("btn-lw-exp-dxf")?.addEventListener("click", () => dl("linework.dxf", exportDXF(), "application/dxf"));
@@ -2234,6 +2271,7 @@ ${cgXml}
         circumcircle, fitCircle, buildLineworkScript, CODESET, CODESET_PROFILES,
         applyCodesetProfile, ARC_FIT, exportCSV, exportLandXML,
         saveSession: () => Ed.saveSession(), loadSavedSession: () => Ed.loadSavedSession(),
+        loadSavedSessionFromDb: (id) => Ed.loadSavedSessionFromDb(id),
         _Ed: Ed
     };
 })();

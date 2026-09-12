@@ -27,6 +27,7 @@ out/
 # Secrets / environment
 .env
 .env.*
+.db_config.json
 *.pem
 *.key
 *.p12

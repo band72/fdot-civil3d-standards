@@ -4,8 +4,13 @@
   "private": true,
   "description": "FDOT Civil3D Standards Suite — client-side surveying / CADD tools",
   "scripts": {
-    "start": "python3 -m http.server 8085",
+    "start": "python3 server.py 8085",
+    "db:start": "bash scripts/pg_ctl.sh start",
+    "db:stop": "bash scripts/pg_ctl.sh stop",
+    "db:status": "bash scripts/pg_ctl.sh status",
+    "db:init": "python3 db/init_db.py",
     "test": "node tests/run.js",
+    "test:db": "node tests/run.js db",
     "test:e2e": "node --experimental-websocket tests/e2e-chrome.js",
     "test:all": "node tests/run.js && node --experimental-websocket tests/e2e-chrome.js"
   }
