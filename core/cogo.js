@@ -257,11 +257,228 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    // ── Florida State Plane Coordinate System (SPCS83 / NAD83 2011) & CSF ────
+    const GRS80_A = 6378137.0; // semi-major axis (meters)
+    const GRS80_F = 1 / 298.257222101; // flattening
+    const GRS80_E2 = 2 * GRS80_F - GRS80_F * GRS80_F; // 1st eccentricity squared
+    const GRS80_E = Math.sqrt(GRS80_E2);
+    const GRS80_EP2 = GRS80_E2 / (1 - GRS80_E2); // 2nd eccentricity squared
+    const METER_TO_SFT = 3937 / 1200; // US Survey Foot ratio
+    const SFT_TO_METER = 1200 / 3937;
+    const MEAN_EARTH_RADIUS_FT = 20906000; // mean radius for Florida (~6372 km)
+
+    const SPCS83_ZONES = {
+        FL_EAST: {
+            name: "Florida East",
+            fips: "0901",
+            proj: "TM",
+            cmDeg: -81.0,
+            origLatDeg: 24 + 20 / 60,
+            k0: 0.9999411764705882, // 1 / 17000
+            feM: 200000.0,
+            fnM: 0.0
+        },
+        FL_WEST: {
+            name: "Florida West",
+            fips: "0902",
+            proj: "TM",
+            cmDeg: -82.0,
+            origLatDeg: 24 + 20 / 60,
+            k0: 0.9999411764705882, // 1 / 17000
+            feM: 200000.0,
+            fnM: 0.0
+        },
+        FL_NORTH: {
+            name: "Florida North",
+            fips: "0903",
+            proj: "LCC",
+            sp1Deg: 29 + 35 / 60,
+            sp2Deg: 30 + 45 / 60,
+            origLatDeg: 29.0,
+            cmDeg: -84.5,
+            feM: 600000.0,
+            fnM: 0.0
+        }
+    };
+
+    function _tmMeridionalDist(phi) {
+        const c0 = 1 - GRS80_E2 / 4 - 3 * GRS80_E2 * GRS80_E2 / 64 - 5 * Math.pow(GRS80_E2, 3) / 256;
+        const c2 = 3 * GRS80_E2 / 8 + 3 * GRS80_E2 * GRS80_E2 / 32 + 45 * Math.pow(GRS80_E2, 3) / 1024;
+        const c4 = 15 * GRS80_E2 * GRS80_E2 / 256 + 45 * Math.pow(GRS80_E2, 3) / 1024;
+        const c6 = 35 * Math.pow(GRS80_E2, 3) / 3072;
+        return GRS80_A * (c0 * phi - c2 * Math.sin(2 * phi) + c4 * Math.sin(4 * phi) - c6 * Math.sin(6 * phi));
+    }
+
+    function _lccInit(z) {
+        if (z._init) return z._init;
+        const p1 = z.sp1Deg * D2R;
+        const p2 = z.sp2Deg * D2R;
+        const p0 = z.origLatDeg * D2R;
+        const m1 = Math.cos(p1) / Math.sqrt(1 - GRS80_E2 * Math.sin(p1) * Math.sin(p1));
+        const m2 = Math.cos(p2) / Math.sqrt(1 - GRS80_E2 * Math.sin(p2) * Math.sin(p2));
+        const tFn = p => Math.tan(Math.PI / 4 - p / 2) / Math.pow((1 - GRS80_E * Math.sin(p)) / (1 + GRS80_E * Math.sin(p)), GRS80_E / 2);
+        const t1 = tFn(p1);
+        const t2 = tFn(p2);
+        const t0 = tFn(p0);
+        const n = (Math.log(m1) - Math.log(m2)) / (Math.log(t1) - Math.log(t2));
+        const F = m1 / (n * Math.pow(t1, n));
+        const rho0 = GRS80_A * F * Math.pow(t0, n);
+        z._init = { n, F, rho0, tFn };
+        return z._init;
+    }
+
+    /**
+     * Convert WGS84 / NAD83 latitude & longitude to Florida State Plane coordinates.
+     * Natural Physical GPS Coordinates: Always exact, ground-truthed WGS84/NAD83 without artificial offset fudging.
+     * @param {number} latDeg - Latitude in decimal degrees (North)
+     * @param {number} lonDeg - Longitude in decimal degrees (West, negative)
+     * @param {"FL_EAST"|"FL_WEST"|"FL_NORTH"} zoneKey
+     * @param {"sft"|"m"} [unit="sft"] - US Survey Feet (sft) or Meters (m)
+     * @returns {{ northing: number, easting: number, k: number, zone: string, unit: string }}
+     */
+    function latLonToStatePlane(latDeg, lonDeg, zoneKey, unit = "sft") {
+        const zone = SPCS83_ZONES[zoneKey] || SPCS83_ZONES.FL_EAST;
+        const phi = latDeg * D2R;
+        const lam = lonDeg * D2R;
+        let eastingM = 0, northingM = 0, k = 1.0;
+
+        if (zone.proj === "TM") {
+            const lam0 = zone.cmDeg * D2R;
+            const phi0 = zone.origLatDeg * D2R;
+            const dLam = lam - lam0;
+            const N = GRS80_A / Math.sqrt(1 - GRS80_E2 * Math.sin(phi) * Math.sin(phi));
+            const T = Math.tan(phi) * Math.tan(phi);
+            const C = GRS80_EP2 * Math.cos(phi) * Math.cos(phi);
+            const A = dLam * Math.cos(phi);
+            const M = _tmMeridionalDist(phi);
+            const M0 = _tmMeridionalDist(phi0);
+
+            eastingM = zone.feM + zone.k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * GRS80_EP2) * Math.pow(A, 5) / 120);
+            northingM = zone.fnM + zone.k0 * (M - M0 + N * Math.tan(phi) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * GRS80_EP2) * Math.pow(A, 6) / 720));
+            k = zone.k0 * (1 + (1 + C) * A * A / 2 + (5 - 4 * T + 42 * C + 13 * C * C - 28 * GRS80_EP2) * Math.pow(A, 4) / 24);
+        } else if (zone.proj === "LCC") {
+            const init = _lccInit(zone);
+            const lam0 = zone.cmDeg * D2R;
+            const t = init.tFn(phi);
+            const rho = GRS80_A * init.F * Math.pow(t, init.n);
+            const theta = init.n * (lam - lam0);
+            eastingM = zone.feM + rho * Math.sin(theta);
+            northingM = zone.fnM + init.rho0 - rho * Math.cos(theta);
+            const m = Math.cos(phi) / Math.sqrt(1 - GRS80_E2 * Math.sin(phi) * Math.sin(phi));
+            k = (rho * init.n) / (GRS80_A * m);
+        }
+
+        const toFeet = unit === "sft";
+        return {
+            easting: toFeet ? eastingM * METER_TO_SFT : eastingM,
+            northing: toFeet ? northingM * METER_TO_SFT : northingM,
+            k,
+            zone: zoneKey,
+            unit
+        };
+    }
+
+    /**
+     * Convert Florida State Plane coordinates to natural WGS84 / NAD83 latitude & longitude.
+     * @param {number} northing
+     * @param {number} easting
+     * @param {"FL_EAST"|"FL_WEST"|"FL_NORTH"} zoneKey
+     * @param {"sft"|"m"} [unit="sft"]
+     * @returns {{ latDeg: number, lonDeg: number, zone: string }}
+     */
+    function statePlaneToLatLon(northing, easting, zoneKey, unit = "sft") {
+        const zone = SPCS83_ZONES[zoneKey] || SPCS83_ZONES.FL_EAST;
+        const toMeters = unit === "sft" ? SFT_TO_METER : 1.0;
+        const xM = easting * toMeters;
+        const yM = northing * toMeters;
+        let latDeg = 0, lonDeg = 0;
+
+        if (zone.proj === "TM") {
+            const lam0 = zone.cmDeg * D2R;
+            const phi0 = zone.origLatDeg * D2R;
+            const M0 = _tmMeridionalDist(phi0);
+            const M = M0 + (yM - zone.fnM) / zone.k0;
+            const e1 = (1 - Math.sqrt(1 - GRS80_E2)) / (1 + Math.sqrt(1 - GRS80_E2));
+            const mu = M / (GRS80_A * (1 - GRS80_E2 / 4 - 3 * GRS80_E2 * GRS80_E2 / 64 - 5 * Math.pow(GRS80_E2, 3) / 256));
+            const phi1 = mu + (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32) * Math.sin(2 * mu)
+                            + (21 * e1 * e1 / 16 - 55 * Math.pow(e1, 4) / 32) * Math.sin(4 * mu)
+                            + (151 * Math.pow(e1, 3) / 96) * Math.sin(6 * mu)
+                            + (1097 * Math.pow(e1, 4) / 512) * Math.sin(8 * mu);
+
+            const sinP = Math.sin(phi1);
+            const cosP = Math.cos(phi1);
+            const tanP = Math.tan(phi1);
+            const N1 = GRS80_A / Math.sqrt(1 - GRS80_E2 * sinP * sinP);
+            const R1 = GRS80_A * (1 - GRS80_E2) / Math.pow(1 - GRS80_E2 * sinP * sinP, 1.5);
+            const C1 = GRS80_EP2 * cosP * cosP;
+            const T1 = tanP * tanP;
+            const D = (xM - zone.feM) / (N1 * zone.k0);
+
+            const lat = phi1 - (N1 * tanP / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * GRS80_EP2) * Math.pow(D, 4) / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * GRS80_EP2 - 3 * C1 * C1) * Math.pow(D, 6) / 720);
+            const lon = lam0 + (D - (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * GRS80_EP2 + 24 * T1 * T1) * Math.pow(D, 5) / 120) / cosP;
+            latDeg = lat * R2D;
+            lonDeg = lon * R2D;
+        } else if (zone.proj === "LCC") {
+            const init = _lccInit(zone);
+            const lam0 = zone.cmDeg * D2R;
+            const xP = xM - zone.feM;
+            const yP = init.rho0 - (yM - zone.fnM);
+            const rhoP = Math.sign(init.n) * Math.hypot(xP, yP);
+            const thetaP = Math.atan2(xP, yP);
+            const tP = Math.pow(rhoP / (GRS80_A * init.F), 1 / init.n);
+            let phi = Math.PI / 2 - 2 * Math.atan(tP);
+            for (let i = 0; i < 6; i++) {
+                const es = GRS80_E * Math.sin(phi);
+                const next = Math.PI / 2 - 2 * Math.atan(tP * Math.pow((1 - es) / (1 + es), GRS80_E / 2));
+                if (Math.abs(next - phi) < 1e-13) break;
+                phi = next;
+            }
+            latDeg = phi * R2D;
+            lonDeg = (lam0 + thetaP / init.n) * R2D;
+        }
+
+        return { latDeg, lonDeg, zone: zoneKey };
+    }
+
+    /**
+     * Compute Elevation Factor (EF) for a given ellipsoidal/orthometric height in feet.
+     * EF = R / (R + h)
+     */
+    function elevationFactor(elevationFt, meanRadiusFt = MEAN_EARTH_RADIUS_FT) {
+        const h = Number(elevationFt) || 0;
+        return meanRadiusFt / (meanRadiusFt + h);
+    }
+
+    /**
+     * Combined Scale Factor (CSF) = Grid Scale Factor (k) * Elevation Factor (EF).
+     */
+    function combinedScaleFactor(gridScaleK, elevationFt, meanRadiusFt = MEAN_EARTH_RADIUS_FT) {
+        const k = Number(gridScaleK) || 1.0;
+        return k * elevationFactor(elevationFt, meanRadiusFt);
+    }
+
+    /**
+     * Ground distance to Grid distance: Grid = Ground * CSF
+     */
+    function groundToGridDistance(groundDist, csf) {
+        return (Number(groundDist) || 0) * (Number(csf) || 1.0);
+    }
+
+    /**
+     * Grid distance to Ground distance: Ground = Grid / CSF
+     */
+    function gridToGroundDistance(gridDist, csf) {
+        const c = Number(csf) || 1.0;
+        return c !== 0 ? (Number(gridDist) || 0) / c : 0;
+    }
+
     window.COGO = {
         D2R, R2D, SQFT_PER_ACRE,
         parseBearing, azimuthToBearing, advance,
         distanceBetween, azimuthDegBetween, includedAngleDeg,
         chordFromArc, deltaDegFromArc, shoelaceArea, bulge, normalizeDMS,
-        runTraverse, pnezd, selfIntersects, buildDxf, downloadText
+        runTraverse, pnezd, selfIntersects, buildDxf, downloadText,
+        SPCS83_ZONES, latLonToStatePlane, statePlaneToLatLon,
+        elevationFactor, combinedScaleFactor, groundToGridDistance, gridToGroundDistance
     };
 })();

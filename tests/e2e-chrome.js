@@ -82,8 +82,9 @@ async function main() {
 
         // 1. Initial Load Checks
         console.log("\n[TEST 1] Initial Page & Plugin Initialization");
-        const pluginCount = await evaluate("window.PluginRegistry ? window.PluginRegistry.getAll().length : 0");
-        console.log(`  ✓ Plugins registered & active: ${pluginCount}`);
+        const pluginNames = await evaluate("window.PluginRegistry ? window.PluginRegistry.getAll().map(p => p.manifest.name) : []");
+        const pluginCount = pluginNames ? pluginNames.length : 0;
+        console.log(`  ✓ Plugins registered & active (${pluginCount}):`, pluginNames);
         if (pluginCount < 18) throw new Error(`Expected >= 18 plugins, got ${pluginCount}`);
 
         // 2. Batch Project Auditor Workflow

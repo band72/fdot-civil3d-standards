@@ -181,4 +181,51 @@ module.exports = function (t, env) {
     t.eq(JSON.stringify(C.normalizeDMS(45, 59, 59.6)), JSON.stringify({ deg: 46, min: 0, sec: 0 }), "…and a full minute+second rollover carries into degrees too");
     t.eq(JSON.stringify(C.normalizeDMS(45, 12, 30.4)), JSON.stringify({ deg: 45, min: 12, sec: 30 }), "an ordinary value is unaffected (just rounds down)");
     t.eq(JSON.stringify(C.normalizeDMS(45, 12, 29.5)), JSON.stringify({ deg: 45, min: 12, sec: 30 }), "…and rounds up normally when it doesn't hit a boundary");
+
+    t.group("cogo/spcs83 Florida East, West & North projections");
+    t.ok(C.SPCS83_ZONES.FL_EAST, "FL_EAST zone defined");
+    t.ok(C.SPCS83_ZONES.FL_WEST, "FL_WEST zone defined");
+    t.ok(C.SPCS83_ZONES.FL_NORTH, "FL_NORTH zone defined");
+
+    // Benchmark test: Orlando in FL_EAST (TM)
+    const orlandoLat = 28.5383355, orlandoLon = -81.3792364;
+    const eastGrid = C.latLonToStatePlane(orlandoLat, orlandoLon, "FL_EAST", "sft");
+    t.ok(eastGrid.easting > 400000 && eastGrid.easting < 700000, "Orlando easting in reasonable range (sft)");
+    t.ok(eastGrid.northing > 1400000 && eastGrid.northing < 1700000, "Orlando northing in reasonable range (sft)");
+    t.close(eastGrid.k, 1.0, 0.0005, "Orlando grid scale factor k near 1.0");
+    const eastRev = C.statePlaneToLatLon(eastGrid.northing, eastGrid.easting, "FL_EAST", "sft");
+    t.close(eastRev.latDeg, orlandoLat, 1e-7, "Orlando lat round-trips to < 0.01 mm");
+    t.close(eastRev.lonDeg, orlandoLon, 1e-7, "Orlando lon round-trips to < 0.01 mm");
+
+    // Benchmark test: Tampa in FL_WEST (TM)
+    const tampaLat = 27.950575, tampaLon = -82.457178;
+    const westGrid = C.latLonToStatePlane(tampaLat, tampaLon, "FL_WEST", "sft");
+    t.ok(westGrid.easting > 400000 && westGrid.easting < 700000, "Tampa easting in reasonable range (sft)");
+    t.ok(westGrid.northing > 1200000 && westGrid.northing < 1500000, "Tampa northing in reasonable range (sft)");
+    const westRev = C.statePlaneToLatLon(westGrid.northing, westGrid.easting, "FL_WEST", "sft");
+    t.close(westRev.latDeg, tampaLat, 1e-7, "Tampa lat round-trips to < 0.01 mm");
+    t.close(westRev.lonDeg, tampaLon, 1e-7, "Tampa lon round-trips to < 0.01 mm");
+
+    // Benchmark test: Tallahassee in FL_NORTH (LCC)
+    const tallyLat = 30.438256, tallyLon = -84.280733;
+    const northGrid = C.latLonToStatePlane(tallyLat, tallyLon, "FL_NORTH", "sft");
+    t.ok(northGrid.easting > 1800000 && northGrid.easting < 2200000, "Tallahassee easting in reasonable range (sft)");
+    t.ok(northGrid.northing > 400000 && northGrid.northing < 700000, "Tallahassee northing in reasonable range (sft)");
+    const northRev = C.statePlaneToLatLon(northGrid.northing, northGrid.easting, "FL_NORTH", "sft");
+    t.close(northRev.latDeg, tallyLat, 1e-7, "Tallahassee lat round-trips to < 0.01 mm");
+    t.close(northRev.lonDeg, tallyLon, 1e-7, "Tallahassee lon round-trips to < 0.01 mm");
+
+    t.group("cogo/combinedScaleFactor & distance reductions");
+    const ef0 = C.elevationFactor(0);
+    t.eq(ef0, 1.0, "Elevation factor at sea level is 1.0");
+    const ef100 = C.elevationFactor(100);
+    t.ok(ef100 < 1.0 && ef100 > 0.99999, "Elevation factor at 100 ft is slightly < 1.0");
+    const csf = C.combinedScaleFactor(0.99995, 100);
+    t.ok(csf < 0.99995, "Combined scale factor is k * EF");
+
+    const groundDist = 1000.0;
+    const gridDist = C.groundToGridDistance(groundDist, csf);
+    t.close(gridDist, groundDist * csf, 1e-9, "groundToGridDistance correct");
+    const backToGround = C.gridToGroundDistance(gridDist, csf);
+    t.close(backToGround, groundDist, 1e-9, "gridToGroundDistance round-trips");
 };

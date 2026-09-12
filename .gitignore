@@ -28,6 +28,7 @@ out/
 .env
 .env.*
 .db_config.json
+.bridge_token
 *.pem
 *.key
 *.p12

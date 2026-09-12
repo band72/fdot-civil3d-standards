@@ -22,6 +22,7 @@
     const _listeners = new Set();
 
     let _apiUrl = "http://localhost:8085/api/db";
+    let _bridgeToken = null;
 
     function _resolveUrl(subpath) {
         let base = _apiUrl;
@@ -32,10 +33,36 @@
         return base.replace(/\/+$/, "") + (rel.startsWith("/") ? rel : "/" + rel);
     }
 
+    async function ensureToken() {
+        if (_bridgeToken) return _bridgeToken;
+        try {
+            const url = _resolveUrl("/token");
+            const res = await fetch(url, { cache: "no-store" });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.ok && data.token) {
+                    _bridgeToken = data.token;
+                }
+            }
+        } catch (e) {
+            // Bridge might not be running or token endpoint not available
+        }
+        return _bridgeToken;
+    }
+
+    function _getHeaders(extra = {}) {
+        const headers = Object.assign({}, extra);
+        if (_bridgeToken) {
+            headers["X-Bridge-Token"] = _bridgeToken;
+        }
+        return headers;
+    }
+
     async function getStatus() {
         try {
+            await ensureToken();
             const url = _resolveUrl("/status");
-            const res = await fetch(url, { cache: "no-store" });
+            const res = await fetch(url, { cache: "no-store", headers: _getHeaders() });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             _lastStatus = await res.json();
         } catch (err) {
@@ -56,10 +83,11 @@
     }
 
     async function configureDatabase(urlOrReset) {
+        await ensureToken();
         const body = typeof urlOrReset === "string" ? { database_url: urlOrReset } : { reset_default: true };
         const res = await fetch(_resolveUrl("/config"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: _getHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify(body)
         });
         const data = await res.json();
@@ -69,6 +97,7 @@
     }
 
     async function syncToDatabase(overridePayload) {
+        await ensureToken();
         let payload = overridePayload;
         if (!payload) {
             if (!window.BoundaryQCCMS) throw new Error("CMS Engine is not loaded.");
@@ -76,7 +105,7 @@
         }
         const res = await fetch(_resolveUrl("/sync/push"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: _getHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -122,15 +151,19 @@
         })
     };
 
-    async function pullFromDatabase() {
+    async function pullFromDatabase(customTenantId) {
+        await ensureToken();
         const cms = window.BoundaryQCCMS;
-        let tenantId = "org_kh_01";
-        if (cms && typeof cms.getCurrentUser === "function") {
+        let tenantId = customTenantId || "org_kh_01";
+        if (!customTenantId && cms && typeof cms.getCurrentUser === "function") {
             const user = cms.getCurrentUser();
             if (user && user.orgId) tenantId = user.orgId;
         }
 
-        const res = await fetch(_resolveUrl(`/sync/pull?tenantId=${encodeURIComponent(tenantId)}`), { cache: "no-store" });
+        const res = await fetch(_resolveUrl(`/sync/pull?tenantId=${encodeURIComponent(tenantId)}`), {
+            cache: "no-store",
+            headers: _getHeaders()
+        });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || "Database pull failed.");
 
@@ -155,9 +188,10 @@
     }
 
     async function saveLinework(session) {
+        await ensureToken();
         const res = await fetch(_resolveUrl("/linework/save"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: _getHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify(session)
         });
         const data = await res.json();
@@ -166,8 +200,12 @@
     }
 
     async function loadLinework(id) {
+        await ensureToken();
         const sub = id ? `/linework/load?id=${encodeURIComponent(id)}` : "/linework/load";
-        const res = await fetch(_resolveUrl(sub), { cache: "no-store" });
+        const res = await fetch(_resolveUrl(sub), {
+            cache: "no-store",
+            headers: _getHeaders()
+        });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || "Failed to load linework session from database.");
         return data;
@@ -193,6 +231,10 @@
         pullFromDatabase,
         saveLinework,
         loadLinework,
+        ensureToken,
+        getAuthHeaders: _getHeaders,
+        get token() { return _bridgeToken; },
+        set token(v) { _bridgeToken = v; },
         onStatusChange(fn) {
             _listeners.add(fn);
             fn(_lastStatus);

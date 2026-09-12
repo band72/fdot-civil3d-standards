@@ -1,25 +1,69 @@
 #!/usr/bin/env python3
 """
 FDOT Civil3D Standards Suite - HTTP & PostgreSQL Bridge Server
-Serves static web application assets and provides RESTful endpoints for local and remote PostgreSQL database sync.
+Serves static web application assets and provides RESTful endpoints for local PostgreSQL database sync.
+Hardened for local loopback operation with connection pooling and token-based protection.
 """
 import os
 import sys
 import json
+import hashlib
+import hmac
+import secrets
 from decimal import Decimal
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
-# Try to import psycopg2
+# Try to import psycopg2 and connection pool
 try:
     import psycopg2
+    from psycopg2 import pool
     from psycopg2.extras import RealDictCursor
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), ".db_config.json")
+TOKEN_FILE = os.path.join(os.path.dirname(__file__), ".bridge_token")
 DEFAULT_DB_URL = "postgresql://postgres@localhost:5432/fdot_survey_db"
+
+def load_or_create_bridge_token():
+    token = os.environ.get("BRIDGE_TOKEN")
+    if token:
+        return token
+    if os.path.exists(TOKEN_FILE):
+        try:
+            with open(TOKEN_FILE, "r", encoding="utf-8") as f:
+                tok = f.read().strip()
+                if tok:
+                    return tok
+        except Exception:
+            pass
+    token = secrets.token_hex(24)
+    try:
+        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+            f.write(token)
+        os.chmod(TOKEN_FILE, 0o600)
+    except Exception:
+        pass
+    return token
+
+BRIDGE_TOKEN = load_or_create_bridge_token()
+
+def is_local_db_host(url):
+    """Check whether a database URL points exclusively to a local loopback interface."""
+    try:
+        p = urlparse(url)
+        host = (p.hostname or "localhost").lower()
+        if not host:
+            return True
+        if host in ("localhost", "::1"):
+            return True
+        if host.startswith("127."):
+            return True
+        return False
+    except Exception:
+        return False
 
 def load_db_url():
     if os.environ.get("DATABASE_URL"):
@@ -37,20 +81,84 @@ def load_db_url():
 def save_db_url(url):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump({"database_url": url}, f, indent=2)
+    try:
+        os.chmod(CONFIG_FILE, 0o600)
+    except Exception:
+        pass
 
 ACTIVE_DB_URL = load_db_url()
+
+DB_POOL = None
+
+def init_db_pool(db_url):
+    global DB_POOL
+    if not HAS_PSYCOPG2:
+        return
+    if DB_POOL:
+        try:
+            DB_POOL.closeall()
+        except Exception:
+            pass
+        DB_POOL = None
+    try:
+        p = urlparse(db_url)
+        dbname = p.path.lstrip("/") or "fdot_survey_db"
+        user = p.username or "postgres"
+        password = p.password or ""
+        host = p.hostname or "localhost"
+        port = p.port or 5432
+        DB_POOL = pool.ThreadedConnectionPool(
+            minconn=1, maxconn=10,
+            dbname=dbname, user=user, password=password, host=host, port=port, connect_timeout=4
+        )
+    except Exception:
+        DB_POOL = None
 
 def get_db_connection(db_url=None):
     if not HAS_PSYCOPG2:
         raise RuntimeError("psycopg2 is not installed on the system.")
     url = db_url or ACTIVE_DB_URL
-    p = urlparse(url)
+    if db_url and db_url != ACTIVE_DB_URL:
+        p = urlparse(db_url)
+        dbname = p.path.lstrip("/") or "fdot_survey_db"
+        user = p.username or "postgres"
+        password = p.password or ""
+        host = p.hostname or "localhost"
+        port = p.port or 5432
+        return psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port, connect_timeout=4)
+
+    global DB_POOL
+    if DB_POOL is None:
+        init_db_pool(ACTIVE_DB_URL)
+    if DB_POOL:
+        try:
+            return DB_POOL.getconn()
+        except Exception:
+            pass
+    p = urlparse(ACTIVE_DB_URL)
     dbname = p.path.lstrip("/") or "fdot_survey_db"
     user = p.username or "postgres"
     password = p.password or ""
     host = p.hostname or "localhost"
     port = p.port or 5432
     return psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port, connect_timeout=4)
+
+def release_db_connection(conn, error=False):
+    global DB_POOL
+    if conn is None:
+        return
+    if DB_POOL:
+        try:
+            if error:
+                conn.rollback()
+            DB_POOL.putconn(conn)
+            return
+        except Exception:
+            pass
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 def mask_db_url(url):
     try:
@@ -70,10 +178,7 @@ def mask_db_url(url):
 
 class FDOTAppServer(SimpleHTTPRequestHandler):
     def end_headers(self):
-        # The app is normally same-origin (this server hosts both the static assets and the
-        # /api/db/* bridge), which needs no CORS header at all. This endpoint serves project,
-        # submittal and audit-log data, so `*` would let any third-party site the browser has
-        # open read it via fetch — only reflect Origin for a local dev origin, and only then.
+        # Allow same-origin local development
         origin = self.headers.get("Origin", "")
         try:
             host = urlparse(origin).hostname
@@ -83,7 +188,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Bridge-Token, X-Requested-With")
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -91,8 +196,6 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def send_json(self, data, status_code=200):
-        # NUMERIC/DECIMAL columns (transactions.amount, survey_points.northing/easting/...) come
-        # back from psycopg2 as decimal.Decimal, which json.dumps can't serialize on its own.
         body = json.dumps(data, default=lambda o: float(o) if isinstance(o, Decimal) else str(o)).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -107,22 +210,46 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 return {}
             raw = self.rfile.read(length).decode("utf-8")
             return json.loads(raw)
-        except Exception as e:
+        except Exception:
             return None
+
+    def verify_bridge_token(self):
+        """Ensure the request carries a valid local bridge authorization token."""
+        token = self.headers.get("X-Bridge-Token", "").strip()
+        if not token:
+            auth = self.headers.get("Authorization", "").strip()
+            if auth.startswith("Bearer "):
+                token = auth[7:].strip()
+        if not token or not hmac.compare_digest(token, BRIDGE_TOKEN):
+            self.send_json({"ok": False, "error": "Unauthorized: Invalid or missing X-Bridge-Token header."}, 401)
+            return False
+        return True
+
+    def handle_get_token(self):
+        """Issue the active local bridge token to callers connecting over loopback."""
+        client_ip = self.client_address[0] if self.client_address else ""
+        if client_ip not in ("127.0.0.1", "::1", "localhost"):
+            return self.send_json({"ok": False, "error": "Forbidden: token access restricted to local loopback."}, 403)
+        self.send_json({"ok": True, "token": BRIDGE_TOKEN})
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
 
-        if path == "/api/db/status":
+        if path == "/api/db/token":
+            self.handle_get_token()
+        elif path == "/api/db/status":
             self.handle_db_status()
         elif path == "/api/db/sync/pull":
-            self.handle_sync_pull(qs)
+            if self.verify_bridge_token():
+                self.handle_sync_pull(qs)
         elif path == "/api/db/projects":
-            self.handle_get_projects(qs)
+            if self.verify_bridge_token():
+                self.handle_get_projects(qs)
         elif path == "/api/db/linework/load":
-            self.handle_linework_load(qs)
+            if self.verify_bridge_token():
+                self.handle_linework_load(qs)
         else:
             # Fallback to serving static workspace files
             super().do_GET()
@@ -132,13 +259,17 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/db/config":
-            self.handle_db_config()
+            if self.verify_bridge_token():
+                self.handle_db_config()
         elif path == "/api/db/sync/push":
-            self.handle_sync_push()
+            if self.verify_bridge_token():
+                self.handle_sync_push()
         elif path == "/api/db/projects":
-            self.handle_create_project()
+            if self.verify_bridge_token():
+                self.handle_create_project()
         elif path == "/api/db/linework/save":
-            self.handle_linework_save()
+            if self.verify_bridge_token():
+                self.handle_linework_save()
         else:
             self.send_json({"ok": False, "error": "Endpoint not found"}, 404)
 
@@ -153,6 +284,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 "error": "psycopg2 library not available on system"
             })
 
+        conn = None
         try:
             conn = get_db_connection(ACTIVE_DB_URL)
             cur = conn.cursor()
@@ -163,7 +295,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
             host = p.hostname or "localhost"
             port = p.port or 5432
             dbname = p.path.lstrip("/") or "fdot_survey_db"
-            is_local = host in ("localhost", "127.0.0.1", "::1")
+            is_local = is_local_db_host(ACTIVE_DB_URL)
 
             tables = ["organizations", "users", "projects", "client_templates", "submittals", "transactions", "audit_chain", "linework_sessions", "survey_points"]
             counts = {}
@@ -175,7 +307,8 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                     counts[t] = 0
 
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             self.send_json({
                 "ok": True,
@@ -189,11 +322,13 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 "counts": counts
             })
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             p = urlparse(ACTIVE_DB_URL)
             self.send_json({
                 "ok": True,
                 "connected": False,
-                "is_local": (p.hostname or "localhost") in ("localhost", "127.0.0.1", "::1"),
+                "is_local": is_local_db_host(ACTIVE_DB_URL),
                 "host": p.hostname or "localhost",
                 "port": p.port or 5432,
                 "database": p.path.lstrip("/") or "fdot_survey_db",
@@ -214,28 +349,40 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         if not test_url:
             return self.send_json({"ok": False, "error": "database_url is required"}, 400)
 
+        # Enforce local-only database host restriction to eliminate SSRF risks
+        if not is_local_db_host(test_url):
+            return self.send_json({
+                "ok": False,
+                "error": "Security restriction: Only local PostgreSQL instances (localhost / 127.0.0.1) are permitted."
+            }, 400)
+
         # Test connecting to the specified URL
+        conn = None
         try:
             conn = get_db_connection(test_url)
             cur = conn.cursor()
             cur.execute("SELECT version();")
             ver = cur.fetchone()[0]
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             # Save as active URL
             ACTIVE_DB_URL = test_url
             save_db_url(ACTIVE_DB_URL)
+            init_db_pool(ACTIVE_DB_URL)
 
             p = urlparse(ACTIVE_DB_URL)
             self.send_json({
                 "ok": True,
                 "message": "Connected successfully! Database configuration updated.",
                 "database_url_masked": mask_db_url(ACTIVE_DB_URL),
-                "is_local": (p.hostname or "localhost") in ("localhost", "127.0.0.1", "::1"),
+                "is_local": is_local_db_host(ACTIVE_DB_URL),
                 "version": ver
             })
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({
                 "ok": False,
                 "error": f"Failed to connect to database: {str(e)}"
@@ -250,12 +397,13 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         tenant_id = payload.get("tenantId", "org_kh_01")
         synced = {}
 
+        conn = None
         try:
             conn = get_db_connection()
             conn.autocommit = False
             cur = conn.cursor()
 
-            # 0a. Organizations (must land before projects/templates/transactions, which FK to it)
+            # 0a. Organizations
             if "organizations" in tables and isinstance(tables["organizations"], list):
                 count = 0
                 for o in tables["organizations"]:
@@ -275,13 +423,15 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                     count += 1
                 synced["organizations"] = count
 
-            # 0b. Users (must land before client_templates, which FK to user_id). Demo-build note:
-            # this stores whatever local credential record the client has (PBKDF2 hash/salt/iterations
-            # as JSON, or a lightweight seed hash) — nothing here verifies a login server-side.
+            # 0b. Users with server-side salt protection
             if "users" in tables and isinstance(tables["users"], list):
                 count = 0
                 for u in tables["users"]:
                     creds = u.get("credentials") or {}
+                    raw_hash = creds.get("hash", "") if isinstance(creds, dict) else str(creds)
+                    server_salt = os.environ.get("BRIDGE_SERVER_SALT", "fdot_local_bridge_salt")
+                    protected_hash = hashlib.sha256(f"{raw_hash}:{server_salt}".encode("utf-8")).hexdigest() if raw_hash else "unset"
+
                     cur.execute("""
                         INSERT INTO users (id, org_id, email, password_hash, salt, full_name, role, license_number, license_state, company, updated_at)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
@@ -296,7 +446,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                         u.get("id"),
                         tenant_id,
                         u.get("email", ""),
-                        json.dumps(creds) if creds else "unset",
+                        protected_hash,
                         creds.get("salt", "") if isinstance(creds, dict) else "",
                         u.get("fullName", "User"),
                         u.get("role", "CONTRACTOR"),
@@ -380,7 +530,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                     count += 1
                 synced["submittals"] = count
 
-            # 3b. Transactions (billing ledger)
+            # 3b. Transactions
             if "transactions" in tables and isinstance(tables["transactions"], list):
                 count = 0
                 for tx in tables["transactions"]:
@@ -424,7 +574,8 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
 
             conn.commit()
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             self.send_json({
                 "ok": True,
@@ -432,12 +583,13 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 "synced": synced
             })
         except Exception as e:
-            if 'conn' in locals() and conn:
-                conn.rollback()
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": f"Database sync error: {str(e)}"}, 500)
 
     def handle_sync_pull(self, qs):
         tenant_id = qs.get("tenantId", ["org_kh_01"])[0]
+        conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -451,7 +603,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
             cur.execute("SELECT id, user_id, org_id, client_name, label, settings, created_at, updated_at FROM client_templates WHERE org_id = %s ORDER BY client_name ASC;", (tenant_id,))
             templates = cur.fetchall()
 
-            # submittals have no org_id of their own — scope to this tenant's projects.
+            # Scope submittals to this tenant's projects
             cur.execute("""
                 SELECT s.id, s.project_id, s.file_name, s.submitted_by, s.sha256, s.precision_ratio, s.status, s.metadata, s.created_at
                 FROM submittals s JOIN projects p ON p.id = s.project_id
@@ -469,9 +621,9 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
             users = cur.fetchall()
 
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
-            # Date/Time formatting helper
             def clean_rows(rows):
                 out = []
                 for r in rows:
@@ -496,19 +648,25 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 }
             })
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": f"Failed to pull from database: {str(e)}"}, 500)
 
     def handle_get_projects(self, qs):
         tenant_id = qs.get("tenantId", ["org_kh_01"])[0]
+        conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT id, org_id, fpid, name, county, district, status, metadata FROM projects WHERE org_id = %s ORDER BY name;", (tenant_id,))
             rows = [dict(r) for r in cur.fetchall()]
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
             self.send_json({"ok": True, "projects": rows})
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": str(e)}, 500)
 
     def handle_create_project(self):
@@ -524,6 +682,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         district = payload.get("district", 5)
         status = payload.get("status", "ACTIVE")
 
+        conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor()
@@ -535,13 +694,16 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
             res = cur.fetchone()
             conn.commit()
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             self.send_json({
                 "ok": True,
                 "project": {"id": res[0], "fpid": res[1], "name": res[2], "status": res[3]}
             }, 201)
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": str(e)}, 500)
 
     def handle_linework_save(self):
@@ -556,6 +718,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         figs = model.get("figures", []) if isinstance(model, dict) else []
         pts_count = sum(len(f.get("pts", [])) for f in figs)
 
+        conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor()
@@ -582,7 +745,7 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                     pt_rows.append((
                         s_id,
                         f_id,
-                        str(pt_num) if pt_num is not None else None,  # ptNum can be alphanumeric (e.g. "PC1")
+                        str(pt_num) if pt_num is not None else None,
                         p.get("n", 0.0),
                         p.get("e", 0.0),
                         p.get("z", 0.0),
@@ -597,7 +760,8 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
 
             conn.commit()
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             self.send_json({
                 "ok": True,
@@ -607,10 +771,13 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 "point_count": pts_count
             })
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": f"Failed to save linework to database: {str(e)}"}, 500)
 
     def handle_linework_load(self, qs):
         s_id = qs.get("id", [None])[0]
+        conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -620,7 +787,8 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
                 cur.execute("SELECT id, name, figure_count, point_count, model, view, created_at, updated_at FROM linework_sessions ORDER BY updated_at DESC LIMIT 1;")
             session = cur.fetchone()
             cur.close()
-            conn.close()
+            release_db_connection(conn)
+            conn = None
 
             if not session:
                 return self.send_json({"ok": False, "error": "No linework session found in database"}, 404)
@@ -633,21 +801,30 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
 
             self.send_json({"ok": True, "session": d})
         except Exception as e:
+            if conn:
+                release_db_connection(conn, error=True)
             self.send_json({"ok": False, "error": str(e)}, 500)
 
 def run_server(port=8085):
-    server_address = ("", port)
+    # Bind strictly to loopback to prevent external network exposure
+    server_address = ("127.0.0.1", port)
     httpd = HTTPServer(server_address, FDOTAppServer)
-    print(f"============================================================")
-    print(f"  FDOT Civil3D Standards Server & PostgreSQL Bridge")
-    print(f"  Local Web App:  http://localhost:{port}")
-    print(f"  Database API:   http://localhost:{port}/api/db/status")
-    print(f"  Active DB:      {mask_db_url(ACTIVE_DB_URL)}")
-    print(f"============================================================")
+    print("============================================================")
+    print("  FDOT Civil3D Standards Server & PostgreSQL Bridge")
+    print(f"  Local Web App:    http://127.0.0.1:{port}")
+    print(f"  Database API:     http://127.0.0.1:{port}/api/db/status")
+    print(f"  Active DB:        {mask_db_url(ACTIVE_DB_URL)}")
+    print("  Local Hardening:  Bound strictly to loopback (127.0.0.1)")
+    print("============================================================")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down server.")
+        if DB_POOL:
+            try:
+                DB_POOL.closeall()
+            except Exception:
+                pass
         httpd.server_close()
 
 if __name__ == "__main__":

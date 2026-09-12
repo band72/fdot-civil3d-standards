@@ -23,6 +23,8 @@ module.exports = async function (t, env) {
     t.ok(typeof DB.saveLinework === "function", "saveLinework method exists");
     t.ok(typeof DB.loadLinework === "function", "loadLinework method exists");
     t.ok(typeof DB.configureDatabase === "function", "configureDatabase method exists");
+    t.ok(typeof DB.ensureToken === "function", "ensureToken method exists");
+    t.ok(typeof DB.getAuthHeaders === "function", "getAuthHeaders method exists");
 
     DB.apiUrl = "http://localhost:8085/api/db";
     let statusRes;
@@ -99,17 +101,29 @@ module.exports = async function (t, env) {
     t.ok(pushRes.synced && pushRes.synced.organizations === 1, "pushed organization counted in synced{}");
     t.ok(pushRes.synced && pushRes.synced.projects === 1, "pushed project counted in synced{}");
 
-    // DatabaseService.pullFromDatabase() scopes to the *current* CMS user's orgId, not an
-    // arbitrary tenantId, so it won't see this test's freshly-pushed tenant — hit the endpoint
-    // directly instead, the same way the client does under the hood.
-    const pullFetchRes = await W.fetch(`${DB.apiUrl}/sync/pull?tenantId=${encodeURIComponent(tenantId)}`, { cache: "no-store" });
+    t.group("db/security & bridge authorization");
+    // Verify that requests without bridge token are rejected
+    const unauthRes = await W.fetch(`${DB.apiUrl}/sync/pull?tenantId=${encodeURIComponent(tenantId)}`, { cache: "no-store" });
+    t.eq(unauthRes.status, 401, "unauthenticated pull without X-Bridge-Token rejected with 401");
+
+    // Authenticated pull with bridge token succeeds
+    const pullFetchRes = await W.fetch(`${DB.apiUrl}/sync/pull?tenantId=${encodeURIComponent(tenantId)}`, {
+        cache: "no-store",
+        headers: DB.getAuthHeaders()
+    });
     const pullRes = await pullFetchRes.json();
-    t.ok(pullRes.ok, "pull returned valid database state for the test tenant");
+    t.ok(pullRes.ok, "pull with X-Bridge-Token returned valid database state for the test tenant");
     const pulledTables = pullRes.tables || {};
     t.ok(Array.isArray(pulledTables.projects), "pull returned a projects array");
     t.ok(Array.isArray(pulledTables.organizations), "pull returned an organizations array");
     t.ok(pulledTables.projects.some(p => p.name.includes("I-4") || p.name.includes("S.R. 400")), "test project found in pulled database records");
     t.ok(pulledTables.organizations.some(o => o.id === tenantId), "test organization found in pulled database records");
+
+    t.group("db/local security & SSRF prevention");
+    // Attempting to configure a non-local database host must be blocked
+    const ssrfRes = await DB.configureDatabase("postgresql://admin:secret@192.168.1.100:5432/remote_db");
+    t.notOk(ssrfRes.ok, "non-local database host blocked by security policy");
+    t.match(ssrfRes.error, /local/i, "error explains local PostgreSQL restriction");
 
     t.group("db/remote configuration error handling");
     const badConfigRes = await DB.configureDatabase("postgresql://fakeuser:fakepass@127.0.0.99:5432/nonexistent");
