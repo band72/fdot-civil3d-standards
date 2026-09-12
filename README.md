@@ -5,9 +5,14 @@ FDOT (Florida DOT) Civil 3D workflows: DXF standards auditing, COGO
 traverse math, legal-description QC, PLSS section breakdown, linework
 editing, hydrology, sign QTO, plus a demo CMS / billing layer.
 
-Everything runs in the browser. There is no server, no bundler, and no
-runtime `npm` dependency — the only external resources are DOMPurify,
-FontAwesome, and Google Fonts, loaded from a CDN under a strict CSP.
+Everything runs in the browser, no build or bundler — the only external
+resources are DOMPurify, FontAwesome, and Google Fonts, loaded from a CDN
+under a strict CSP. Storage is `localStorage` by default; an **optional**
+local PostgreSQL bridge ([`server.py`](server.py) + [`db/`](db/)) lets the
+Admin Dashboard sync CMS data to a real relational database — see
+[`docs/cms_architecture.md`](docs/cms_architecture.md) and the Plugins
+table below (`db-sync` / `db-settings`). Nothing requires it; the app runs
+exactly as before with the plain static server.
 
 > ⚠ **Reference data is illustrative and unverified.** Layer colours, the
 > 11 IDF-zone coefficients, Manning's `n`, pay-item mappings and similar
@@ -29,18 +34,31 @@ CSP and some fetches):
 python3 -m http.server 8085      # then open http://localhost:8085
 ```
 
+To also use the PostgreSQL sync features (Admin Dashboard → Database),
+run the bridge server instead — it serves the same static app *and*
+`/api/db/*` — against a local Postgres:
+
+```bash
+npm run db:start   # start a local PostgreSQL cluster (scripts/pg_ctl.sh)
+npm run db:init    # apply db/schema.sql and seed demo rows
+npm start          # python3 server.py 8085 — same URL as above
+```
+
 ## Test
 
 Node-only, zero dependencies, no build:
 
 ```bash
-npm test                    # everything
+npm test                    # everything (no server/DB required)
 node tests/run.js cogo dxf  # named suites only
+npm run test:db             # PostgreSQL suite — needs the bridge server + DB above running
 ```
 
-~4,000 assertions across 8 suites. `tests/_env.js` loads every
+~4,000 assertions across the default suites. `tests/_env.js` loads every
 `core/*.js` and `plugins/**/*.js` file into a shimmed browser-ish global
-and exposes the site globals; `tests/README.md` maps each suite.
+and exposes the site globals; `tests/README.md` maps each suite. `db` is
+deliberately **not** part of the default `npm test` run — see
+[`tests/db.test.js`](tests/db.test.js)'s header.
 
 ## Architecture
 
@@ -63,6 +81,13 @@ and exposes the site globals; `tests/README.md` maps each suite.
 - **Reference data** ([`core/data.js`](core/data.js)) — `window.FDOT_DATA`:
   layers, pay items, IDF zones, subassemblies, sheet standards, QC
   checklist. (See the caveat above.)
+- **Optional PostgreSQL bridge** ([`server.py`](server.py),
+  [`db/schema.sql`](db/schema.sql)) — a small stdlib HTTP server that serves
+  the static app *and* a `/api/db/*` REST bridge to Postgres. The `db-sync`
+  plugin is the only thing that talks to it; it translates between the
+  DB's column shape and `cms-engine`'s object shape so `cms-engine` stays
+  storage-agnostic (see that plugin's own comment header). Everything else
+  keeps working unmodified if the bridge/DB isn't running.
 
 ## Plugins (`plugins/<name>/`)
 
@@ -81,9 +106,15 @@ and exposes the site globals; `tests/README.md` maps each suite.
 | `plat2dxf` | Parcel → DXF / Points / COGO | Bearing/distance call list → ASCII DXF, PNEZD, AutoCAD COGO script. |
 | `spatial-engine` | — | Recursive Guttman R-tree 2D index + Euler-spiral (Fresnel) solver. |
 | `security-pki` | — | Pure-JS FIPS 180-4 SHA-256, F.A.C. PKI/TSA gate checks, hash-chain verifier, WebAuthn (fail-closed). |
-| `cms-engine` / `billing` | — | **Demo** data/auth layer (`window.BoundaryQCCMS`): PBKDF2 sign-in + sessions + per-user templates + audit chain; tier limits + ephemeral ECDSA JWTs. No UI of its own — not a security boundary. |
+| `cms-engine` / `billing` | — | **Demo** data/auth layer (`window.BoundaryQCCMS`): PBKDF2 sign-in + sessions + per-user templates + audit chain; tier limits + ephemeral ECDSA JWTs. No UI of its own — not a security boundary; knows nothing about the optional PostgreSQL bridge (see `db-sync`). |
 | `security` | Account menu (modal) | The sign-in / register modal, header account indicator, change-password, sign-out, WebAuthn. UI split out of `cms-engine`. Not the same plugin as `security-pki` (the crypto/PKI engine). |
-| `dashboard` | Admin Dashboard | Client master templates, DOT projects & submittal vault, transaction ledger, team directory / user management (RBAC), hash-chained audit log viewer. UI split out of `cms-engine`. |
+| `dashboard` | Admin Dashboard | Client master templates, DOT projects & submittal vault, transaction ledger, team directory / user management (RBAC), hash-chained audit log viewer. UI split out of `cms-engine`; the Database panel on this tab is `db-settings`, not this plugin. |
+| `db-sync` | — | `window.DatabaseService`: fetch client for the optional `server.py` PostgreSQL bridge (status, push/pull sync, linework session save/load). Translates between Postgres's column shape and `cms-engine`'s object shape — `cms-engine` itself stays storage-agnostic. |
+| `db-settings` | Admin Dashboard (Database panel) | The DB connection status badge/counts, Sync-to-DB / Pull-from-DB buttons, cloud-sync JSON export, and the local/remote connection settings modal — split out of `dashboard` so it doesn't need to know how the Postgres bridge works. |
+| `landxml` | LandXML Studio & Interop | Parse/inspect/preview LandXML 1.2/2.0 (points, parcels, alignments, surfaces); export a schema-compliant LandXML document; bridges to the Linework Editor's figures model. |
+| `batchprocess` | Multi-Sheet Batch Project Auditor | Audit a batch of DXF/LandXML drawings against FDOT CADD standards at once; a submittal compliance matrix, consolidated auto-fix `.scr`, and an HTML/Markdown master scorecard. |
+| `reports` | Reports Hub | Centralized store for reports generated across the suite (Standards Compare, DXF audits, batch scorecards, system logs, ...) with filtering, preview, and a master bundle export. |
+| `logging` | System Diagnostics & Error Audit Hub | Centralized `window.Logging` event log (info/warn/error/debug) with source/level filtering, a live stream, and export to a `.log`/`.json` file or the Reports Hub. |
 | `help` | Help & User Manual | Per-tab usage, input formats, limits. |
 
 There is also a Civil 3D C# ribbon add-in scaffold under
@@ -103,5 +134,7 @@ Pages must be enabled; a private repo needs a paid plan for Pages).
   for every dynamic write, `window.COGO` for geometry.
 - Add a suite (or extend one) in `tests/` for anything with logic; wire
   new suites into `tests/run.js`'s `SUITES` and `tests/_env.js`'s file
-  list.
+  list. A suite that needs infrastructure `npm test` can't assume (a
+  server, a database, network) goes in `OPTIONAL_SUITES` instead, with its
+  own opt-in `npm run test:<name>` script — see `db`/`test:db`.
 - Plugin names are ≤ 15 characters (`plugin-loader.js` rejects longer).

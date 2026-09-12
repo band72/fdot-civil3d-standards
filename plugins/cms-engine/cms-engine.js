@@ -1032,14 +1032,14 @@ class BoundaryQCCMSEngine {
         };
     }
 
-    // ── PostgreSQL pull ingestion ────────────────────────────────────────────
-    // Called by plugins/db-sync/db-sync.js after a successful pull from the local/remote
-    // Postgres bridge. Each import upserts DB rows (snake_case, as server.py returns them) into
-    // the same localStorage-backed collections the rest of this class reads/writes, translating
-    // field names back to this class's camelCase shape. Merge-by-id so a pull never drops a
-    // locally-created row the server doesn't know about yet.
+    // ── Generic collection merge (used by plugins/db-sync/db-sync.js) ───────────
+    // This class knows nothing about Postgres, or any other external store's column-naming —
+    // that translation is db-sync's job. These merge*() methods only accept rows already shaped
+    // like this class's own objects (camelCase, same fields createTemplate()/createProject()/etc.
+    // produce) and upsert them into the matching localStorage-backed collection by id, so an
+    // import never drops a locally-created row the remote store doesn't know about yet.
 
-    /** Shared upsert-by-id helper: merges `incoming` into the array at `storageKey`, DB rows win. */
+    /** Shared upsert-by-id helper: merges `incoming` into the array at `storageKey`, new rows win. */
     _mergeById(storageKey, incoming) {
         const existing = this._readJSON(storageKey, []);
         const byId = new Map(existing.map(r => [r.id, r]));
@@ -1049,74 +1049,37 @@ class BoundaryQCCMSEngine {
         return merged;
     }
 
-    importOrganizations(rows) {
-        return this._mergeById(this.STORAGE_KEYS.ORGS, (rows || []).map(o => ({
-            id: o.id, name: o.name, plan: o.tier, purchasedSeats: o.license_cap, createdAt: o.created_at
-        })));
-    }
-
-    importProjects(rows) {
-        return this._mergeById(this.STORAGE_KEYS.PROJECTS, (rows || []).map(p => ({
-            id: p.id, orgId: p.org_id, fpid: p.fpid, name: p.name, county: p.county,
-            district: p.district, status: p.status, metadata: p.metadata,
-            createdAt: p.created_at, updatedAt: p.updated_at
-        })));
-    }
-
-    /** Templates merge by id, but keep each row's `ownerId` (this class's field) from `user_id`. */
-    importTemplates(rows) {
-        return this._mergeById(this.STORAGE_KEYS.TEMPLATES, (rows || []).map(t => ({
-            id: t.id, ownerId: t.user_id, clientName: t.client_name, label: t.label,
-            settings: typeof t.settings === "string" ? JSON.parse(t.settings) : t.settings,
-            createdAt: t.created_at, updatedAt: t.updated_at
-        })));
-    }
-
-    importSubmittals(rows) {
-        return this._mergeById(this.STORAGE_KEYS.SUBMITTALS, (rows || []).map(s => ({
-            id: s.id, projectId: s.project_id, fileName: s.file_name, submittedBy: s.submitted_by,
-            sha256: s.sha256, precisionRatio: s.precision_ratio, status: s.status,
-            metadata: s.metadata, timestamp: s.created_at
-        })));
-    }
-
-    importTransactions(rows) {
-        return this._mergeById(this.STORAGE_KEYS.TRANSACTIONS, (rows || []).map(tx => ({
-            id: tx.id, orgId: tx.org_id, description: tx.description, amount: Number(tx.amount),
-            status: tx.status, receiptUrl: tx.ref_id, timestamp: tx.timestamp
-        })));
-    }
+    mergeOrganizations(rows) { return this._mergeById(this.STORAGE_KEYS.ORGS, rows || []); }
+    mergeProjects(rows) { return this._mergeById(this.STORAGE_KEYS.PROJECTS, rows || []); }
+    mergeTemplates(rows) { return this._mergeById(this.STORAGE_KEYS.TEMPLATES, rows || []); }
+    mergeSubmittals(rows) { return this._mergeById(this.STORAGE_KEYS.SUBMITTALS, rows || []); }
+    mergeTransactions(rows) { return this._mergeById(this.STORAGE_KEYS.TRANSACTIONS, rows || []); }
 
     /**
-     * Audit log entries are hash-chained by `sequence` — unlike the other collections, a pull
-     * REPLACES the local chain with the server's (sorted by sequence) rather than merging by id,
+     * Audit log entries are hash-chained by `sequence` — unlike the other collections, an import
+     * REPLACES the local chain with the given one (sorted by sequence) rather than merging by id,
      * since two independently-extended chains can't be reconciled by an id-keyed union. Only
-     * replaces when the server actually has entries, and never on a network/parse failure.
+     * replaces when given a non-empty array, so a failed/empty fetch can't wipe the local chain.
      */
-    importAuditChain(rows) {
+    replaceAuditChain(rows) {
         if (!Array.isArray(rows) || !rows.length) return this.getAuditLogs();
-        const mapped = rows
-            .map(a => ({
-                sequence: a.sequence, prevHash: a.prev_hash, hash: a.hash,
-                actor: a.actor, action: a.action, details: a.details, timestamp: a.timestamp
-            }))
-            .sort((a, b) => a.sequence - b.sequence);
-        this._writeJSON(this.STORAGE_KEYS.AUDIT_LOGS, mapped);
-        return mapped;
+        const sorted = rows.slice().sort((a, b) => a.sequence - b.sequence);
+        this._writeJSON(this.STORAGE_KEYS.AUDIT_LOGS, sorted);
+        return sorted;
     }
 
-    /** Users merge by id; never touches `credentials` for a row that already exists locally, so a
-     *  pull can't clobber a real PBKDF2 credential with the server's demo/placeholder hash. */
-    importUsers(rows) {
+    /** Users merge by id; never touches `credentials` for a row that already exists locally, so an
+     *  import can't clobber a real PBKDF2 credential with a remote store's demo/placeholder hash —
+     *  `rows` isn't expected to carry usable credentials at all. */
+    mergeUsers(rows) {
         const existing = this._readJSON(this.STORAGE_KEYS.USERS, []);
         const byId = new Map(existing.map(u => [u.id, u]));
         (rows || []).forEach(u => {
             const prior = byId.get(u.id);
             byId.set(u.id, {
-                id: u.id, orgId: u.org_id, email: u.email, fullName: u.full_name, role: u.role,
-                licenseNumber: u.license_number, licenseState: u.license_state, company: u.company,
-                credentials: prior ? prior.credentials : undefined,
-                createdAt: prior ? prior.createdAt : u.created_at
+                ...u,
+                credentials: prior ? prior.credentials : u.credentials,
+                createdAt: prior ? prior.createdAt : u.createdAt
             });
         });
         const merged = Array.from(byId.values());

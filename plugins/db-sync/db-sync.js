@@ -85,6 +85,43 @@
         return data;
     }
 
+    // Postgres/server.py wire-shape -> cms-engine's own camelCase object shape. This translation
+    // lives here (not in cms-engine.js) because cms-engine is the local data/auth engine and has
+    // no business knowing this app's Postgres column names — db-sync is the thing that talks to
+    // Postgres, so it owns the adapter. See db/schema.sql and server.py's handle_sync_pull.
+    const ROW_MAPPERS = {
+        organizations: o => ({ id: o.id, name: o.name, plan: o.tier, purchasedSeats: o.license_cap, createdAt: o.created_at }),
+        projects: p => ({
+            id: p.id, orgId: p.org_id, fpid: p.fpid, name: p.name, county: p.county,
+            district: p.district, status: p.status, metadata: p.metadata,
+            createdAt: p.created_at, updatedAt: p.updated_at
+        }),
+        // ownerId is cms-engine's field for what the DB calls user_id.
+        client_templates: t => ({
+            id: t.id, ownerId: t.user_id, clientName: t.client_name, label: t.label,
+            settings: typeof t.settings === "string" ? JSON.parse(t.settings) : t.settings,
+            createdAt: t.created_at, updatedAt: t.updated_at
+        }),
+        submittals: s => ({
+            id: s.id, projectId: s.project_id, fileName: s.file_name, submittedBy: s.submitted_by,
+            sha256: s.sha256, precisionRatio: s.precision_ratio, status: s.status,
+            metadata: s.metadata, timestamp: s.created_at
+        }),
+        transactions: tx => ({
+            id: tx.id, orgId: tx.org_id, description: tx.description, amount: Number(tx.amount),
+            status: tx.status, receiptUrl: tx.ref_id, timestamp: tx.timestamp
+        }),
+        audit_chain: a => ({
+            sequence: a.sequence, prevHash: a.prev_hash, hash: a.hash,
+            actor: a.actor, action: a.action, details: a.details, timestamp: a.timestamp
+        }),
+        users: u => ({
+            id: u.id, orgId: u.org_id, email: u.email, fullName: u.full_name, role: u.role,
+            licenseNumber: u.license_number, licenseState: u.license_state, company: u.company,
+            createdAt: u.created_at
+        })
+    };
+
     async function pullFromDatabase() {
         const cms = window.BoundaryQCCMS;
         let tenantId = "org_kh_01";
@@ -98,19 +135,19 @@
         if (!res.ok || !data.ok) throw new Error(data.error || "Database pull failed.");
 
         const tables = data.tables || {};
+        const mapped = key => (Array.isArray(tables[key]) ? tables[key].map(ROW_MAPPERS[key]) : []);
 
         // Ingest every pulled table into the real cms-engine collections (localStorage-backed,
-        // under the actual bqc_cms_* keys) via its import*() methods — these translate the
-        // server's snake_case rows back to this app's camelCase shape and merge by id, rather
-        // than replacing outright, so a pull never drops a not-yet-synced local row.
+        // under the actual bqc_cms_* keys). merge*() upserts by id so a pull never drops a
+        // not-yet-synced local row; replaceAuditChain() is the one exception (see its own doc).
         if (cms) {
-            if (Array.isArray(tables.organizations)) cms.importOrganizations(tables.organizations);
-            if (Array.isArray(tables.users)) cms.importUsers(tables.users);
-            if (Array.isArray(tables.projects)) cms.importProjects(tables.projects);
-            if (Array.isArray(tables.client_templates)) cms.importTemplates(tables.client_templates);
-            if (Array.isArray(tables.submittals)) cms.importSubmittals(tables.submittals);
-            if (Array.isArray(tables.transactions)) cms.importTransactions(tables.transactions);
-            if (Array.isArray(tables.audit_chain)) cms.importAuditChain(tables.audit_chain);
+            if (tables.organizations) cms.mergeOrganizations(mapped("organizations"));
+            if (tables.users) cms.mergeUsers(mapped("users"));
+            if (tables.projects) cms.mergeProjects(mapped("projects"));
+            if (tables.client_templates) cms.mergeTemplates(mapped("client_templates"));
+            if (tables.submittals) cms.mergeSubmittals(mapped("submittals"));
+            if (tables.transactions) cms.mergeTransactions(mapped("transactions"));
+            if (tables.audit_chain) cms.replaceAuditChain(mapped("audit_chain"));
         }
 
         await getStatus();

@@ -5,11 +5,16 @@ this repository. It is a browser-only build: everything runs client-side against
 `localStorage`, so it is a usable demonstration of the workflow, **not a security
 boundary**. A determined user can bypass any of it from devtools.
 
-Implementation: [`plugins/cms-engine/cms-engine.js`](../plugins/cms-engine/cms-engine.js),
+Implementation: [`plugins/cms-engine/cms-engine.js`](../plugins/cms-engine/cms-engine.js)
+(data/auth, `window.BoundaryQCCMS`, no UI of its own),
 [`plugins/security-pki/security-pki.js`](../plugins/security-pki/security-pki.js),
-[`plugins/billing/billing.js`](../plugins/billing/billing.js). UI is the
-`#tab-cms` panel in [`index.html`](../index.html), wired by
-[`core/app.js`](../core/app.js) and the plugin's own `renderCMSUI`.
+[`plugins/billing/billing.js`](../plugins/billing/billing.js). The UI is
+split across [`plugins/security/security.js`](../plugins/security/security.js)
+(sign-in/register modal, header account indicator) and
+[`plugins/dashboard/dashboard.js`](../plugins/dashboard/dashboard.js) (the
+`#tab-cms` admin panel) — both depend on `cms-engine` rather than owning
+its data. See the section below for the optional PostgreSQL sync bridge
+(`plugins/db-sync/`, `plugins/db-settings/`).
 
 ---
 
@@ -95,16 +100,35 @@ certificate‑chain or timestamp‑token cryptography.
 
 ---
 
+## Now implemented: an optional PostgreSQL sync bridge
+
+Unlike when this section was first written, `generateCloudSyncPayload()`'s
+consumer now exists: [`server.py`](../server.py) + [`db/schema.sql`](../db/schema.sql)
+is a small stdlib-only HTTP server that serves the static app *and* a
+`/api/db/*` REST bridge to a local (or remote) Postgres. `plugins/db-sync/db-sync.js`
+(`window.DatabaseService`) is the only thing that talks to it, and
+`plugins/db-settings/db-settings.js` is its Admin Dashboard UI (status
+badge, sync push/pull, connection settings). It's **additive and optional**:
+`cms-engine.js` still knows nothing about it (`db-sync` does the Postgres
+column-shape ↔ this class's object-shape translation, via `merge*()`/
+`replaceAuditChain()`), and every plugin here keeps working unmodified,
+`localStorage`-only, if the bridge/DB isn't running. Auth itself is **not**
+part of this — `users` rows sync for reference, but the DB stores whatever
+credential record `cms-engine` happens to have locally, and nothing on the
+server verifies a login. See `npm run db:start`/`db:init` and `npm run
+test:db` (its own suite, deliberately excluded from the zero-install
+default `npm test`).
+
 ## Not implemented (aspirational — mentioned elsewhere in the repo)
 
 The marketing/architecture material in this repo also references the following.
 None of it exists in the code:
 
-- Argon2id hashing, server‑side auth, `__Host-` / `HttpOnly` / `SameSite=Strict`
-  cookies (there is no server; auth is `localStorage`).
-- PostgreSQL, row‑level security, real multi‑tenant isolation, a cloud sync
-  endpoint (`generateCloudSyncPayload` builds a tenant‑scoped JSON blob but nothing
-  consumes it).
+- Argon2id hashing, server‑side auth (login is still verified client-side
+  against `localStorage`), `__Host-` / `HttpOnly` / `SameSite=Strict` cookies.
+- Row‑level security enforcement, real multi‑tenant isolation, remote/cloud
+  Postgres — the sync bridge above is local-first; see its own docs for what
+  "remote" currently means (a connection-string field, nothing more yet).
 - A verified Stripe webhook receiver, a real payment flow.
 - SOC 2 controls, a REST/GraphQL API gateway, CloudEvents webhooks.
 - AES‑256‑GCM "zero‑knowledge" OPFS/WASM storage vault.

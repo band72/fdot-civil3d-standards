@@ -94,6 +94,8 @@ function load() {
         "plugins/billing/billing.js",
         "plugins/cms-engine/cms-engine.js",
         "plugins/security/security.js",
+        "plugins/db-sync/db-sync.js",
+        "plugins/db-settings/db-settings.js",
         "plugins/dashboard/dashboard.js",
         "plugins/dxf-auditor/dxf-parser.js",
         "plugins/dxf-auditor/dxf-auditor.js",
@@ -112,8 +114,7 @@ function load() {
         "plugins/batchprocess/batchprocess.js",
         "plugins/reports/reports.js",
         "plugins/logging/logging.js",
-        "plugins/help/help.js",
-        "plugins/db-sync/db-sync.js"
+        "plugins/help/help.js"
     ];
 
     const loaded = [], errors = [];
