@@ -6,6 +6,7 @@ Serves static web application assets and provides RESTful endpoints for local an
 import os
 import sys
 import json
+from decimal import Decimal
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -90,7 +91,9 @@ class FDOTAppServer(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def send_json(self, data, status_code=200):
-        body = json.dumps(data).encode("utf-8")
+        # NUMERIC/DECIMAL columns (transactions.amount, survey_points.northing/easting/...) come
+        # back from psycopg2 as decimal.Decimal, which json.dumps can't serialize on its own.
+        body = json.dumps(data, default=lambda o: float(o) if isinstance(o, Decimal) else str(o)).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
