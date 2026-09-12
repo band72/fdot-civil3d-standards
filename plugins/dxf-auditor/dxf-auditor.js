@@ -280,15 +280,15 @@
             });
 
             document.getElementById("btn-load-sample-sr50")?.addEventListener("click", () => {
-                auditDXFText(SR50_DXF, "FDOT_SR50_Roadway_Corridor.dxf");
-                ctx.showToast("Loaded FDOT_SR50_Roadway_Corridor.dxf sample.");
+                auditDXFText(SR50_DXF, "fdot_sr50.dxf");
+                ctx.showToast("Loaded fdot_sr50.dxf sample.");
             });
             document.getElementById("btn-load-sample-bowtie")?.addEventListener("click", () => {
-                auditDXFText(BOWTIE_DXF, "FDOT_Jacksonville_Heights_Parcel_Bowtie_Error.dxf");
+                auditDXFText(BOWTIE_DXF, "fdot_bowtie.dxf");
                 ctx.showToast("Loaded Jacksonville Heights bow-tie sample.");
             });
             document.getElementById("btn-load-sample-drainage")?.addEventListener("click", () => {
-                auditDXFText(NONCOMPLIANT_DXF, "FDOT_Drainage_Basin_B_NonCompliant_Layers.dxf");
+                auditDXFText(NONCOMPLIANT_DXF, "fdot_drain.dxf");
                 ctx.showToast("Loaded non-compliant drainage basin sample.");
             });
 

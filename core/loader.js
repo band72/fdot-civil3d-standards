@@ -1,6 +1,6 @@
 /**
  * BoundaryQC / FDOT Civil3D Standards — Plugin Registry & Loader
- * core/plugin-loader.js
+ * core/loader.js
  *
  * Provides a lightweight plugin system:
  *  - Plugins self-register at script load via window.PluginRegistry.register()

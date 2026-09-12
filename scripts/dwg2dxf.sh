@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dwg2dxf-batch.sh — batch-convert .dwg files to ASCII .dxf, locally, with no
+# dwg2dxf.sh — batch-convert .dwg files to ASCII .dxf, locally, with no
 # upload anywhere. Wraps GNU LibreDWG's `dwg2dxf` CLI (already installed on
 # this machine at /home/artwalk/.local/bin/dwg2dxf).
 #
@@ -16,7 +16,7 @@
 # AutoCAD/Civil 3D installed, scripting DXFOUT there instead (native fidelity).
 #
 # Usage:
-#   scripts/dwg2dxf-batch.sh <dir-or-file> [<dir-or-file> ...] [options]
+#   scripts/dwg2dxf.sh <dir-or-file> [<dir-or-file> ...] [options]
 #
 # Options:
 #   -o, --out DIR       Write .dxf files here instead of next to each .dwg.
@@ -29,9 +29,9 @@
 #   -h, --help           Show this help.
 #
 # Examples:
-#   scripts/dwg2dxf-batch.sh ~/Downloads/PlanSet.dwg
-#   scripts/dwg2dxf-batch.sh ~/Downloads/Project -o ~/Downloads/Project-dxf
-#   scripts/dwg2dxf-batch.sh ~/Downloads/*.dwg -y --as r2010
+#   scripts/dwg2dxf.sh ~/Downloads/PlanSet.dwg
+#   scripts/dwg2dxf.sh ~/Downloads/Project -o ~/Downloads/Project-dxf
+#   scripts/dwg2dxf.sh ~/Downloads/*.dwg -y --as r2010
 #
 usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; }
 

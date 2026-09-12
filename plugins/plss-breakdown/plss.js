@@ -1,6 +1,6 @@
 /**
  * Plugin: plss-breakdown (PLSS Section Breakdown)
- * plugins/plss-breakdown/plss-breakdown.js
+ * plugins/plss-breakdown/plss.js
  *
  * Ported from the BoundaryQC desktop app (Services/PlssDrafter.cs +
  * .agents/rules/plss-section-breakdown.md). Parses a Public Land Survey System

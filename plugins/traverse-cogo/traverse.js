@@ -1,6 +1,6 @@
 /**
  * Plugin: traverse-cogo (Traverse & COGO)
- * plugins/traverse-cogo/traverse-cogo.js
+ * plugins/traverse-cogo/traverse.js
  *
  * COGO traverse calculator with closure precision ratio, bowtie
  * bearing-quadrant detection, and QC checklist renderer.

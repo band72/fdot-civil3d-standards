@@ -60,7 +60,7 @@ There is no lint step and no build.
   small assertions; the DOM shim is thin, so most coverage is on pure
   functions (a plugin that needs render coverage installs its own
   Map-backed `getElementById` + pass-through DOMPurify for the group and
-  restores after — see `tests/stdn-cmp.test.js`).
+  restores after — see `tests/stdn.test.js`).
 
 ## Gotchas
 

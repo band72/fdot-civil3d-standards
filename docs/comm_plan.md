@@ -151,7 +151,7 @@ Phase 4: Scale to 71 Accounts          ➜ Cross $129,948 ARR ($107,688 Net Annu
 ---
 
 ### Operational Execution Checklist
-- [x] **Project Commercial Plan**: `commercial_plan.md` created in project root directory.
+- [x] **Project Commercial Plan**: `comm_plan.md` created in docs directory.
 - [x] **SaaS Pricing & Upgrade UI**: Integrated into application navigation (`tab-pricing`, `tab-enterprise`).
 - [x] **Stripe Checkout Simulation**: Interactive modal for Pro, Firm, and Enterprise tier activation.
 - [x] **Feature Gating**: Teaser error locks and subscription badges on DXF Auditor and Plat-to-DXF AI engine.

@@ -10,7 +10,7 @@ resources are DOMPurify, FontAwesome, and Google Fonts, loaded from a CDN
 under a strict CSP. Storage is `localStorage` by default; an **optional**
 local PostgreSQL bridge ([`server.py`](server.py) + [`db/`](db/)) lets the
 Admin Dashboard sync CMS data to a real relational database — see
-[`docs/cms_architecture.md`](docs/cms_architecture.md) and the Plugins
+[`docs/cms_arch.md`](docs/cms_arch.md) and the Plugins
 table below (`db-sync` / `db-settings`). Nothing requires it; the app runs
 exactly as before with the plain static server.
 
@@ -62,7 +62,7 @@ deliberately **not** part of the default `npm test` run — see
 
 ## Architecture
 
-- **Plugin registry** ([`core/plugin-loader.js`](core/plugin-loader.js)) —
+- **Plugin registry** ([`core/loader.js`](core/loader.js)) —
   each plugin is an IIFE that self-registers via
   `window.PluginRegistry.register(manifest, module)` at script load;
   [`core/app.js`](core/app.js) calls `initAll(ctx)` on `DOMContentLoaded`
@@ -137,4 +137,4 @@ Pages must be enabled; a private repo needs a paid plan for Pages).
   list. A suite that needs infrastructure `npm test` can't assume (a
   server, a database, network) goes in `OPTIONAL_SUITES` instead, with its
   own opt-in `npm run test:<name>` script — see `db`/`test:db`.
-- Plugin names are ≤ 15 characters (`plugin-loader.js` rejects longer).
+- Plugin names are ≤ 15 characters (`core/loader.js` rejects longer).

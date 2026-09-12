@@ -12,7 +12,19 @@ const SUITES = ["cogo", "data", "dxf", "linework", "efbk", "landxml", "batchproc
 // tests/db.test.js's own header. Not part of the zero-install default suite; run it with
 // `npm run test:db` (or `node tests/run.js db`) once that's up.
 const OPTIONAL_SUITES = ["db"];
-const ALL_SUITES = SUITES.concat(OPTIONAL_SUITES);
+const SUITE_ALIASES = ["batch", "line", "mktg", "stdn"];
+const ALL_SUITES = SUITES.concat(OPTIONAL_SUITES).concat(SUITE_ALIASES);
+
+const SUITE_FILE_MAP = {
+    batchprocess: "batch.test.js",
+    batch: "batch.test.js",
+    linework: "line.test.js",
+    line: "line.test.js",
+    marketing: "mktg.test.js",
+    mktg: "mktg.test.js",
+    "stdn-cmp": "stdn.test.js",
+    stdn: "stdn.test.js"
+};
 
 (async () => {
     const started = Date.now();
@@ -30,7 +42,8 @@ const ALL_SUITES = SUITES.concat(OPTIONAL_SUITES);
     const run = want.length ? want : SUITES;
 
     for (const name of run) {
-        const suite = require(path.join(__dirname, name + ".test.js"));
+        const testFile = SUITE_FILE_MAP[name] || (name + ".test.js");
+        const suite = require(path.join(__dirname, testFile));
         try {
             await suite(t, { win: loadRes.win, fakeEl: loadRes.fakeEl, makeStorage: loadRes.makeStorage });
         } catch (e) {

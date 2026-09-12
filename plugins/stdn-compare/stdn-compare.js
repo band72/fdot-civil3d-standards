@@ -1248,7 +1248,7 @@
                     const samples = window.__dxfSamples || {};
                     const nonCompliant = samples.NONCOMPLIANT_DXF || SAMPLES.messy;
                     state.mode = "check";
-                    state.files.target = { name: "FDOT_Drainage_Basin_B_NonCompliant_Layers.dxf", text: nonCompliant };
+                    state.files.target = { name: "fdot_drain.dxf", text: nonCompliant };
                     state.files.reference = null;
                     state.files.master = null;
                     state.files.standard = null;
@@ -1263,7 +1263,7 @@
                     const samples = window.__dxfSamples || {};
                     const sr50 = samples.SR50_DXF || SAMPLES.target;
                     state.mode = "check";
-                    state.files.target = { name: "FDOT_SR50_Roadway_Corridor.dxf", text: sr50 };
+                    state.files.target = { name: "fdot_sr50.dxf", text: sr50 };
                     state.files.reference = null;
                     state.files.master = null;
                     state.files.standard = null;
