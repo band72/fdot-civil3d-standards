@@ -98,6 +98,11 @@ def init_database(db_url=None):
             })),
             ("tpl_turnpike", "usr_admin_01", "org_kh_01", "Florida Turnpike", "Turnpike Mainline Widening", json.dumps({
                 "discipline": "ROADWAY", "idfZone": 9, "sheetDwt": "CombinedLayers.dwt", "precisionPass": 20000, "county": "Osceola", "district": 8
+            })),
+            ("tpl_jea_2024", "usr_admin_01", "org_kh_01", "JEA", "JEA As-Built Standards 2024", json.dumps({
+                "discipline": "UTILITY", "projection": "FL_EAST_83", "minClearanceInches": 18,
+                "eastingMin": 320000, "eastingMax": 590000, "northingMin": 1920000, "northingMax": 2370000,
+                "sheetDwt": "JEA_AsBuilt_2024.dwt", "county": "Duval", "district": 2, "rulesVersion": "2024.1"
             }))
         ]
         cur.executemany("INSERT INTO client_templates (id, user_id, org_id, client_name, label, settings) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING", templates)

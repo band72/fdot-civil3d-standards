@@ -7,7 +7,7 @@ const path = require("path");
 const { t, summary } = require("./_assert");
 const env = require("./_env");
 
-const SUITES = ["cogo", "data", "dxf", "linework", "efbk", "landxml", "batchprocess", "reports", "logging", "stdn-cmp", "auth", "geo", "marketing"];
+const SUITES = ["cogo", "data", "dxf", "linework", "efbk", "jea", "landxml", "batchprocess", "reports", "logging", "stdn-cmp", "auth", "geo", "marketing"];
 // Needs a live local PostgreSQL bridge (server.py + a running/initialized Postgres) — see
 // tests/db.test.js's own header. Not part of the zero-install default suite; run it with
 // `npm run test:db` (or `node tests/run.js db`) once that's up.
@@ -33,9 +33,9 @@ const SUITE_FILE_MAP = {
     t.group("env/load");
     t.eq(loadRes.errors.length, 0, "all source files eval without error" +
         (loadRes.errors.length ? " — " + loadRes.errors.join("; ") : ""));
-    t.eq(loadRes.loaded.length, 30, "30 source files loaded");
+    t.eq(loadRes.loaded.length, 31, "31 source files loaded");
     ["COGO", "FDOT_DATA", "FDOTDXFInspector", "PluginRegistry", "BoundaryQCSecurity",
-        "BoundaryQCBilling", "BoundaryQCCMS", "Security", "Dashboard", "Linework", "EFBK", "LandXML", "BatchProcess", "Reports", "Logging", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows", "DatabaseService", "DbSettings"]
+        "BoundaryQCBilling", "BoundaryQCCMS", "Security", "Dashboard", "Linework", "EFBK", "Jea24", "LandXML", "BatchProcess", "Reports", "Logging", "StdnEngine", "StdnCompare", "safeHTML", "setSafeRows", "DatabaseService", "DbSettings"]
         .forEach(g => t.ok(typeof loadRes.win[g] !== "undefined", "global " + g + " present"));
 
     const want = process.argv.slice(2).filter(a => ALL_SUITES.includes(a));

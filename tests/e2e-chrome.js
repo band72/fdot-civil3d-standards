@@ -349,6 +349,34 @@ async function main() {
         const ptCount = await evaluate("document.getElementById('db-cnt-pts')?.textContent.trim()");
         console.log(`  ✓ Table Metric Chips -> Projects: ${prjCount}, Linework Sessions: ${lwCount}, Survey Points: ${ptCount}`);
 
+        // 10b. JEA 2024 As-Built Standards Tab & Reverse-Read Auditor Workflow
+        console.log("\n[TEST 10b] JEA 2024 As-Built Standards & Clearance Auditor");
+        await evaluate("document.querySelector('[data-tab=\"tab-jea24\"]').click()");
+        const isJeaActive = await evaluate("document.getElementById('tab-jea24').classList.contains('active')");
+        console.log(`  ✓ Tab switch to JEA As-Built Standards (tab-jea24): ${isJeaActive}`);
+        if (!isJeaActive) throw new Error("tab-jea24 did not activate");
+
+        // Check 45 Domains view
+        await evaluate("document.getElementById('jea-sub-domains').click()");
+        const domainCardsCount = await evaluate("document.querySelectorAll('#jea-domains-list .domain-card').length");
+        console.log(`  ✓ 45 Validation Domains Rendered: ${domainCardsCount} domains`);
+        if (domainCardsCount !== 45) throw new Error(`Expected 45 domain cards, got ${domainCardsCount}`);
+
+        // Check Reverse-Read Audit view
+        await evaluate("document.getElementById('jea-sub-audit').click()");
+        await evaluate("document.getElementById('jea-btn-audit-pass').click()");
+        const passBadge = await evaluate("document.querySelector('#jea-audit-results-panel .badge')?.textContent.trim()");
+        const passScore = await evaluate("document.querySelector('#jea-audit-results-panel span[style*=\"font-weight:800\"]')?.textContent.trim()");
+        console.log(`  ✓ Compliant Sample Audit -> Status: "${passBadge}", Score: ${passScore}`);
+        if (passBadge !== "COMPLIANT" || passScore !== "100%") throw new Error("Compliant sample audit did not pass with 100%");
+
+        // Check 18-inch clearance violation detection
+        await evaluate("document.getElementById('jea-btn-audit-fail').click()");
+        const failBadge = await evaluate("document.querySelector('#jea-audit-results-panel .badge')?.textContent.trim()");
+        const failHasRule = await evaluate("document.querySelector('#jea-audit-results-panel')?.textContent.includes('18-Inch Clearance Rule')");
+        console.log(`  ✓ Clearance Violation Sample Audit -> Status: "${failBadge}", 18" Rule Flagged: ${failHasRule}`);
+        if (failBadge !== "NON-COMPLIANT" || !failHasRule) throw new Error("Clearance shortfall was not flagged");
+
         // 11. Check for Any Uncaught In-Page Exceptions
         console.log("\n[TEST 11] Page Stability & Unhandled Exceptions Check");
         console.log(`  ✓ Total Uncaught Runtime Exceptions: ${uncaughtExceptions.length}`);

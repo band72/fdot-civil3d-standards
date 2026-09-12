@@ -56,6 +56,10 @@
                         <i class="fa-solid fa-book-open"></i>
                         <span>Electronic Field Book</span>
                     </button>
+                    <button class="nav-btn" data-tab="tab-jea24">
+                        <i class="fa-solid fa-faucet-drip"></i>
+                        <span>JEA As-Built 2024</span>
+                    </button>
                     <button class="nav-btn" data-tab="tab-batchprocess">
                         <i class="fa-solid fa-boxes-stacked"></i>
                         <span>Batch Project Auditor</span>
@@ -953,6 +957,9 @@
                 </div>
             </section>
 
+            <!-- JEA As-Built Standards 2024 -->
+            <section id="tab-jea24" class="tab-pane"></section>
+
             <!-- Multi-Sheet Batch Project Auditor -->
             <section id="tab-batchprocess" class="tab-pane">
                 <div class="glass-panel" style="padding:1.5rem;">
@@ -1776,6 +1783,7 @@ public class CmdBoundaryQC : IExternalCommand {
     <script src="plugins/plat2dxf/plat2dxf.js"></script>
     <script src="plugins/linework/linework.js"></script>
     <script src="plugins/efbk/efbk.js"></script>
+    <script src="plugins/tmp_jea24/tmp_jea24.js"></script>
     <script src="plugins/landxml/landxml.js"></script>
     <script src="plugins/batchprocess/batchprocess.js"></script>
     <script src="plugins/reports/reports.js"></script>

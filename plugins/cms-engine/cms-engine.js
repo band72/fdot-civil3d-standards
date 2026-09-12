@@ -288,6 +288,11 @@ class BoundaryQCCMSEngine {
                     id: "tpl_seed_2", ownerId: "usr_psm_01", clientName: "City of Sanford",
                     label: "Drainage as-built", createdAt: "2026-08-06T09:00:00Z", updatedAt: "2026-08-06T09:00:00Z",
                     settings: { discipline: "DRAIN", idfZone: 7, sheetDwt: "FDOT-PlanProfile.dwt", precisionPass: 7500, fpidPrefix: "882019", county: "Seminole", district: 5, notes: "" }
+                },
+                {
+                    id: "tpl_jea_2024", ownerId: "usr_admin_01", clientName: "JEA",
+                    label: "JEA As-Built Standards 2024", createdAt: "2026-09-12T00:00:00Z", updatedAt: "2026-09-12T00:00:00Z",
+                    settings: { discipline: "UTILITY", projection: "FL_EAST_83", minClearanceInches: 18, eastingMin: 320000, eastingMax: 590000, northingMin: 1920000, northingMax: 2370000, sheetDwt: "JEA_AsBuilt_2024.dwt", county: "Duval", district: 2, rulesVersion: "2024.1" }
                 }
             ]);
         }
