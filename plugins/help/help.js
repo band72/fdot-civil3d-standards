@@ -33,7 +33,7 @@
                 <p>The app is organized into tabs on the left. Each tab is an independent plugin. The three groups are:</p>
                 <ul>
                     <li><strong>Reference</strong> — Layer Standards, Pay Item Takeoff, Survey Description Keys, Block Libraries, Subassemblies, Sheet Standards, State Kit Inspector. Read-only catalogs.</li>
-                    <li><strong>Tools</strong> — DXF Project Auditor, QC Checklist &amp; Traverse Auditor, Legal Description QC, PLSS Section Breakdown, Parcel → DXF, Sign QTO, SSA Hydrology. These take input and compute results you can export.</li>
+                    <li><strong>Tools</strong> — DXF Project Auditor, QC Checklist &amp; Traverse Auditor, Legal Description QC, PLSS Section Breakdown, Parcel → DXF, Sign QTO, SSA Hydrology, Linework Editor, Electronic Field Book, LandXML Studio, Multi-Sheet Batch Auditor, Centralized Reports Hub, System Diagnostics, and JEA As-Built Standards 2024. These take input and compute results you can export.</li>
                     <li><strong>Demo</strong> — Commercial SaaS Plans, Enterprise &amp; C3D Plugin, CMS Control Panel. These illustrate a product shell; see <a href="#limits" data-goto="limits">Section 8, Limits</a>.</li>
                 </ul>
                 <div class="help-note help-note--warn">
@@ -315,6 +315,121 @@
                 </ul>`
         },
         {
+            id: "jea-asbuilt-doc",
+            title: "3.17  JEA As-Built Standards 2024 (tmp_jea24) & Utility As-Built Manual",
+            html: `
+                <p><em>Purpose:</em> complete engineering workflow, drawing builder, and automated QA/QC compliance auditing system for <strong>Jacksonville Electric Authority (JEA) As-Built Standards 2024</strong> (governing Potable Water, Wastewater, Reclaimed Water, Chilled Water, and Utility Crossing installations across Duval, Clay, St. Johns, and Nassau counties).</p>
+
+                <h4>1. Regulatory &amp; Geodetic Authority</h4>
+                <ul>
+                    <li><strong>Standard Specification:</strong> <em>JEA As Built Template 2024.xlsx</em> and associated Civil 3D CADD deliverables.</li>
+                    <li><strong>Projection &amp; Coordinate System:</strong> Florida State Plane Coordinate System 1983 (SPCS83), East Zone (FIPS 0901 / EPSG 2236), US Survey Feet.</li>
+                    <li><strong>Geographic Bounding Envelope:</strong> Easting <code>320,000</code> to <code>590,000</code> ft; Northing <code>1,920,000</code> to <code>2,370,000</code> ft (encompassing Greater Jacksonville, Beaches, Orange Park, St. Augustine, and Nassau utility service corridors).</li>
+                    <li><strong>Ground-Truthed Natural GPS (WGS84):</strong> Exact physical WGS84 GPS coordinates (29.0° N to 31.0° N, -83.0° W to -80.0° W) computed via rigorous Transverse Mercator forward/inverse reductions (<code>COGO.statePlaneToLatLon("EAST", e, n)</code>) with zero artificial coordinate fudging or synthetic offsets.</li>
+                </ul>
+
+                <h4>2. End-to-End Operational Workflow</h4>
+                <div class="help-note" style="border-left-color:var(--accent); background:rgba(2,132,199,0.06); font-family:var(--font-mono); font-size:0.78rem; line-height:1.6;">
+                    [Field Survey Shots (P,N,E,Z,D)]<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&darr;<br>
+                    [Linework Editor / Network Model (JSON)] &rarr; [JEA Drawing Builder]<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&darr;<br>
+                    [Civil 3D Compliant DXF] (W-MAIN, SS-GRAV, JEA_VALVE, JEA_MANHOLE, JEA_CROSSING with ATTRIB tags)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&darr;<br>
+                    [Reverse-Read DXF Auditor Engine] &larr; (Upload .dxf / Paste ASCII DXF)<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&darr;<br>
+                    [5-Point QA/QC Standards Check]:<br>
+                    &nbsp;&nbsp;&bull; State Plane East Bounding Envelope Check<br>
+                    &nbsp;&nbsp;&bull; Standard Layer Validation (W-MAIN, SS-GRAV, UTIL-CROSS)<br>
+                    &nbsp;&nbsp;&bull; 45 Picklist Domains Verification (Subtypes, Materials, Sizes, Manufacturers, Linings)<br>
+                    &nbsp;&nbsp;&bull; Mandatory Attribute Fields (Elevations, Rim/Invert, Diameters)<br>
+                    &nbsp;&nbsp;&bull; 18-Inch Pipe Crossing Vertical Separation Rule (&ge; 18.0" / 1.5')<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&darr;<br>
+                    [Deliverables &amp; Output]:<br>
+                    &nbsp;&nbsp;&bull; JEA 2024 As-Built CSV Tables (Pipe Crossing Table, Water Valve, Manhole)<br>
+                    &nbsp;&nbsp;&bull; Local PostgreSQL Database Master Template (tpl_jea_2024)<br>
+                    &nbsp;&nbsp;&bull; Certified QA/QC Audit Certificate registered in Centralized Reports Hub
+                </div>
+
+                <h4>3. Detailed Operator Manual — Sub-Panels</h4>
+                <h5>A. Linework &amp; Drawing Builder (<code>#jea-sub-gen</code>)</h5>
+                <ul>
+                    <li><strong>Network Model:</strong> Enter or edit the utility linework JSON structure containing <code>pipes</code> (layer, subtype, diameter, material, class, lining, 3D vertices), <code>structures</code> (block name, coordinates, elevation, attributes map), and <code>crossings</code>.</li>
+                    <li><strong>Build &amp; Download Civil 3D DXF:</strong> Click <em>Build &amp; Download Civil 3D DXF</em> to generate a valid AutoCAD 2004+ ASCII DXF (<code>JEA_AsBuilt_2024.dxf</code>) with native <code>BLOCK</code> symbol definitions, <code>ATTDEF</code> tags, <code>LWPOLYLINE</code> runs, and <code>INSERT</code> records.</li>
+                    <li><strong>Export JEA 2024 CSV Tables:</strong> Generates official comma-separated table exports matching the 2024 JEA template sheets (e.g. <code>JEA_Pipe_Crossing_Table.csv</code>).</li>
+                    <li><strong>Send to Linework Editor:</strong> Bridges utility pipe runs straight into the interactive Linework Editor for vertex adjustment and closure diagnostics.</li>
+                </ul>
+
+                <h5>B. Reverse-Read DXF Auditor (<code>#jea-sub-audit</code>)</h5>
+                <ul>
+                    <li><strong>File Upload &amp; Text Ingestion:</strong> Drag and drop any <code>.dxf</code> drawing file, or paste raw ASCII DXF content into the auditor text area.</li>
+                    <li><strong>Run 2024 Standards Audit:</strong> Executes the reverse-read parser, extracts all block inserts with child <code>ATTRIB</code> entities, and runs the 5-point verification engine.</li>
+                    <li><strong>Interactive Samples:</strong>
+                        <ul>
+                            <li><em>Load Compliant Sample:</em> Loads a fully compliant JEA water, gravity sewer, and crossing model (100% score).</li>
+                            <li><em>Load Violation Sample (&lt;18" Clearance):</em> Loads a sample utility model with a 7.0" vertical pipe crossing clearance shortfall and invalid valve subtype to demonstrate automated violation detection.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Audit Results &amp; Issue Log:</strong> Displays a real-time compliance scorecard (0–100%), compliance status badge (<em>COMPLIANT</em> vs <em>NON-COMPLIANT</em>), total entity count, error tally, warning tally, and an interactive issues table with entity descriptions, layers, coordinates, and exact corrective guidance.</li>
+                    <li><strong>Save to Reports Hub:</strong> Packages the audit results into a formal Markdown/HTML inspection certificate stored in the Centralized Reports Hub.</li>
+                </ul>
+
+                <h5>C. 45 JEA Validation Domains Browser (<code>#jea-sub-domains</code>)</h5>
+                <ul>
+                    <li>Browse and search all 45 official JEA validation lists extracted directly from the 2024 template (including <em>Subtype Water Valve</em>, <em>Subtype Manhole</em>, <em>Crossing Pipe Type</em>, <em>Pipe and Fitting Material</em>, <em>Size Inches</em>, <em>Valve Manufacturer</em>, and <em>Manhole Lining Material</em>).</li>
+                    <li>Use the real-time search box to find valid picklist values or verify allowed casing, spelling, and nomenclature.</li>
+                </ul>
+
+                <h5>D. PostgreSQL Template Sync (<code>#jea-sub-dbsync</code>)</h5>
+                <ul>
+                    <li>Synchronizes the master JEA 2024 template (<code>tpl_jea_2024</code>) with your local PostgreSQL relational database (<code>fdot_survey_db / client_templates</code>).</li>
+                    <li>Click <em>Sync Template to PostgreSQL</em> to push or refresh client settings, projection bounds, and crossing clearance rules.</li>
+                </ul>
+
+                <h4>4. Technical Standards &amp; Clearance Formulas</h4>
+                <h5>Pipe Crossing Vertical Separation Rule</h5>
+                <p>JEA standards mandate a minimum vertical clearance of <strong>18.0 inches (1.50 feet)</strong> between crossing pipes (e.g. potable water main crossing above a gravity sewer main):</p>
+                <div class="help-note">
+                    <code>Clearance (inches) = (Upper_Pipe_Bottom_Elevation - Lower_Pipe_Top_Elevation) &times; 12.0</code><br>
+                    <strong>Requirement:</strong> <code>Clearance &ge; 18.0"</code> (If &lt; 18.0", audit flags critical non-compliance).
+                </div>
+
+                <h5>Standard Layer Specifications</h5>
+                <table class="help-table">
+                    <thead><tr><th>Layer</th><th>Color</th><th>Discipline / Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>W-MAIN</code></td><td>Color 4 (Cyan)</td><td>Water Distribution &amp; Transmission Mains</td></tr>
+                        <tr><td><code>W-VALV</code></td><td>Color 5 (Blue)</td><td>Water Gate, Butterfly, and Air Release Valves</td></tr>
+                        <tr><td><code>W-HYDR</code></td><td>Color 2 (Yellow)</td><td>Fire Hydrant Assemblies</td></tr>
+                        <tr><td><code>W-FITT</code></td><td>Color 6 (Magenta)</td><td>Water Bends, Tees, Crosses, and Reducers</td></tr>
+                        <tr><td><code>W-METR</code></td><td>Color 3 (Green)</td><td>Water Meters &amp; Backflow Preventers</td></tr>
+                        <tr><td><code>W-LOC8</code></td><td>Color 1 (Red)</td><td>Water Locate Wire Boxes &amp; Marker Balls</td></tr>
+                        <tr><td><code>SS-GRAV</code></td><td>Color 3 (Green)</td><td>Sanitary Gravity Sewer Mains</td></tr>
+                        <tr><td><code>SS-FM</code></td><td>Color 30 (Orange)</td><td>Sanitary Sewer Force Mains</td></tr>
+                        <tr><td><code>SS-MANH</code></td><td>Color 1 (Red)</td><td>Sanitary Sewer Manholes</td></tr>
+                        <tr><td><code>SS-VALV</code></td><td>Color 5 (Blue)</td><td>Sewer Plug Valves &amp; Air Release Valves</td></tr>
+                        <tr><td><code>SS-FITT</code></td><td>Color 6 (Magenta)</td><td>Sewer Fittings &amp; Cleanouts</td></tr>
+                        <tr><td><code>SS-LOC8</code></td><td>Color 1 (Red)</td><td>Sewer Locate Wire Boxes</td></tr>
+                        <tr><td><code>RW-MAIN</code></td><td>Color 210 (Purple)</td><td>Reclaimed Water Distribution Mains</td></tr>
+                        <tr><td><code>UTIL-CROSS</code></td><td>Color 7 (White)</td><td>Pipe Crossing Symbols &amp; Clearance Annotations</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Civil 3D Standard Block Schema</h5>
+                <table class="help-table">
+                    <thead><tr><th>Block Name</th><th>Mandatory Attributes (ATTDEF)</th><th>Standard Picklist Domain</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>JEA_VALVE</code></td><td><code>SUBTYPE</code>, <code>VALVE_TYPE</code>, <code>SIZE</code>, <code>MATERIAL</code>, <code>MANUFACTURER</code>, <code>OPEN_DIR</code>, <code>STATUS</code>, <code>ELEVATION</code></td><td>Subtype Water Valve, Valve Type, Size Inches, Valve Manufacturer</td></tr>
+                        <tr><td><code>JEA_MANHOLE</code></td><td><code>SUBTYPE</code>, <code>MANHOLE_TYPE</code>, <code>RIM_ELEV</code>, <code>INVERT_IN</code>, <code>INVERT_OUT</code>, <code>DEPTH</code>, <code>DIAMETER</code>, <code>MATERIAL</code>, <code>MANUFACTURER</code>, <code>LINING</code></td><td>Subtype Manhole, Manhole Type, Size Feet, Manhole Manufacturer, Manhole Lining Material</td></tr>
+                        <tr><td><code>JEA_HYDRANT</code></td><td><code>SUBTYPE</code>, <code>MODEL</code>, <code>MANUFACTURER</code>, <code>VALVE_SIZE</code>, <code>BURY_DEPTH</code>, <code>ELEVATION</code></td><td>Hydrant Model, Valve Manufacturer, Size Inches</td></tr>
+                        <tr><td><code>JEA_FITTING</code></td><td><code>SUBTYPE</code>, <code>SIZE</code>, <code>MATERIAL</code>, <code>MANUFACTURER</code>, <code>ELEVATION</code></td><td>Subtype Water Fitting, Size Inches, Fitting Manufacturers</td></tr>
+                        <tr><td><code>JEA_METER</code></td><td><code>SUBTYPE</code>, <code>SIZE</code>, <code>BOX_MFR</code>, <code>BOX_MAT</code>, <code>ELEVATION</code>, <code>ACCOUNT_NO</code></td><td>Subtype Water Meter, Meter Size Inches, Meter Box Manufacturer, Meter Box Material</td></tr>
+                        <tr><td><code>JEA_LOCATE_BOX</code></td><td><code>SUBTYPE</code>, <code>ELEVATION</code>, <code>COLOR</code></td><td>Subtype Locate Box</td></tr>
+                        <tr><td><code>JEA_CROSSING</code></td><td><code>CROSS_NO</code>, <code>UPPER_TYPE</code>, <code>UPPER_SIZE</code>, <code>UPPER_BOT_ELEV</code>, <code>LOWER_TYPE</code>, <code>LOWER_SIZE</code>, <code>LOWER_TOP_ELEV</code>, <code>CLEARANCE_INCHES</code>, <code>COMPLIANT</code></td><td>Crossing Pipe Type, Size Inches</td></tr>
+                    </tbody>
+                </table>`
+        },
+        {
             id: "accounts",
             title: "4. Accounts, sign-in & client templates (CMS tab)",
             html: `
@@ -366,7 +481,9 @@
                 <p><code>N 1/2 of the SW 1/4 of Section 14, Township 2 South, Range 27 East</code></p>
                 <p>Quarters: <code>NE NW SE SW</code> (+ "1/4" or "quarter"). Halves: <code>N S E W</code> (+ "1/2" or "half"). Header: "Section N, Township N N/S, Range N E/W" or "T N N., R N E.".</p>
                 <h4>DXF</h4>
-                <p>ASCII (plain) DXF, R12 or later. Binary DXF is rejected. The auditor reads the LAYER table and LINE / LWPOLYLINE / ARC / CIRCLE / TEXT / MTEXT / INSERT / POINT entities.</p>`
+                <p>ASCII (plain) DXF, R12 or later. Binary DXF is rejected. The auditor reads the LAYER table and LINE / LWPOLYLINE / ARC / CIRCLE / TEXT / MTEXT / INSERT / POINT entities.</p>
+                <h4>JEA Utility Network JSON</h4>
+                <p>JSON structure used by the JEA As-Built Drawing Builder (<code>#tab-jea24</code>). Requires a <code>pipes</code> array with 3D coordinate vertices, a <code>structures</code> array with block names (<code>JEA_VALVE</code>, <code>JEA_MANHOLE</code>, etc.) and attribute dictionaries, and a <code>crossings</code> array with upper and lower pipe elevations.</p>`
         },
         {
             id: "exports",
@@ -387,6 +504,9 @@
                         <tr><td><code>fdot_batch_fix.scr</code></td><td>Batch Auditor</td><td>Consolidated AutoCAD batch script running AUDIT, color resets, PURGE, and OVERKILL across all project drawings</td></tr>
                         <tr><td><code>fdot_master_submittal_report.html / .md</code></td><td>Batch Auditor</td><td>Consolidated project QA/QC submittal scorecard and sheet compliance matrix</td></tr>
                         <tr><td><code>fdot_reports_bundle.json / fdot_reports_manifest.txt</code></td><td>Reports Hub</td><td>Consolidated export bundle containing all active survey, engineering, DXF, and standards QA/QC submittal reports with unified FDOT metadata</td></tr>
+                        <tr><td><code>JEA_AsBuilt_2024.dxf</code></td><td>JEA As-Built Standards</td><td>Civil 3D AutoCAD DXF with JEA layers, BLOCK symbols, ATTRIB metadata, and 3D pipe runs</td></tr>
+                        <tr><td><code>JEA_Pipe_Crossing_Table.csv</code></td><td>JEA As-Built Standards</td><td>Tabular pipe crossing dataset matching official JEA As-Built 2024 spreadsheet format</td></tr>
+                        <tr><td><code>JEA_Water_Valve.csv / JEA_Manhole.csv</code></td><td>JEA As-Built Standards</td><td>Attribute tables for water valves, manholes, and hydrants matching JEA 2024 sheets</td></tr>
                     </tbody>
                 </table>`
         },
@@ -399,13 +519,16 @@
                     <dt>Azimuth</dt><dd>Direction measured clockwise from north, 0–360°. Used internally; displayed as a quadrant bearing.</dd>
                     <dt>Bow-tie</dt><dd>A polygon whose boundary crosses itself — a topological error, usually from an inverted bearing quadrant or an out-of-order call.</dd>
                     <dt>Departure</dt><dd>The east–west component of a course: distance × sin(azimuth).</dd>
+                    <dt>JEA</dt><dd>Jacksonville Electric Authority — municipal utility authority providing water, wastewater, reclaimed water, and electric utility services in Northeast Florida.</dd>
                     <dt>Latitude</dt><dd>The north–south component of a course: distance × cos(azimuth).</dd>
                     <dt>Linear misclosure</dt><dd>The straight-line gap between the computed end of a traverse and its point of beginning.</dd>
                     <dt>P,N,E,Z,D</dt><dd>Point file format: Point number, Northing, Easting, Z (elevation), Description.</dd>
                     <dt>PC / PT / PRC / PCC</dt><dd>Point of Curvature / Tangency / Reverse Curvature / Compound Curvature — curve node labels expected on a plat.</dd>
+                    <dt>Pipe Crossing Clearance</dt><dd>The vertical separation between the bottom elevation of an upper pipe and the top/crown elevation of a lower crossing pipe; JEA mandates &ge; 18.0 inches (1.5 ft).</dd>
                     <dt>POB</dt><dd>Point of Beginning.</dd>
                     <dt>Precision ratio</dt><dd>Perimeter ÷ linear misclosure, written 1:X. Higher is better; ≥ 1:10,000 is survey grade for boundary work.</dd>
                     <dt>Shoelace formula</dt><dd>Polygon area from vertex coordinates: ½·|Σ (x_j + x_i)(y_j − y_i)|.</dd>
+                    <dt>SPCS83 East Zone</dt><dd>State Plane Coordinate System of 1983, Florida East Zone (FIPS 0901, EPSG 2236) in US Survey Feet.</dd>
                 </dl>`
         },
         {

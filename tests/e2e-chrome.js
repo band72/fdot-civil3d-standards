@@ -377,6 +377,18 @@ async function main() {
         console.log(`  ✓ Clearance Violation Sample Audit -> Status: "${failBadge}", 18" Rule Flagged: ${failHasRule}`);
         if (failBadge !== "NON-COMPLIANT" || !failHasRule) throw new Error("Clearance shortfall was not flagged");
 
+        // 10c. Help Menu Verification
+        console.log("\n[TEST 10c] Help Menu & User Manual Verification");
+        await evaluate("document.querySelector('[data-tab=\"tab-help\"]').click()");
+        const isHelpActive = await evaluate("document.getElementById('tab-help').classList.contains('active')");
+        console.log(`  ✓ Tab switch to Help Menu (tab-help): ${isHelpActive}`);
+        if (!isHelpActive) throw new Error("tab-help did not activate");
+
+        const hasJeaSection = await evaluate("!!document.getElementById('jea-asbuilt-doc')");
+        const has18InchText = await evaluate("document.getElementById('jea-asbuilt-doc')?.parentElement?.textContent.includes('18.0 inches')");
+        console.log(`  ✓ Section 3.17 JEA As-Built Standards Present: ${hasJeaSection}, 18-Inch Rule Documented: ${has18InchText}`);
+        if (!hasJeaSection || !has18InchText) throw new Error("JEA 2024 manual section missing from Help tab");
+
         // 11. Check for Any Uncaught In-Page Exceptions
         console.log("\n[TEST 11] Page Stability & Unhandled Exceptions Check");
         console.log(`  ✓ Total Uncaught Runtime Exceptions: ${uncaughtExceptions.length}`);
