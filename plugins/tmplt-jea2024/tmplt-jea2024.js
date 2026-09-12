@@ -1,16 +1,24 @@
 /**
- * Plugin: tmp_jea24 (JEA As-Built Standards 2024)
- * plugins/tmp_jea24/tmp_jea24.js
+ * Plugin: tmplt-jea2024 (JEA As-Built Standards 2024)
+ * plugins/tmplt-jea2024/tmplt-jea2024.js
  *
  * Implements JEA As-Built 2024 Standards for Civil 3D drawings:
- *  - Full 45-domain picklist validation (Materials, Sizes, Subtypes, Manufacturers, Classes, Linings)
+ *  - 74 reference picklist domains (Materials, Sizes, Subtypes, Manufacturers, Classes, Linings);
+ *    the reverse-read audit engine actively checks attributes against 21 of them today (Water
+ *    valves/manholes/hydrants/fittings/meters/crossings) — Sewer/Reclaimed/Chilled Water domains
+ *    are fully defined in DOMAINS but not yet wired into auditDrawing()'s per-block checks.
  *  - 29 sheet rules & field requirements (Water, Wastewater, Reclaimed, Chilled, Crossings)
- *  - Florida State Plane East (US Survey Feet) geodetic boundary checks
- *  - Ground-truthed natural GPS WGS84 conversion (zero artificial fudging)
+ *  - Florida State Plane East (US Survey Feet) geodetic boundary checks, cross-verified against
+ *    the natural WGS84 GPS envelope via core/cogo.js's SPCS83 conversion
  *  - Civil 3D DXF generation with native BLOCKS, ATTRIB metadata, and JEA utility layers
  *  - Reverse-read DXF parsing and rigorous QA/QC audit engine
  *  - Pipe crossing minimum 18-inch clearance vertical separation verification
- *  - PostgreSQL client_templates (tpl_jea_2024) local database synchronization
+ *  - "The 2024 JEA template" (CLIENT_TEMPLATE, id tpl_jea_2024): addAsClientTemplate() adds/
+ *    updates it in the signed-in user's local Client Master Templates (window.BoundaryQCCMS);
+ *    syncTemplateWithDb() separately pushes it to the PostgreSQL client_templates table via
+ *    window.DatabaseService. Neither runs automatically — cms-engine.js no longer seeds this
+ *    (a plugin-specific template doesn't belong baked into that domain-agnostic engine), so this
+ *    plugin is the one place that knows what "the JEA template" contains.
  *  - Centralized Reports Hub integration (window.Reports)
  *
  * Registers via window.PluginRegistry.
@@ -19,9 +27,9 @@
     "use strict";
 
     const MANIFEST = {
-        name: "tmp_jea24",
+        name: "tmplt-jea2024",
         version: "1.0.0",
-        description: "JEA 2024 As-Built Standards: Civil 3D drawing builder, reverse-read DXF auditor, and validation against 45 JEA domains and State Plane East specs.",
+        description: "JEA 2024 As-Built Standards: Civil 3D drawing builder, reverse-read DXF auditor, and validation against JEA picklist domains and State Plane East specs.",
         tab: "tab-jea24",
         icon: "fa-faucet-drip",
         tier: "Pro",
@@ -46,6 +54,29 @@
         lonMax: -80.0,
         minCrossingClearanceInches: 18.0, // 1.5 ft required vertical separation
         minCrossingClearanceFeet: 1.5
+    };
+
+    // The single definition of "the JEA 2024 template" — what addAsClientTemplate() writes into
+    // the signed-in user's local Client Master Templates (window.BoundaryQCCMS) and what
+    // syncTemplateWithDb() pushes to the PostgreSQL client_templates table. Built from BOUNDS
+    // rather than repeating its numbers, so there's one source of truth for both.
+    const CLIENT_TEMPLATE = {
+        id: "tpl_jea_2024",
+        clientName: "JEA",
+        label: "JEA As-Built Standards 2024",
+        settings: {
+            discipline: "UTILITY",
+            projection: BOUNDS.projection,
+            minClearanceInches: BOUNDS.minCrossingClearanceInches,
+            eastingMin: BOUNDS.eastingMin,
+            eastingMax: BOUNDS.eastingMax,
+            northingMin: BOUNDS.northingMin,
+            northingMax: BOUNDS.northingMax,
+            sheetDwt: "JEA_AsBuilt_2024.dwt",
+            county: "Duval",
+            district: 2,
+            rulesVersion: "2024.1"
+        }
     };
 
     const LAYERS = [
@@ -3068,7 +3099,7 @@
      * Comprehensive QA/QC audit of a Civil 3D drawing or parsed model
      * against JEA As-Built 2024 standards:
      *   1. Bounding box & Florida State Plane East geodetic coordinates
-     *   2. Picklist domains (all 45 JEA domains)
+     *   2. Picklist domains (the block types this engine checks — see DOMAINS for the full set)
      *   3. Layer naming & block schema conventions
      *   4. Mandatory attribute presence
      *   5. Pipe crossing minimum 18-inch (1.5 ft) vertical clearance
@@ -3134,11 +3165,19 @@
                                 pName, pl.layer, v.e, v.n);
                         } else {
                             if (window.COGO && window.COGO.statePlaneToLatLon) {
-                                const geo = window.COGO.statePlaneToLatLon("EAST", v.e, v.n);
-                                if (geo.lat < bounds.latMin || geo.lat > bounds.latMax ||
-                                    geo.lon < bounds.lonMin || geo.lon > bounds.lonMax) {
+                                // COGO.statePlaneToLatLon(northing, easting, zoneKey, unit) returns
+                                // {latDeg, lonDeg, zone} — this used to call it as ("EAST", v.e, v.n)
+                                // (wrong argument order, and a "EAST" zone key that doesn't exist —
+                                // real keys are "FL_EAST"/"FL_WEST"/"FL_NORTH") and read .lat/.lon,
+                                // which don't exist on the result either. Both together silently
+                                // turned this whole bounds check into a no-op: every computed
+                                // lat/lon came back NaN/undefined, and undefined < / > a number is
+                                // always false in JS, so no vertex could ever fail it.
+                                const geo = window.COGO.statePlaneToLatLon(v.n, v.e, "FL_EAST", "sft");
+                                if (geo.latDeg < bounds.latMin || geo.latDeg > bounds.latMax ||
+                                    geo.lonDeg < bounds.lonMin || geo.lonDeg > bounds.lonMax) {
                                     logIssue("error", "Natural GPS Bounds",
-                                        `Computed ground GPS (${geo.lat.toFixed(5)}° N, ${geo.lon.toFixed(5)}° W) out of JEA geographic envelope`,
+                                        `Computed ground GPS (${geo.latDeg.toFixed(5)}° N, ${geo.lonDeg.toFixed(5)}° W) out of JEA geographic envelope`,
                                         pName, pl.layer, v.e, v.n);
                                 }
                             }
@@ -3349,51 +3388,66 @@
     // ═════════════════════════════════════════════════════════════════════
 
     /**
-     * Checks or saves the JEA 2024 template in PostgreSQL db (client_templates)
+     * Pushes the JEA 2024 template to PostgreSQL (client_templates) via the shared db-sync
+     * bridge — window.DatabaseService.syncToDatabase() (plugins/db-sync/db-sync.js), the same
+     * push path the Admin Dashboard's "Sync to DB" button uses, given an explicit override
+     * payload instead of the whole-workspace one generateCloudSyncPayload() builds. There is no
+     * window.DatabaseService.saveClientTemplate() and no /api/client_templates route — earlier
+     * versions of this function called both and always fell through to a "local fallback" that,
+     * in fact, never wrote anywhere.
      */
-    async function syncTemplateWithDb(action) {
-        const payload = {
-            id: "tpl_jea_2024",
-            client_name: "JEA",
-            label: "JEA As-Built Standards 2024",
-            settings: {
-                discipline: "UTILITY",
-                projection: "FL_EAST_83",
-                minClearanceInches: 18,
-                eastingMin: BOUNDS.eastingMin,
-                eastingMax: BOUNDS.eastingMax,
-                northingMin: BOUNDS.northingMin,
-                northingMax: BOUNDS.northingMax,
-                county: "Duval",
-                district: 2,
-                rulesVersion: "2024.1"
-            }
-        };
+    async function syncTemplateWithDb() {
+        const tenantId = (window.BoundaryQCCMS?.getCurrentUser?.() || {}).orgId || "org_kh_01";
 
-        if (window.DatabaseService && window.DatabaseService.saveClientTemplate) {
-            try {
-                const res = await window.DatabaseService.saveClientTemplate(payload);
-                return { success: true, mode: "DatabaseService", record: res };
-            } catch (e) {
-                // Fallback to local bridge
-            }
+        if (!window.DatabaseService) {
+            return { success: false, note: "PostgreSQL bridge (db-sync) is not loaded.", settings: CLIENT_TEMPLATE.settings };
         }
-
         try {
-            const resp = await fetch("http://127.0.0.1:8085/api/client_templates", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+            const res = await window.DatabaseService.syncToDatabase({
+                tenantId,
+                tables: {
+                    client_templates: [{
+                        id: CLIENT_TEMPLATE.id,
+                        // No userId: this is a firm-wide reference template, not tied to one
+                        // person's account, and an unrecognized id would fail the users(id) FK.
+                        clientName: CLIENT_TEMPLATE.clientName,
+                        label: CLIENT_TEMPLATE.label,
+                        settings: CLIENT_TEMPLATE.settings
+                    }]
+                }
             });
-            if (resp.ok) {
-                const data = await resp.json();
-                return { success: true, mode: "BridgeAPI", data };
-            }
-        } catch (err) {
-            // offline fallback
+            return { success: true, mode: "PostgreSQL", record: res };
+        } catch (e) {
+            return { success: false, note: e.message || "Database sync failed.", settings: CLIENT_TEMPLATE.settings };
         }
+    }
 
-        return { success: false, note: "Local storage fallback applied", payload };
+    /**
+     * Adds (or refreshes) "JEA As-Built Standards 2024" in the signed-in user's local Client
+     * Master Templates (window.BoundaryQCCMS — plugins/cms-engine/cms-engine.js), through its
+     * real createTemplate()/updateTemplate() API. This engine is domain-agnostic on purpose (see
+     * cms-engine.js's initStorageDefaults() comment) — this plugin owns creating its own default
+     * template on request, rather than it being pre-seeded for every user whether they use this
+     * plugin or not. Idempotent: a second call updates the existing copy instead of duplicating it.
+     */
+    function addAsClientTemplate() {
+        const cms = window.BoundaryQCCMS;
+        if (!cms || !cms.isAuthenticated()) {
+            return { success: false, note: "Sign in first to add a Client Master Template." };
+        }
+        const existing = cms.getTemplates().find(t => t.clientName === CLIENT_TEMPLATE.clientName && t.label === CLIENT_TEMPLATE.label);
+        try {
+            if (existing) {
+                const tpl = cms.updateTemplate(existing.id, { settings: CLIENT_TEMPLATE.settings });
+                return { success: true, mode: "updated", template: tpl };
+            }
+            const tpl = cms.createTemplate(CLIENT_TEMPLATE.clientName, CLIENT_TEMPLATE.label, CLIENT_TEMPLATE.settings);
+            return { success: true, mode: "created", template: tpl };
+        } catch (e) {
+            // e.g. TEMPLATE_LIMIT — surface the real message (upsell copy included) rather than
+            // swallowing it, same as the Dashboard's own "New Template" button does.
+            return { success: false, note: e.message };
+        }
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -3415,7 +3469,7 @@
                   <i class="fa-solid fa-faucet-drip" style="color:var(--primary);"></i>
                   JEA As-Built Standards 2024
                 </h2>
-                <p class="subtitle" style="margin:0.25rem 0 0 0;">Civil 3D drawing builder, reverse-read DXF auditor, and validation against 45 JEA domains & 18-inch clearance rules.</p>
+                <p class="subtitle" style="margin:0.25rem 0 0 0;">Civil 3D drawing builder, reverse-read DXF auditor, and validation against JEA picklist domains & 18-inch clearance rules.</p>
               </div>
               <div style="display:flex; gap:0.5rem;">
                 <span class="badge" style="background:var(--card-bg); border:1px solid var(--border-color); font-size:0.8rem; padding:0.35rem 0.6rem; border-radius:4px;">
@@ -3675,7 +3729,10 @@
                 </tbody>
               </table>
             </div>
-            <div style="display:flex; gap:0.5rem;">
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" id="jea-btn-add-local-tpl">
+                <i class="fa-solid fa-user-plus"></i> Add as My Client Template
+              </button>
               <button class="btn btn-primary btn-sm" id="jea-btn-dbsync-run">
                 <i class="fa-solid fa-rotate"></i> Sync Template to PostgreSQL
               </button>
@@ -3684,15 +3741,25 @@
           </div>
         `);
 
+        container.querySelector("#jea-btn-add-local-tpl")?.addEventListener("click", () => {
+            const st = container.querySelector("#jea-dbsync-status");
+            const res = addAsClientTemplate();
+            if (st) {
+                st.textContent = res.success ? `✓ ${res.mode === "created" ? "Added to" : "Updated in"} your Client Master Templates` : `Notice: ${res.note}`;
+                st.style.color = res.success ? "var(--success)" : "var(--warning)";
+            }
+            if (ctx && ctx.showToast) ctx.showToast(res.success ? "JEA template added to your Client Master Templates." : res.note, !res.success);
+        });
+
         container.querySelector("#jea-btn-dbsync-run")?.addEventListener("click", async () => {
             const st = container.querySelector("#jea-dbsync-status");
             if (st) st.textContent = "Syncing with PostgreSQL...";
-            const res = await syncTemplateWithDb("save");
+            const res = await syncTemplateWithDb();
             if (st) {
                 st.textContent = res.success ? `✓ Synchronized via ${res.mode}` : `Notice: ${res.note}`;
                 st.style.color = res.success ? "var(--success)" : "var(--warning)";
             }
-            if (ctx && ctx.showToast) ctx.showToast(res.success ? "JEA Template synchronized to PostgreSQL" : "Local template active");
+            if (ctx && ctx.showToast) ctx.showToast(res.success ? "JEA Template synchronized to PostgreSQL" : `Sync failed: ${res.note}`, !res.success);
         });
     }
 
@@ -3896,13 +3963,15 @@
         DOMAINS,
         RULES,
         BLOCK_DEFS,
+        CLIENT_TEMPLATE,
         getSampleNetwork,
         buildJeaDxf,
         parseDxf,
         auditDrawing,
         generateJeaTables,
         exportAuditReportToReports,
-        syncTemplateWithDb
+        syncTemplateWithDb,
+        addAsClientTemplate
     };
 
     if (window.PluginRegistry) window.PluginRegistry.register(MANIFEST, Plugin);

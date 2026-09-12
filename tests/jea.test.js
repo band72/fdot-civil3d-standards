@@ -1,6 +1,6 @@
 "use strict";
 /**
- * Functional tests for plugins/tmp_jea24/tmp_jea24.js (window.Jea24)
+ * Functional tests for plugins/tmplt-jea2024/tmplt-jea2024.js (window.Jea24)
  * Validates JEA 2024 As-Built Standards:
  *  - 45 picklist validation domains
  *  - FL East State Plane bounds

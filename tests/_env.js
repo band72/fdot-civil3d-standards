@@ -110,7 +110,7 @@ function load() {
         "plugins/plat2dxf/plat2dxf.js",
         "plugins/linework/linework.js",
         "plugins/efbk/efbk.js",
-        "plugins/tmp_jea24/tmp_jea24.js",
+        "plugins/tmplt-jea2024/tmplt-jea2024.js",
         "plugins/landxml/landxml.js",
         "plugins/batchprocess/batchprocess.js",
         "plugins/reports/reports.js",

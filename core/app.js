@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "tab-qc":             ["QC Checklist & Traverse Auditor", "The 7-item Map Check QA checklist plus a traverse calculator: latitude/departure closure, precision ratio, Shoelace area, and self-intersection detection."],
         "tab-linework":       ["Linework Editor", "Import linework from a field point file (P,N,E,Z,D) or bearing/distance calls, run the field-data checks (zero-length, spike, bow-tie, non-closure, out-of-envelope), and edit vertices and courses interactively."],
         "tab-efbk":           ["Electronic Field Book", "FDOT EFB point/reference naming, P/C curve geometry and the chain-list mini-language — builds figures for the Linework Editor, or exports DXF / a Civil 3D linework script directly."],
-        "tab-jea24":          ["JEA 2024 As-Built Standards", "Civil 3D drawing builder, reverse-read DXF auditor, and validation against 45 JEA domains & 18-inch clearance rules."],
+        "tab-jea24":          ["JEA 2024 As-Built Standards", "Civil 3D drawing builder, reverse-read DXF auditor, and validation against JEA picklist domains & 18-inch clearance rules."],
         "tab-batchprocess":   ["Batch Project Auditor", "Audit multiple DXF drawings and LandXML files simultaneously against FDOT CADD standards."],
         "tab-landxml":        ["LandXML Studio", "Inspect LandXML surfaces, alignments, parcels, and pipe networks with interactive 3D/2D visualization."],
         "tab-reports":        ["Reports Hub", "Centralized repository for all generated survey, audit, closure, and takeoff reports across all plugins."],
